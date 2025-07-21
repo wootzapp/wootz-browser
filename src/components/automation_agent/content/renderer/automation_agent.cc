@@ -71,9 +71,11 @@ void AutomationAgent::GetPageState(bool debug_mode,
   auto page_state = std::make_unique<base::Value::Dict>();
   base::Value::List elements_list;
 
+  LOG(INFO) << "Kartik: Analyzing page context";
   auto page_context = AnalyzePageContext(document, frame);
   page_state->Set("pageContext", std::move(page_context));
 
+  LOG(INFO) << "Kartik: Analyzing viewport";
   auto viewport_info = AnalyzeViewport(frame);
   page_state->Set("viewport", std::move(viewport_info));
 
@@ -203,9 +205,12 @@ void AutomationAgent::GetPageState(bool debug_mode,
             << " Navigation=" << nav_elements
             << " Action=" << action_elements;
 
-  // Apply highlighting CSS when debug mode is enabled
+  // Always inject index attributes for element targeting
+  InjectElementIndexes(document, indexed_elements);
+
+  // Only add visual highlighting in debug mode
   if (debug_mode) {
-    InjectIndexedHighlightCSS(document, indexed_elements);
+    InjectVisualHighlightCSS(document, indexed_elements);
   }
 
   page_state->Set("elements", std::move(elements_list));
@@ -312,17 +317,28 @@ base::Value::Dict AutomationAgent::AnalyzeViewport(blink::WebLocalFrame* frame) 
   if (web_view) {
     gfx::SizeF viewport_size = web_view->VisualViewportSize();
     
-    bool is_mobile_width = viewport_size.width() <= 768;
-    bool is_tablet_width = viewport_size.width() > 768 && viewport_size.width() <= 1024;
-    bool is_portrait = viewport_size.height() > viewport_size.width();
+    // Handle background web contents which might have 0 dimensions
+    float width = viewport_size.width();
+    float height = viewport_size.height();
     
-    viewport.Set("width", static_cast<int>(viewport_size.width()));
-    viewport.Set("height", static_cast<int>(viewport_size.height()));
+    // For background web contents, use default dimensions if viewport is 0
+    if (width <= 0 || height <= 0) {
+      LOG(INFO) << "Kartik: Background web contents detected, using default viewport size";
+      width = 360;  // Default mobile width (common Android phone width)
+      height = 640;  // Default mobile height (common Android phone height)
+    }
+    
+    bool is_mobile_width = width <= 768;
+    bool is_tablet_width = width > 768 && width <= 1024;
+    bool is_portrait = height > width;
+    
+    viewport.Set("width", static_cast<int>(width));
+    viewport.Set("height", static_cast<int>(height));
     viewport.Set("isMobileWidth", is_mobile_width);
     viewport.Set("isTabletWidth", is_tablet_width);
     viewport.Set("isPortrait", is_portrait);
     viewport.Set("deviceType", is_mobile_width ? "mobile" : is_tablet_width ? "tablet" : "desktop");
-    viewport.Set("aspectRatio", viewport_size.width() / viewport_size.height());
+    viewport.Set("aspectRatio", height > 0 ? width / height : 1.0);  // Prevent division by zero
   }
   
   return viewport;
@@ -778,6 +794,13 @@ bool AutomationAgent::IsElementInViewport(const blink::WebElement& element) {
   }
 
   gfx::SizeF viewport_size_f = web_view->VisualViewportSize();
+  
+  // For background web contents, if viewport is 0, consider all elements in viewport
+  if (viewport_size_f.width() <= 0 || viewport_size_f.height() <= 0) {
+    LOG(INFO) << "Kartik: Background web contents - considering element " << element.TagName().Utf8() << " as in viewport";
+    return true;
+  }
+  
   gfx::Size viewport_size(static_cast<int>(viewport_size_f.width()), 
                          static_cast<int>(viewport_size_f.height()));
   
@@ -882,7 +905,85 @@ void AutomationAgent::InjectIndexedHighlightCSS(blink::WebDocument& document,
     std::string new_class = existing_class + " automation-highlight";
     
     element.SetAttribute("class", blink::WebString::FromUTF8(new_class));
+    element.SetAttribute("data-automation-index", blink::WebString::FromUTF8(std::to_string(index))); // For CSS content
+  }
+}
+
+void AutomationAgent::InjectElementIndexes(blink::WebDocument& document, 
+                                          std::vector<std::pair<blink::WebElement, int>>& indexed_elements) {
+  LOG(INFO) << "Kartik: Injecting index attributes for " << indexed_elements.size() << " elements";
+  
+  // Set index attributes on elements (always needed for PerformAction)
+  for (auto& pair : indexed_elements) {
+    blink::WebElement element = pair.first;
+    int index = pair.second;
+    
     element.SetAttribute("data-automation-index", blink::WebString::FromUTF8(std::to_string(index)));
+    LOG(INFO) << "Kartik: Set data-automation-index=" << index << " on " << element.TagName().Utf8();
+  }
+}
+
+void AutomationAgent::InjectVisualHighlightCSS(blink::WebDocument& document, 
+                                              std::vector<std::pair<blink::WebElement, int>>& indexed_elements) {
+  LOG(INFO) << "Kartik: Injecting visual highlight CSS for " << indexed_elements.size() << " elements";
+  
+  static const std::vector<std::string> colors = {
+    "#FF0000", "#00FF00", "#0000FF", "#FFA500", "#800080", "#008080",
+    "#FF69B4", "#4B0082", "#FF4500", "#2E8B57", "#DC143C", "#4682B4"
+  };
+  
+  std::string all_css = R"(
+    .automation-highlight {
+      outline: 2px solid var(--highlight-color) !important;
+      outline-offset: 1px !important;
+      background: var(--highlight-bg) !important;
+      position: relative !important;
+    }
+    
+    .automation-highlight::after {
+      content: attr(data-index) !important;
+      position: absolute !important;
+      top: -2px !important;
+      right: -2px !important;
+      background: var(--highlight-color) !important;
+      color: white !important;
+      font-size: 12px !important;
+      padding: 1px 4px !important;
+      border-radius: 4px !important;
+      z-index: 2147483647 !important;
+      font-family: Arial, sans-serif !important;
+      font-weight: bold !important;
+      line-height: 1 !important;
+      min-width: 16px !important;
+      text-align: center !important;
+      pointer-events: none !important;
+    }
+  )";
+
+  // Add element-specific styles using CSS attribute selectors
+  for (auto& pair : indexed_elements) {
+    int index = pair.second;
+    int color_index = index % colors.size();
+    std::string base_color = colors[color_index];
+    std::string bg_color = base_color + "1A";
+    
+    all_css += "[data-automation-index='" + std::to_string(index) + "'] { ";
+    all_css += "--highlight-color: " + base_color + " !important; ";
+    all_css += "--highlight-bg: " + bg_color + " !important; ";
+    all_css += "}\n";
+  }
+
+  document.InsertStyleSheet(blink::WebString::FromUTF8(all_css));
+  
+  // Apply visual highlighting classes and data-index for CSS content
+  for (auto& pair : indexed_elements) {
+    blink::WebElement element = pair.first;
+    int index = pair.second;
+    
+    std::string existing_class = element.GetAttribute("class").Utf8();
+    std::string new_class = existing_class + " automation-highlight";
+    
+    element.SetAttribute("class", blink::WebString::FromUTF8(new_class));
     element.SetAttribute("data-index", blink::WebString::FromUTF8(std::to_string(index))); // For CSS content
   }
 }

@@ -82,6 +82,10 @@ class AutomationAgent : public content::RenderFrameObserver,
   std::string CategorizeElementForAI(const blink::WebElement& element);
   std::string GetElementPurpose(const blink::WebElement& element);
   base::Value::Dict AnalyzePageCapabilities(const blink::WebDocument& document);
+  void InjectElementIndexes(blink::WebDocument& document, 
+    std::vector<std::pair<blink::WebElement, int>>& indexed_elements);
+  void InjectVisualHighlightCSS(blink::WebDocument& document, 
+    std::vector<std::pair<blink::WebElement, int>>& indexed_elements);
   
   // Helper to get automation driver interface
   mojom::AutomationDriver& GetAutomationDriver();
