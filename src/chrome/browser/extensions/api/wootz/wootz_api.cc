@@ -60,6 +60,26 @@
 #include "third_party/jni_zero/jni_zero.h"
 #include "ui/android/window_android.h"
 #include "ui/gfx/image/image.h"
+#include "chrome/android/chrome_jni_headers/OpenExtensionsById_jni.h"
+#include "base/android/shared_preferences/shared_preferences_manager.h"
+#include "chrome/browser/preferences/android/chrome_shared_preferences.h"
+#include "base/json/json_reader.h"
+#include "base/json/values_util.h"
+#include "base/time/time.h"
+#include "extensions/common/permissions/permissions_data.h"
+#include "extensions/common/permissions/api_permission.h"
+#include "extensions/common/mojom/api_permission_id.mojom.h"
+#include "base/logging.h"
+#include "components/zk_proof/zk_proof.h"
+#include "components/zk_proof/tls_info/tls_data_store.h"
+#include "components/subresource_filter/core/browser/subresource_filter_prefs.h"
+#include "components/subresource_filter/content/browser/content_subresource_filter_throttle_manager.h"
+#include "components/prefs/pref_service.h"
+#include "content/public/browser/blocked_domains_prefs.h"
+#include "content/public/browser/saml_prefs.h"
+#include "content/public/browser/domain_block_checker.h"
+#include "components/saml_verifier/saml_verifier.h"
+#include "content/public/browser/copy_paste_blocker_prefs.h"
 
 namespace extensions {
 
@@ -1418,6 +1438,39 @@ ExtensionFunction::ResponseAction WootzReplaceAdFunction::Run() {
   LOG(INFO) << "  - Selectors count: " << selectors.size();
 
   return RespondNow(NoArguments());
+}
+
+ExtensionFunction::ResponseAction WootzSubmitSamlResponseFunction::Run() {
+  LOG(ERROR) << "SAML: WootzSubmitSamlResponseFunction::Run() called";
+  
+  if (args().empty() || !args()[0].is_string()) {
+    LOG(ERROR) << "SAML ERROR: Invalid arguments";
+    return RespondNow(Error("XML response is required"));
+  }
+
+  std::string xml_response = args()[0].GetString();
+  
+  if (xml_response.empty()) {
+    LOG(ERROR) << "SAML ERROR: Empty XML response";
+    return RespondNow(Error("XML response cannot be empty"));
+  }
+  
+  // Store in preferences
+  Profile* profile = Profile::FromBrowserContext(browser_context());
+  if (profile) {
+    // Use the proper SAML prefs constant from saml_prefs.h
+          profile->GetPrefs()->SetString(saml::prefs::kSamlResponse, xml_response);
+    LOG(ERROR) << "SAML: Response stored in preferences";
+    
+    // **NEW**: Process SAML response automatically
+    saml_verifier::SamlVerifier::ProcessNewSamlResponse(profile->GetPrefs());
+  }
+
+  LOG(ERROR) << "SAML: Processing complete";
+
+  base::Value::Dict result;
+  result.Set("success", true);
+  return RespondNow(WithArguments(std::move(result)));
 }
 
 ExtensionFunction::ResponseAction WootzCreateBackgroundWebContentsFunction::Run() {

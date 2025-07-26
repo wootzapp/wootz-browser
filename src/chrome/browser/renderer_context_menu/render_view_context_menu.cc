@@ -113,6 +113,9 @@
 #include "chrome/browser/ui/user_notes/user_notes_controller.h"
 #include "chrome/browser/ui/web_applications/app_browser_controller.h"
 #include "chrome/browser/ui/webui/history/foreign_session_handler.h"
+#include "chrome/browser/ui/status_bubble.h"
+#include "chrome/browser/ui/views/frame/browser_view.h"
+#include "chrome/browser/ui/views/status_bubble_views.h"
 #include "chrome/browser/user_education/user_education_service.h"
 #include "chrome/browser/web_applications/mojom/user_display_mode.mojom.h"
 #include "chrome/browser/web_applications/web_app_helpers.h"
@@ -2229,11 +2232,86 @@ void RenderViewContextMenu::AppendExitFullscreenItem() {
   menu_model_.AddSeparator(ui::NORMAL_SEPARATOR);
 }
 
+void RenderViewContextMenu::ShowCopyPasteBlockedToast(const std::string& action) {
+  LOG(INFO) << "[RamPrasad][ContextMenu] Showing copy-paste blocked toast for action: " << action;
+  
+  Browser* browser = GetBrowser();
+  if (!browser || !browser->window()) {
+    LOG(WARNING) << "[RamPrasad][ContextMenu] No browser window available for toast";
+    return;
+  }
+
+  // Get the current domain for the toast message
+  GURL url = source_web_contents_->GetLastCommittedURL();
+  std::string domain = url.host();
+  
+  // Create the toast message
+  std::string toast_message = base::StringPrintf(
+      "%s is blocked on %s by administrator policy", 
+      action.c_str(), 
+      domain.c_str());
+  
+  // Show the toast using the browser's status bubble
+  browser->window()->SetStatusBubbleText(base::UTF8ToUTF16(toast_message));
+  
+  // Auto-hide the toast after 3 seconds
+  base::ThreadTaskRunnerHandle::Get()->PostDelayedTask(
+      FROM_HERE,
+      base::BindOnce(&RenderViewContextMenu::HideToast, 
+                     weak_pointer_factory_.GetWeakPtr()),
+      base::Seconds(3));
+}
+
+void RenderViewContextMenu::HideToast() {
+  Browser* browser = GetBrowser();
+  if (browser && browser->window()) {
+    browser->window()->SetStatusBubbleText(std::u16string());
+  }
+}
+
+bool RenderViewContextMenu::IsCopyPasteBlocked() {
+  LOG(INFO) << "[RamPrasad][ContextMenu] Checking if copy-paste is blocked";
+
+  Profile* profile = Profile::FromBrowserContext(browser_context());
+  if (!profile) {
+    LOG(INFO) << "[RamPrasad][ContextMenu] No profile found";
+    return false;
+  }
+
+  PrefService* prefs = profile->GetPrefs();
+  LOG(INFO) << "[RamPrasad][ContextMenu] PrefService found";
+
+  bool enabled = prefs->GetBoolean(prefs::kCopyPasteBlockingEnabled);
+  LOG(INFO) << "[RamPrasad][ContextMenu] Copy-paste blocking enabled: " << enabled;
+  if (!enabled) {
+    LOG(INFO) << "[RamPrasad][ContextMenu] Copy-paste blocking is disabled";
+    return false;
+  }
+
+  // Check if current domain is in blocked list
+  GURL url = source_web_contents_->GetLastCommittedURL();
+  base::Value::List blocked_domains = prefs->GetList(prefs::kCopyPasteBlockedDomains);
+  for (const auto& domain : blocked_domains) {
+    if (url.DomainIs(domain.GetString())) {
+      return true;
+    }
+  }
+  LOG(INFO) << "[RamPrasad][ContextMenu] Copy-paste not blocked for current domain";
+  return false;
+}
+
+
+
 void RenderViewContextMenu::AppendCopyItem() {
-  if (menu_model_.GetItemCount())
-    menu_model_.AddSeparator(ui::NORMAL_SEPARATOR);
-  menu_model_.AddItemWithStringId(IDC_CONTENT_CONTEXT_COPY,
-                                  IDS_CONTENT_CONTEXT_COPY);
+  // if (menu_model_.GetItemCount())
+  //   menu_model_.AddSeparator(ui::NORMAL_SEPARATOR);
+  // menu_model_.AddItemWithStringId(IDC_CONTENT_CONTEXT_COPY,
+  //                                 IDS_CONTENT_CONTEXT_COPY);
+  if (!IsCopyPasteBlocked()) {
+    LOG(INFO) << "[RamPrasad][ContextMenu] Copy menu item added";
+    menu_model_.AddItemWithStringId(IDC_CONTENT_CONTEXT_COPY,
+                                   IDS_CONTENT_CONTEXT_COPY);
+  }
 }
 
 void RenderViewContextMenu::AppendLinkToTextItems() {
@@ -2910,13 +2988,17 @@ bool RenderViewContextMenu::IsCommandIdEnabled(int id) const {
       return !!(params_.edit_flags & ContextMenuDataEditFlags::kCanCut);
 
     case IDC_CONTENT_CONTEXT_COPY:
-      return !!(params_.edit_flags & ContextMenuDataEditFlags::kCanCopy);
+      // return !!(params_.edit_flags & ContextMenuDataEditFlags::kCanCopy);
+      return !IsCopyPasteBlocked() && 
+         !!(params_.edit_flags & ContextMenuDataEditFlags::kCanCopy);
 
     case IDC_CONTENT_CONTEXT_PASTE:
-      return IsPasteEnabled();
+      // return IsPasteEnabled();
+      return !IsCopyPasteBlocked() && IsPasteEnabled();
 
     case IDC_CONTENT_CONTEXT_PASTE_AND_MATCH_STYLE:
-      return IsPasteAndMatchStyleEnabled();
+      // return IsPasteAndMatchStyleEnabled();
+      return !IsCopyPasteBlocked() && IsPasteAndMatchStyleEnabled();
 
     case IDC_CONTENT_CONTEXT_DELETE:
       return !!(params_.edit_flags & ContextMenuDataEditFlags::kCanDelete);
@@ -3404,18 +3486,34 @@ void RenderViewContextMenu::ExecuteCommand(int id, int event_flags) {
       break;
 
     case IDC_CONTENT_CONTEXT_CUT:
+      if (IsCopyPasteBlocked()) {
+        ShowCopyPasteBlockedToast("Cut");
+        return;
+      }
       source_web_contents_->Cut();
       break;
 
     case IDC_CONTENT_CONTEXT_COPY:
+      if (IsCopyPasteBlocked()) {
+        ShowCopyPasteBlockedToast("Copy");
+        return;
+      }
       source_web_contents_->Copy();
       break;
 
     case IDC_CONTENT_CONTEXT_PASTE:
+      if (IsCopyPasteBlocked()) {
+        ShowCopyPasteBlockedToast("Paste");
+        return;
+      }
       source_web_contents_->Paste();
       break;
 
     case IDC_CONTENT_CONTEXT_PASTE_AND_MATCH_STYLE:
+      if (IsCopyPasteBlocked()) {
+        ShowCopyPasteBlockedToast("Paste and match style");
+        return;
+      }
       source_web_contents_->PasteAndMatchStyle();
       break;
 
@@ -3757,6 +3855,13 @@ bool RenderViewContextMenu::IsSavePageEnabled() const {
 }
 
 bool RenderViewContextMenu::IsPasteEnabled() const {
+  
+  // First check if paste is blocked by copy-paste blocking
+  if (IsCopyPasteBlocked()) {
+    LOG(INFO) << "[RamPrasad][ContextMenu] Paste disabled due to copy-paste blocking";
+    return false;
+  }
+
   if (!(params_.edit_flags & ContextMenuDataEditFlags::kCanPaste))
     return false;
 
