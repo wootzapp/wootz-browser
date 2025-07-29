@@ -1534,7 +1534,7 @@ public class IntentHandler {
     interface Natives {
         boolean isCorsSafelistedHeader(String name, String value);
         void storeUtmSource(String utmSource);
-        void storeCampaign(String campaign);
+        // void storeCampaign(String campaign);
     }
 
     /**
@@ -1563,7 +1563,7 @@ public class IntentHandler {
             if (campaign != null) {
                 Log.d("IntentHandler", "campaign != null");
                 // Store campaign in shared preferences
-                storeCampaign(campaign);
+                // storeCampaign(campaign);
             }
         }
     }
@@ -1621,13 +1621,11 @@ public class IntentHandler {
             // Only store if we have a valid UTM source
             if (!normalizedUtm.isEmpty()) {
                 try {
-                    // Store in SharedPreferences for access from ChromeTabbedActivity
                     SharedPreferences prefs = ContextUtils.getAppSharedPreferences();
                     SharedPreferences.Editor editor = prefs.edit();
                     editor.putString("last_utm_source", normalizedUtm);
                     editor.putBoolean("utm_source_needs_jni_processing", true);
                     editor.apply();
-                    
                     Log.d("IntentHandler", "Stored UTM source: " + normalizedUtm + " in SharedPreferences");
                 } catch (Exception e) {
                     Log.e("IntentHandler", "Error storing UTM source", e);
@@ -1640,44 +1638,44 @@ public class IntentHandler {
      * Stores the campaign in shared preferences for later use.
      * @param campaign The campaign to store
      */
-    public static void storeCampaign(String campaign) {
-        if (campaign != null && !campaign.isEmpty()) {
-            try {
-                SharedPreferences prefs = ContextUtils.getAppSharedPreferences();
-                SharedPreferences.Editor editor = prefs.edit();
-                editor.putString("last_campaign", campaign);
-                editor.putBoolean("campaign_needs_jni_processing", true);
-                editor.apply();
-                Log.d("IntentHandler", "Stored campaign: " + campaign + " in SharedPreferences");
-            } catch (Exception e) {
-                Log.e("IntentHandler", "Error storing campaign", e);
-            }
-        }
-    }
+    // public static void storeCampaign(String campaign) {
+    //     if (campaign != null && !campaign.isEmpty()) {
+    //         try {
+    //             SharedPreferences prefs = ContextUtils.getAppSharedPreferences();
+    //             SharedPreferences.Editor editor = prefs.edit();
+    //             editor.putString("last_campaign", campaign);
+    //             editor.putBoolean("campaign_needs_jni_processing", true);
+    //             editor.apply();
+    //             Log.d("IntentHandler", "Stored campaign: " + campaign + " in SharedPreferences");
+    //         } catch (Exception e) {
+    //             Log.e("IntentHandler", "Error storing campaign", e);
+    //         }
+    //     }
+    // }
 
     /**
      * Processes the stored campaign if needed.
      */
-    public static void processStoredCampaignIfNeeded() {
-        try {
-            SharedPreferences prefs = ContextUtils.getAppSharedPreferences();
-            boolean needsProcessing = prefs.getBoolean("campaign_needs_jni_processing", false);
+    // public static void processStoredCampaignIfNeeded() {
+    //     try {
+    //         SharedPreferences prefs = ContextUtils.getAppSharedPreferences();
+    //         boolean needsProcessing = prefs.getBoolean("campaign_needs_jni_processing", false);
     
-            if (needsProcessing && LibraryLoader.getInstance().isInitialized()) {
-                String campaign = prefs.getString("last_campaign", "");
-                if (!campaign.isEmpty()) {
-                    // Call JNI to send to native
-                    IntentHandlerJni.get().storeCampaign(campaign);
-                    Log.d("IntentHandler", "Processed stored campaign via JNI: " + campaign);
+    //         if (needsProcessing && LibraryLoader.getInstance().isInitialized()) {
+    //             String campaign = prefs.getString("last_campaign", "");
+    //             if (!campaign.isEmpty()) {
+    //                 // Call JNI to send to native
+    //                 IntentHandlerJni.get().storeCampaign(campaign);
+    //                 Log.d("IntentHandler", "Processed stored campaign via JNI: " + campaign);
     
-                    // Mark as processed
-                    prefs.edit().putBoolean("campaign_needs_jni_processing", false).apply();
-                }
-            }
-        } catch (Exception e) {
-            Log.e("IntentHandler", "Error processing stored campaign", e);
-        }
-    }
+    //                 // Mark as processed
+    //                 prefs.edit().putBoolean("campaign_needs_jni_processing", false).apply();
+    //             }
+    //         }
+    //     } catch (Exception e) {
+    //         Log.e("IntentHandler", "Error processing stored campaign", e);
+    //     }
+    // }
 
     /**
      * Gets the last stored UTM source from SharedPreferences.
@@ -1697,7 +1695,7 @@ public class IntentHandler {
         if ("sapien".equals(lowerCase) || "sapiens".equals(lowerCase)) return "sapiens";
         if ("blockmesh".equals(lowerCase)) return "blockmesh";
         if ("eclipse".equals(lowerCase)) return "eclipse";
-        return "";
+        else return utmSource;
     }
 
     // Add a new method to process the stored UTM source when native is ready

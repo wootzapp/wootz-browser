@@ -25,7 +25,7 @@ public class BrandingManager {
     private static final String TAG = "BrandingManager";
     
     // GitHub URL - using your actual repository
-    private static final String GITHUB_URL = "https://raw.githubusercontent.com/1311-hack1/rebrand/main/branding.json";
+    private static final String GITHUB_URL = "https://raw.githubusercontent.com/wootzapp/ext-store/main/extensions.json";
     
     // Simple keys
     private static final String KEY_APP_NAME = "app_name";

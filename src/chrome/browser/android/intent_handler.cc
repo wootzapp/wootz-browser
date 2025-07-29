@@ -99,24 +99,23 @@ static jstring JNI_IntentHandler_GetUtmSource(JNIEnv* env) {
   return base::android::ConvertUTF8ToJavaString(env, utm_source).Release();
 }
 
-// Store campaign in shared preferences
-void JNI_IntentHandler_StoreCampaign(JNIEnv* env, const base::android::JavaParamRef<jstring>& campaign) {
-    std::string campaign_str = base::android::ConvertJavaStringToUTF8(env, campaign);
-    LOG(INFO) << "JNI_IntentHandler_StoreCampaign called with: " << campaign_str;
+// void JNI_IntentHandler_StoreCampaign(JNIEnv* env, const base::android::JavaParamRef<jstring>& campaign) {
+//     std::string campaign_str = base::android::ConvertJavaStringToUTF8(env, campaign);
+//     LOG(INFO) << "JNI_IntentHandler_StoreCampaign called with: " << campaign_str;
 
-    Profile* profile = ProfileManager::GetLastUsedProfile();
-    if (!profile) {
-        LOG(ERROR) << "No profile found in JNI_IntentHandler_StoreCampaign";
-        return;
-    }
-    PrefService* prefs = profile->GetPrefs();
-    if (!prefs) {
-        LOG(ERROR) << "No PrefService found in JNI_IntentHandler_StoreCampaign";
-        return;
-    }
-    prefs->SetString(startup_crx_install::kCampaignPref, campaign_str);  
- LOG(INFO) << "Stored campaign in PrefService: " << campaign_str;
-}
+//     Profile* profile = ProfileManager::GetLastUsedProfile();
+//     if (!profile) {
+//         LOG(ERROR) << "No profile found in JNI_IntentHandler_StoreCampaign";
+//         return;
+//     }
+//     PrefService* prefs = profile->GetPrefs();
+//     if (!prefs) {
+//         LOG(ERROR) << "No PrefService found in JNI_IntentHandler_StoreCampaign";
+//         return;
+//     }
+//     prefs->SetString(startup_crx_install::kCampaignPref, campaign_str);  
+//  LOG(INFO) << "Stored campaign in PrefService: " << campaign_str;
+// }
 
 
 }  // namespace android
