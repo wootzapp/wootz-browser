@@ -1102,4 +1102,104 @@ bool AutomationAgent::IsAncestorHighlighted(const blink::WebElement& element,
   return false;
 }
 
+std::string AutomationAgent::GenerateElementSelector(
+  const blink::WebElement& element) {
+if (element.IsNull()) {
+  return "";
+}
+
+// Try ID first (most specific and unique)
+blink::WebString id = element.GetAttribute(blink::WebString::FromUTF8("id"));
+if (!id.IsEmpty()) {
+  return "#" + id.Utf8();
+}
+
+// Try data-testid (great for automation)
+blink::WebString testid =
+    element.GetAttribute(blink::WebString::FromUTF8("data-testid"));
+if (!testid.IsEmpty()) {
+  return "[data-testid=\"" + testid.Utf8() + "\"]";
+}
+
+// Try aria-label for accessibility (good for buttons/interactive elements)
+blink::WebString aria_label =
+    element.GetAttribute(blink::WebString::FromUTF8("aria-label"));
+if (!aria_label.IsEmpty()) {
+  return "[aria-label=\"" + aria_label.Utf8() + "\"]";
+}
+
+// Try name for form elements
+blink::WebString name =
+    element.GetAttribute(blink::WebString::FromUTF8("name"));
+if (!name.IsEmpty()) {
+  return "[name=\"" + name.Utf8() + "\"]";
+}
+
+std::string tag = element.TagName().Utf8();
+std::transform(tag.begin(), tag.end(), tag.begin(), ::tolower);
+
+// For links, try href
+if (tag == "a") {
+  blink::WebString href =
+      element.GetAttribute(blink::WebString::FromUTF8("href"));
+  if (!href.IsEmpty()) {
+    return "a[href=\"" + href.Utf8() + "\"]";
+  }
+}
+
+// For inputs, include type
+if (tag == "input") {
+  blink::WebString type =
+      element.GetAttribute(blink::WebString::FromUTF8("type"));
+  if (!type.IsEmpty()) {
+    return "input[type=\"" + type.Utf8() + "\"]";
+  }
+}
+
+// Try role attribute
+blink::WebString role =
+    element.GetAttribute(blink::WebString::FromUTF8("role"));
+if (!role.IsEmpty()) {
+  return "[role=\"" + role.Utf8() + "\"]";
+}
+
+// Try class-based selector (but make it more specific)
+blink::WebString class_attr =
+    element.GetAttribute(blink::WebString::FromUTF8("class"));
+if (!class_attr.IsEmpty()) {
+  std::string classes = class_attr.Utf8();
+
+  // Get first class
+  size_t space_pos = classes.find(' ');
+  std::string first_class = (space_pos != std::string::npos)
+                                ? classes.substr(0, space_pos)
+                                : classes;
+
+  if (!first_class.empty()) {
+    // Make it more specific by combining with tag
+    return tag + "." + first_class;
+  }
+}
+
+// For custom elements (like ytm-*), use the tag name directly
+if (tag.find("-") != std::string::npos) {
+  return tag;
+}
+
+// Last resort: try nth-child selector for better uniqueness
+int position = 1;
+blink::WebNode sibling = element.PreviousSibling();
+while (!sibling.IsNull()) {
+  if (sibling.IsElementNode()) {
+    blink::WebElement sibling_element = sibling.To<blink::WebElement>();
+    if (sibling_element.TagName().Utf8() == element.TagName().Utf8()) {
+      position++;
+    }
+  }
+  sibling = sibling.PreviousSibling();
+}
+
+return tag + ":nth-child(" + std::to_string(position) + ")";
+}
+
 }  // namespace automation

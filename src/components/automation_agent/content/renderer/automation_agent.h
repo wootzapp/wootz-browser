@@ -77,6 +77,7 @@ class AutomationAgent : public content::RenderFrameObserver,
     std::vector<std::pair<blink::WebElement, int>>& indexed_elements);
   
   std::string GetElementXPath(const blink::WebElement& element);
+  std::string GenerateElementSelector(const blink::WebElement& element);
   base::Value::Dict AnalyzePageContext(const blink::WebDocument& document, blink::WebLocalFrame* frame);
   base::Value::Dict AnalyzeViewport(blink::WebLocalFrame* frame);
   std::string CategorizeElementForAI(const blink::WebElement& element);
