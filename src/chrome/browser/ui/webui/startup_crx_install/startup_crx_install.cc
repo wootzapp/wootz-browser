@@ -283,10 +283,11 @@ void StartupCrxInstallMessageHandler::FetchExtensionsData() {
   
   extensions_loader_ = network::SimpleURLLoader::Create(std::move(request), traffic_annotation);
   
-  extensions_loader_->DownloadToStringOfUnboundedSizeUntilCrashAndDie(
+  extensions_loader_->DownloadToString(
       url_loader_factory.get(),
       base::BindOnce(&StartupCrxInstallMessageHandler::OnExtensionsDataFetched,
-                     weak_factory_.GetWeakPtr()));
+                     weak_factory_.GetWeakPtr()),
+                    1024*1024);
   
   LOG(INFO) << "Extensions data fetch request sent";
 }
