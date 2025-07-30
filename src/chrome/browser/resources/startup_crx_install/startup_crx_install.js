@@ -80,19 +80,21 @@ class BrowserBridge {
       
       // Check if the current extension is already installed
       if (this.extensionData_ && this.extensionData_.id) {
-        // TEMPORARY DEBUG: Force the correct ID for caddata testing
-        let extensionIdToCheck = this.extensionData_.id;
+        let extensionIdsToCheck = [this.extensionData_.id];
         
-        // Check if this is caddata and force the correct ID if needed
+        // For coddata extension, also check the hardcoded ID
         if (this.extensionData_.name && this.extensionData_.name.toLowerCase().includes('coddata')) {
-          console.log('DEBUG: Detected caddata extension, forcing correct ID');
-          extensionIdToCheck = 'fpjibejhpgjibaaakldgdjnkkfmfilih';
+          console.log('DEBUG: Detected coddata extension, adding hardcoded ID to check list');
+          const hardcodedId = 'fpjibejhpgjibaaakldgdjnkkfmfilih';
+          if (!extensionIdsToCheck.includes(hardcodedId)) {
+            extensionIdsToCheck.push(hardcodedId);
+          }
         }
         
         console.log('Original extension ID from C++:', this.extensionData_.id);
-        console.log('Extension ID to check:', extensionIdToCheck);
+        console.log('Extension IDs to check:', extensionIdsToCheck);
         
-        checkAndHandleInstalledExtension(extensionIdToCheck, this.installedExtensions_);
+        checkAndHandleInstalledExtension(extensionIdsToCheck, this.installedExtensions_);
       }
     };
 
@@ -211,25 +213,38 @@ function DownloadExtension(extensionData) {
 }
 
 /**
- * Checks if the extension is already installed and closes the window if it is.
- * @param {string} extensionId The extension ID to check
+ * Checks if any of the extension IDs are already installed and closes the window if found.
+ * @param {Array<string>} extensionIds Array of extension IDs to check
  * @param {Object} installedExtensions Map of installed extensions
  */
-function checkAndHandleInstalledExtension(extensionId, installedExtensions) {
+function checkAndHandleInstalledExtension(extensionIds, installedExtensions) {
   console.log('=== CHECKING EXTENSION INSTALLATION ===');
-  console.log('Extension ID to check:', extensionId);
-  console.log('Expected ID for caddata:', 'fpjibejhpgjibaaakldgdjnkkfmfilih');
+  console.log('Extension IDs to check:', extensionIds);
+  console.log('Expected ID for coddata:', 'fpjibejhpgjibaaakldgdjnkkfmfilih');
   console.log('Available installed extension IDs:', Object.keys(installedExtensions));
   
-  if (extensionId && installedExtensions[extensionId]) {
+  // Check if any of the extension IDs are found in installed extensions
+  let foundExtension = false;
+  let foundId = null;
+  
+  for (const extensionId of extensionIds) {
+    if (extensionId && installedExtensions[extensionId]) {
+      foundExtension = true;
+      foundId = extensionId;
+      break;
+    }
+  }
+  
+  if (foundExtension) {
     console.log('installedExtensions', installedExtensions);
-    console.log('Extension already installed (matched by ID), closing window');
+    console.log('Extension already installed (matched by ID):', foundId);
+    console.log('Extension details:', installedExtensions[foundId]);
     // Close the window after a short delay
     setTimeout(() => {
       window.location.href = 'wootzapp://newtab';
     }, 500);
   } else {
-    console.log('Extension not found in installed extensions. Extension ID:', extensionId);
+    console.log('Extension not found in installed extensions. Checked IDs:', extensionIds);
     console.log('=== END EXTENSION CHECK ===');
   }
 }
