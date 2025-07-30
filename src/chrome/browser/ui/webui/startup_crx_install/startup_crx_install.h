@@ -47,6 +47,8 @@ class StartupCrxInstallMessageHandler : public content::WebUIMessageHandler {
   // Fetches extensions data from GitHub API
   void FetchExtensionsData();
   void OnExtensionsDataFetched(std::optional<std::string> response_body);
+  void HandleExtensionsDataFetchError(const std::string& error_message);
+  void ProvideFallbackExtensionData(const std::string& utm_source);
   void ParseAndLogExtensionData(const std::string& json_data, const std::string& utm_source);
   
   // Fetches icon image and converts to base64 data URL

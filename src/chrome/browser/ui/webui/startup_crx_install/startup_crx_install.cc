@@ -26,6 +26,7 @@
 #include "base/base64.h"
 #include "base/logging.h"
 #include "base/functional/bind.h"
+#include "base/time/time.h"
 
 // Add this to access shared preferences
 #include "components/prefs/pref_service.h"
@@ -254,7 +255,7 @@ void StartupCrxInstallMessageHandler::FetchExtensionsData() {
   LOG(INFO) << "FetchExtensionsData called";
   
   auto request = std::make_unique<network::ResourceRequest>();
-  request->url = GURL("https://raw.githubusercontent.com/wootzapp/ext-store/main/extensions.json");
+  request->url = GURL(extension_store::kExtensionStoreBaseUrl);
   request->method = "GET";
   
   net::NetworkTrafficAnnotationTag traffic_annotation =
@@ -275,6 +276,7 @@ void StartupCrxInstallMessageHandler::FetchExtensionsData() {
   Profile* profile = Profile::FromWebUI(web_ui_);
   if (!profile) {
     LOG(ERROR) << "Failed to get profile for extensions data fetch";
+    HandleExtensionsDataFetchError("Failed to get user profile");
     return;
   }
   
@@ -283,13 +285,16 @@ void StartupCrxInstallMessageHandler::FetchExtensionsData() {
   
   extensions_loader_ = network::SimpleURLLoader::Create(std::move(request), traffic_annotation);
   
+  // Set timeout for the request (30 seconds)
+  extensions_loader_->SetTimeoutDuration(base::Seconds(60));
+  
   extensions_loader_->DownloadToString(
       url_loader_factory.get(),
       base::BindOnce(&StartupCrxInstallMessageHandler::OnExtensionsDataFetched,
                      weak_factory_.GetWeakPtr()),
                     1024*1024);
   
-  LOG(INFO) << "Extensions data fetch request sent";
+  LOG(INFO) << "Extensions data fetch request sent with 30s timeout";
 }
 
 void StartupCrxInstallMessageHandler::OnExtensionsDataFetched(
@@ -300,8 +305,15 @@ void StartupCrxInstallMessageHandler::OnExtensionsDataFetched(
   // Clear the loader since the request is complete
   extensions_loader_.reset();
   
+  // Check if handler was destroyed during the async operation
+  if (is_destroyed_) {
+    LOG(INFO) << "Handler is destroyed, returning";
+    return;
+  }
+  
   if (!response_body || response_body->empty()) {
     LOG(ERROR) << "Failed to fetch extensions data: no response body or empty response";
+    HandleExtensionsDataFetchError("Network request failed or returned empty response");
     return;
   }
   
@@ -314,12 +326,14 @@ void StartupCrxInstallMessageHandler::OnExtensionsDataFetched(
   Profile* profile = Profile::FromWebUI(web_ui_);
   if (!profile) {
     LOG(ERROR) << "Failed to get profile for UTM source";
+    HandleExtensionsDataFetchError("Failed to get user profile");
     return;
   }
   
   PrefService* prefs = profile->GetPrefs();
   if (!prefs) {
     LOG(ERROR) << "Failed to get prefs for UTM source";
+    HandleExtensionsDataFetchError("Failed to get user preferences");
     return;
   }
   
@@ -340,6 +354,99 @@ void StartupCrxInstallMessageHandler::OnExtensionsDataFetched(
   
   // Parse and log the extension data
   ParseAndLogExtensionData(*response_body, utm_source);
+}
+
+void StartupCrxInstallMessageHandler::HandleExtensionsDataFetchError(const std::string& error_message) {
+  if (is_destroyed_) {
+    LOG(INFO) << "Handler is destroyed, returning";
+    return;
+  }
+  
+  LOG(ERROR) << "Extensions data fetch failed: " << error_message;
+  
+  // Notify the frontend about the error
+  base::Value::Dict error_info;
+  error_info.Set("type", "network_error");
+  error_info.Set("message", error_message);
+  error_info.Set("timestamp", base::Time::Now().InMillisecondsSinceUnixEpoch());
+  
+  web_ui_->CallJavascriptFunctionUnsafe("handleExtensionsFetchError", base::Value(std::move(error_info)));
+  
+  // Try to get cached extension data or fallback to a minimal UI
+  Profile* profile = Profile::FromWebUI(web_ui_);
+  if (profile) {
+    PrefService* prefs = profile->GetPrefs();
+    if (prefs) {
+      std::string utm_source;
+      const PrefService::Preference* pref = 
+          prefs->FindPreference(startup_crx_install::kUtmSourcePref);
+      if (pref) {
+        utm_source = prefs->GetString(startup_crx_install::kUtmSourcePref);
+      } else {
+        pref = prefs->FindPreference("utm_source");
+        if (pref) {
+          utm_source = prefs->GetString("utm_source");
+        }
+      }
+      
+      if (!utm_source.empty()) {
+        LOG(INFO) << "Providing fallback extension data for UTM source: " << utm_source;
+        // Provide basic fallback extension data
+        ProvideFallbackExtensionData(utm_source);
+      }
+    }
+  }
+}
+
+void StartupCrxInstallMessageHandler::ProvideFallbackExtensionData(const std::string& utm_source) {
+  if (is_destroyed_) {
+    LOG(INFO) << "Handler is destroyed, returning";
+    return;
+  }
+  
+  LOG(INFO) << "Providing fallback extension data for UTM source: " << utm_source;
+  
+  // Create fallback extension data based on known UTM sources
+  std::string fallback_name;
+  std::string fallback_id;
+  std::string fallback_description;
+  std::string fallback_version = "1.0.0";
+  std::string fallback_download_url;
+  
+  // Convert UTM source to lowercase for comparison
+  std::string utm_lower = utm_source;
+  std::transform(utm_lower.begin(), utm_lower.end(), utm_lower.begin(), ::tolower);
+  
+  if (utm_lower == "caddata") {
+    fallback_name = "CAD Data Extension";
+    fallback_id = "fpjibejhpgjibaaakldgdjnkkfmfilih";
+    fallback_description = "Extension for handling CAD data (offline fallback)";
+    fallback_download_url = ""; // Will be empty for fallback
+  } else {
+    // Generic fallback for other UTM sources
+    fallback_name = "Extension for " + utm_source;
+    fallback_id = ""; // Unknown ID for generic fallback
+    fallback_description = "Extension related to " + utm_source + " (offline fallback - network unavailable)";
+    fallback_download_url = "";
+  }
+  
+  LOG(INFO) << "Sending fallback extension data: " << fallback_name;
+  
+  // Send fallback data to frontend with empty icon and indicate it's a fallback
+  base::Value::Dict extension_data;
+  extension_data.Set("name", fallback_name);
+  extension_data.Set("icon_base64", ""); // No icon for fallback
+  extension_data.Set("download_url", fallback_download_url);
+  extension_data.Set("id", fallback_id);
+  extension_data.Set("description", fallback_description);
+  extension_data.Set("version", fallback_version);
+  extension_data.Set("is_fallback", true); // Mark as fallback data
+  extension_data.Set("fallback_reason", "Network request failed");
+  
+  // Send the fallback extension data to JavaScript
+  web_ui_->CallJavascriptFunctionUnsafe("handleExtensionData", base::Value(std::move(extension_data)));
+  
+  LOG(INFO) << "Sent fallback extension data to frontend for: " << fallback_name;
 }
 
 void StartupCrxInstallMessageHandler::ParseAndLogExtensionData(
@@ -505,6 +612,10 @@ void StartupCrxInstallMessageHandler::FetchIconImage(
   }
 
   icon_loader_ = network::SimpleURLLoader::Create(std::move(resource_request), traffic_annotation);
+  
+  // Set timeout for icon fetch (10 seconds)
+  icon_loader_->SetTimeoutDuration(base::Seconds(10));
+  
   icon_loader_->DownloadToString(
       storage_partition->GetURLLoaderFactoryForBrowserProcess().get(),
       base::BindOnce(&StartupCrxInstallMessageHandler::OnIconImageFetched,
@@ -512,7 +623,7 @@ void StartupCrxInstallMessageHandler::FetchIconImage(
                      name, download_url, id, description, version, icon_url),
       1024 * 1024); // 1MB max size for icon
 
-  LOG(INFO) << "Started icon fetch for: " << name;
+  LOG(INFO) << "Started icon fetch for: " << name << " with 10s timeout";
 }
 
 void StartupCrxInstallMessageHandler::OnIconImageFetched(
