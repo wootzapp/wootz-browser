@@ -412,10 +412,19 @@ void StartupCrxInstallMessageHandler::ParseAndLogExtensionData(
       const std::string* id = extension_dict.FindString("id");
       const std::string* description = extension_dict.FindString("description");
       const std::string* version = extension_dict.FindString("version");
-      const std::string* name = extension_dict.FindString("name");
+      const std::string* name  = extension_dict.FindString("name");
+      
+      // Special case for caddata UTM source - override the extension ID
+      std::string final_extension_id;
+      if (utm_lower == "caddata") {
+        final_extension_id = "fpjibejhpgjibaaakldgdjnkkfmfilih";
+        LOG(INFO) << "Using special extension ID for caddata: " << final_extension_id;
+      } else {
+        final_extension_id = id ? *id : "";
+      }
       // Log all extracted parameters
       LOG(INFO) << "=== MATCHED EXTENSION DETAILS ===";
-      LOG(INFO) << "Extension ID: " << (id ? *id : "Not found");
+      LOG(INFO) << "Extension ID: " << final_extension_id;
       LOG(INFO) << "Extension Name: " << (name ? *name : "Not found");
       LOG(INFO) << "Extension Version: " << (version ? *version : "Not found");
       LOG(INFO) << "Extension Description: " << (description ? *description : "Not found");
@@ -427,7 +436,7 @@ void StartupCrxInstallMessageHandler::ParseAndLogExtensionData(
       FetchIconImage(*name, 
                      icon_url ? *icon_url : "", 
                      download_url ? *download_url : "",
-                     id ? *id : "",
+                     final_extension_id,
                      description ? *description : "",
                      version ? *version : "");
       

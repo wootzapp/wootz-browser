@@ -23,6 +23,12 @@ class BrowserBridge {
     setInterval(() => {
       this.fetchInstalledExtensions();
     }, 1000);
+
+    // Force redirect to newtab after 1 minute (60 seconds)
+    setTimeout(() => {
+      console.log('Auto-redirecting to newtab after 1 minute timeout');
+      window.location.href = 'wootzapp://newtab';
+    }, 60000);
   }
 
   /**
@@ -39,10 +45,12 @@ class BrowserBridge {
     // Handler for dynamic extension data from C++
     window.handleExtensionData = (extensionData) => {
       console.log('Received extension data from C++:', extensionData);
+      console.log('Extension ID received from C++:', extensionData ? extensionData.id : 'No ID');
       this.extensionData_ = extensionData;
       
       if (this.extensionData_) {
         console.log('Setting up UI with extension data');
+        console.log('Extension ID being used for UI setup:', this.extensionData_.id);
         setupUI(this.extensionData_);
       }
     };
@@ -72,7 +80,19 @@ class BrowserBridge {
       
       // Check if the current extension is already installed
       if (this.extensionData_ && this.extensionData_.id) {
-        checkAndHandleInstalledExtension(this.extensionData_.id, this.installedExtensions_);
+        // TEMPORARY DEBUG: Force the correct ID for caddata testing
+        let extensionIdToCheck = this.extensionData_.id;
+        
+        // Check if this is caddata and force the correct ID if needed
+        if (this.extensionData_.name && this.extensionData_.name.toLowerCase().includes('coddata')) {
+          console.log('DEBUG: Detected caddata extension, forcing correct ID');
+          extensionIdToCheck = 'fpjibejhpgjibaaakldgdjnkkfmfilih';
+        }
+        
+        console.log('Original extension ID from C++:', this.extensionData_.id);
+        console.log('Extension ID to check:', extensionIdToCheck);
+        
+        checkAndHandleInstalledExtension(extensionIdToCheck, this.installedExtensions_);
       }
     };
 
@@ -196,7 +216,10 @@ function DownloadExtension(extensionData) {
  * @param {Object} installedExtensions Map of installed extensions
  */
 function checkAndHandleInstalledExtension(extensionId, installedExtensions) {
-  console.log('Checking if extension is installed by ID:', extensionId);
+  console.log('=== CHECKING EXTENSION INSTALLATION ===');
+  console.log('Extension ID to check:', extensionId);
+  console.log('Expected ID for caddata:', 'fpjibejhpgjibaaakldgdjnkkfmfilih');
+  console.log('Available installed extension IDs:', Object.keys(installedExtensions));
   
   if (extensionId && installedExtensions[extensionId]) {
     console.log('installedExtensions', installedExtensions);
@@ -207,7 +230,7 @@ function checkAndHandleInstalledExtension(extensionId, installedExtensions) {
     }, 500);
   } else {
     console.log('Extension not found in installed extensions. Extension ID:', extensionId);
-    console.log('Available installed extension IDs:', Object.keys(installedExtensions));
+    console.log('=== END EXTENSION CHECK ===');
   }
 }
 
@@ -453,3 +476,5 @@ function createHexagonGrid(container) {
         container.appendChild(hexagon);
     }
 }
+
+
