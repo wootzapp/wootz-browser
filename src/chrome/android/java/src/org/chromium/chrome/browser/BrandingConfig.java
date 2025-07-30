@@ -17,9 +17,9 @@ public class BrandingConfig {
     
     public static BrandingConfig fromJson(JSONObject json) {
         BrandingConfig config = new BrandingConfig();
-        config.utmSource = json.optString("utmSource", "");
-        config.appName = json.optString("appName", "");
-        config.iconUrl = json.optString("iconUrl", "");
+        config.utmSource = json.optString("campaign", "");
+        config.appName = json.optString("name", "");
+        config.iconUrl = json.optString("icon_url", "");
         config.packageName = json.optString("packageName", "");
         config.primaryColor = json.optString("primaryColor", "");
         config.accentColor = json.optString("accentColor", "");
@@ -29,9 +29,9 @@ public class BrandingConfig {
     public JSONObject toJson() {
         JSONObject json = new JSONObject();
         try {
-            json.put("utmSource", utmSource);
-            json.put("appName", appName);
-            json.put("iconUrl", iconUrl);
+            json.put("campaign", utmSource);
+            json.put("name", appName);
+            json.put("icon_url", iconUrl);
             json.put("packageName", packageName);
             json.put("primaryColor", primaryColor);
             json.put("accentColor", accentColor);
