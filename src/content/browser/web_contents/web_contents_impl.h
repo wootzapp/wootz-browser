@@ -478,6 +478,7 @@ class CONTENT_EXPORT WebContentsImpl : public WebContents,
   void CenterSelection() override;
   void Paste() override;
   void PasteAndMatchStyle() override;
+  bool ShouldBlockCopyPaste(const std::string& operation_type);
   void Delete() override;
   void SelectAll() override;
   void CollapseSelection() override;
@@ -2499,6 +2500,10 @@ class CONTENT_EXPORT WebContentsImpl : public WebContents,
 
   // Indicates accessibility had an unrecoverable error.
   bool unrecoverable_accessibility_error_ = false;
+
+  void ShowCopyPasteBlockedToast(const std::string& action);
+  void HideToast();
+  base::WeakPtrFactory<WebContentsImpl> toast_weak_factory_{this};
 
   base::WeakPtrFactory<WebContentsImpl> loading_weak_factory_{this};
   base::WeakPtrFactory<WebContentsImpl> weak_factory_{this};

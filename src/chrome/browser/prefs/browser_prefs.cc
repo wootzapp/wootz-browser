@@ -200,6 +200,11 @@
 #include "services/screen_ai/buildflags/buildflags.h"
 #include "chrome/browser/ui/webui/startup_crx_install/startup_crx_install_prefs.h"
 #include "chrome/browser/android/extension_developer_mode_settings_prefs.h"
+#include "content/public/browser/blocked_domains_prefs.h"
+#include "content/public/browser/saml_prefs.h"
+#include "content/public/browser/content_privacy_prefs.h"
+// #include "components/sso_auth/public/saml_constants.h"
+#include "content/public/browser/copy_paste_blocker_prefs.h"
 
 #if BUILDFLAG(ENABLE_BACKGROUND_MODE)
 #include "chrome/browser/background/background_mode_manager.h"
@@ -1110,6 +1115,7 @@ inline constexpr char kDefaultSearchProviderChoiceLocationPrefName[] =
 void RegisterLocalStatePrefsForMigration(PrefRegistrySimple* registry) {
 
 wootz_wallet::RegisterLocalStatePrefsForMigration(registry);
+
 // Deprecated 04/2023.
 #if BUILDFLAG(IS_CHROMEOS_ASH)
   registry->RegisterDictionaryPref(kEasyUnlockHardlockState);
@@ -1251,6 +1257,7 @@ void RegisterProfilePrefsForMigration(
     user_prefs::PrefRegistrySyncable* registry) {
   chrome_browser_net::secure_dns::RegisterProbesSettingBackupPref(registry);
   wootz_wallet::RegisterProfilePrefsForMigration(registry);
+
 
 // Deprecated 04/2023.
 #if BUILDFLAG(IS_CHROMEOS_ASH)
@@ -1916,6 +1923,10 @@ void RegisterProfilePrefs(user_prefs::PrefRegistrySyncable* registry,
   extension_developer_mode_settings::RegisterProfilePrefs(registry);
   AnnouncementNotificationService::RegisterProfilePrefs(registry);
   autofill::prefs::RegisterProfilePrefs(registry);
+  blocked_domains::prefs::RegisterProfilePrefs(registry);
+  saml::prefs::RegisterProfilePrefs(registry);
+  content_privacy::prefs::RegisterProfilePrefs(registry);
+  copy_paste_blocker::RegisterProfilePrefs(registry);
   browsing_data::prefs::RegisterBrowserUserPrefs(registry);
   capture_policy::RegisterProfilePrefs(registry);
   certificate_transparency::prefs::RegisterPrefs(registry);
@@ -1992,6 +2003,7 @@ void RegisterProfilePrefs(user_prefs::PrefRegistrySyncable* registry,
   SharingSyncPreference::RegisterProfilePrefs(registry);
   SigninPrefs::RegisterProfilePrefs(registry);
   site_engagement::SiteEngagementService::RegisterProfilePrefs(registry);
+  // sso_auth::RegisterProfilePrefs(registry);
   supervised_user::RegisterProfilePrefs(registry);
   subresource_filter::prefs::RegisterProfilePrefs(registry);
   sync_sessions::SessionSyncPrefs::RegisterProfilePrefs(registry);
@@ -2004,7 +2016,6 @@ void RegisterProfilePrefs(user_prefs::PrefRegistrySyncable* registry,
   translate::TranslatePrefs::RegisterProfilePrefs(registry);
   omnibox::RegisterProfilePrefs(registry);
   ZeroSuggestProvider::RegisterProfilePrefs(registry);
-
 
 #if !BUILDFLAG(IS_ANDROID) && BUILDFLAG(GOOGLE_CHROME_BRANDING)
   promos_utils::RegisterProfilePrefs(registry);
