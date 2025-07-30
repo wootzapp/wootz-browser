@@ -385,25 +385,25 @@ void StartupCrxInstallMessageHandler::ParseAndLogExtensionData(
     }
     
     const base::Value::Dict& extension_dict = item.GetDict();
-    const std::string* name = extension_dict.FindString("name");
-    
-    if (!name) {
-      LOG(WARNING) << "Extension found without name field";
+    const std::string* campaign = extension_dict.FindString("campaign");
+
+    if (!campaign) {
+      LOG(WARNING) << "Extension found without campaign field";
       continue;
     }
     
-    LOG(INFO) << "Processing extension: " << *name;
+    LOG(INFO) << "Processing extension: " << *campaign;
     
-    // Compare name with UTM source (case insensitive)
-    std::string name_lower = *name;
-    std::transform(name_lower.begin(), name_lower.end(), name_lower.begin(), ::tolower);
+    // Compare campaign with UTM source (case insensitive)
+    std::string campaign_lower = *campaign;
+    std::transform(campaign_lower.begin(), campaign_lower.end(), campaign_lower.begin(), ::tolower);
     
     std::string utm_lower = utm_source;
     std::transform(utm_lower.begin(), utm_lower.end(), utm_lower.begin(), ::tolower);
-    
-    LOG(INFO) << "Comparing '" << name_lower << "' with UTM source '" << utm_lower << "'";
-    
-    if (name_lower == utm_lower) {
+
+    LOG(INFO) << "Comparing '" << campaign_lower << "' with UTM source '" << utm_lower << "'";
+
+    if (campaign_lower == utm_lower) {
       LOG(INFO) << "Found matching extension for UTM source: " << utm_source;
       
       // Extract the required fields
@@ -412,11 +412,11 @@ void StartupCrxInstallMessageHandler::ParseAndLogExtensionData(
       const std::string* id = extension_dict.FindString("id");
       const std::string* description = extension_dict.FindString("description");
       const std::string* version = extension_dict.FindString("version");
-      
+      const std::string* name = extension_dict.FindString("name");
       // Log all extracted parameters
       LOG(INFO) << "=== MATCHED EXTENSION DETAILS ===";
       LOG(INFO) << "Extension ID: " << (id ? *id : "Not found");
-      LOG(INFO) << "Extension Name: " << *name;
+      LOG(INFO) << "Extension Name: " << (name ? *name : "Not found");
       LOG(INFO) << "Extension Version: " << (version ? *version : "Not found");
       LOG(INFO) << "Extension Description: " << (description ? *description : "Not found");
       LOG(INFO) << "Icon URL: " << (icon_url ? *icon_url : "Not found");

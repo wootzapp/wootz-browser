@@ -196,15 +196,18 @@ function DownloadExtension(extensionData) {
  * @param {Object} installedExtensions Map of installed extensions
  */
 function checkAndHandleInstalledExtension(extensionId, installedExtensions) {
-  console.log('Checking if extension is installed:', extensionId);
+  console.log('Checking if extension is installed by ID:', extensionId);
   
   if (extensionId && installedExtensions[extensionId]) {
-    console.log('installedExtensions',installedExtensions);
-    console.log('Extension already installed, closing window');
+    console.log('installedExtensions', installedExtensions);
+    console.log('Extension already installed (matched by ID), closing window');
     // Close the window after a short delay
     setTimeout(() => {
       window.location.href = 'wootzapp://newtab';
     }, 500);
+  } else {
+    console.log('Extension not found in installed extensions. Extension ID:', extensionId);
+    console.log('Available installed extension IDs:', Object.keys(installedExtensions));
   }
 }
 
@@ -308,12 +311,24 @@ async function setupUI(extensionData) {
     // Create powered by section
     const poweredBy = document.createElement('div');
     poweredBy.className = 'powered-by';
+    // Position at bottom center
+    poweredBy.style.position = 'fixed';
+    poweredBy.style.bottom = '20px';
+    poweredBy.style.left = '50%';
+    poweredBy.style.transform = 'translateX(-50%)';
+    poweredBy.style.display = 'flex';
+    poweredBy.style.justifyContent = 'center';
+    poweredBy.style.alignItems = 'center';
+    poweredBy.style.width = '100%';
+    poweredBy.style.zIndex = '1000';
+    
     const poweredLogo = document.createElement('img');
     poweredLogo.className = 'wootzapp-logo';
     poweredLogo.id = 'powered-logo';
     poweredLogo.src ='powered_by_wootzapp.png';
-    poweredLogo.style.width = '70vw';
+    poweredLogo.style.width = '200px';
     poweredLogo.style.height = 'auto';
+    poweredLogo.style.maxWidth = '70vw';
     poweredBy.appendChild(poweredLogo);
 
     // Create final animation elements
@@ -342,7 +357,7 @@ async function setupUI(extensionData) {
     splashContainer.appendChild(logoContainer);
     splashContainer.appendChild(loadingContainer);
     splashContainer.appendChild(continueBtn);
-    // splashContainer.appendChild(poweredBy);
+    splashContainer.appendChild(poweredBy);
 
     // Clear existing body content and add new elements
     while (document.body.firstChild) {
