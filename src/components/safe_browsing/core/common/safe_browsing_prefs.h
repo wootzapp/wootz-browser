@@ -257,6 +257,11 @@ inline constexpr char kSafeBrowsingAutomaticDeepScanningIPHSeen[] =
 inline constexpr char kSafeBrowsingAutomaticDeepScanPerformed[] =
     "safe_browsing.automatic_deep_scan_performed";
 
+// Boolean that controls whether dangerous downloads are completely blocked
+// instead of allowing them to continue. Default is false (allow downloads).
+inline constexpr char kDangerousDownloadBlockingEnabled[] = 
+    "safebrowsing.dangerous_download_blocking_enabled";
+
 }  // namespace prefs
 
 namespace safe_browsing {
@@ -508,6 +513,9 @@ bool MatchesPasswordProtectionChangePasswordURL(const GURL& url,
 
 // Helper function to match a |target_url| against |url_list|.
 bool MatchesURLList(const GURL& target_url, const std::vector<GURL> url_list);
+
+// Returns whether dangerous download blocking is enabled for the user.
+bool IsDangerousDownloadBlockingEnabled(const PrefService& prefs);
 
 }  // namespace safe_browsing
 

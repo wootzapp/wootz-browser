@@ -135,6 +135,99 @@ public class DangerousDownloadDialog {
     }
 
     /**
+     * Called to show a "Download blocked" dialog for dangerous download.
+     * @param context Context for showing the dialog.
+     * @param modalDialogManager Manager for managing the modal dialog.
+     * @param fileName Name of the download file.
+     * @param totalBytes Total bytes of the file.
+     * @param iconId Icon ID of the blocked dialog.
+     * @param callback Callback to run when user dismisses the dialog (always returns false).
+     */
+    public void showBlockedDialog(
+            Context context,
+            ModalDialogManager modalDialogManager,
+            String fileName,
+            long totalBytes,
+            int iconId,
+            Callback<Boolean> callback) {
+        
+        // Add debugging log
+        System.out.println("DangerousDownloadDialog: showBlockedDialog called for file: " + fileName);
+
+        var resources = context.getResources();
+        String message = totalBytes > 0
+                ? String.format("%s (%s) was blocked because it might be harmful.", fileName, DownloadUtils.getStringForBytes(context, totalBytes))
+                : String.format("%s was blocked because it might be harmful.", fileName);
+
+        String title = "Download blocked";
+        String okButtonText = "OK";
+
+        var controller = new ModalDialogProperties.Controller() {
+            @Override
+            public void onClick(PropertyModel model, int buttonType) {
+                // Add debugging log
+                System.out.println("DangerousDownloadDialog: Button clicked, buttonType: " + buttonType);
+                
+                // For blocked dialog, any button click should dismiss the dialog
+                // Check if it's the positive button (OK button)
+                if (buttonType == ModalDialogProperties.ButtonType.POSITIVE) {
+                    System.out.println("DangerousDownloadDialog: OK button confirmed, dismissing dialog");
+                    
+                    // First dismiss the dialog
+                    modalDialogManager.dismissDialog(
+                            model, DialogDismissalCause.POSITIVE_BUTTON_CLICKED);
+                    
+                    // Then handle the callback
+                    if (callback != null) {
+                        callback.onResult(false); // Always return false for blocked downloads
+                    }
+                    
+                    recordDangerousDownloadDialogEvent(
+                            DangerousDownloadDialogEvent.DANGEROUS_DOWNLOAD_DIALOG_CANCEL);
+                } else {
+                    System.out.println("DangerousDownloadDialog: Unexpected button type: " + buttonType + ", but dismissing anyway");
+                    // Fallback: dismiss dialog for any button click
+                    if (callback != null) {
+                        callback.onResult(false);
+                    }
+                    modalDialogManager.dismissDialog(
+                            model, DialogDismissalCause.POSITIVE_BUTTON_CLICKED);
+                    recordDangerousDownloadDialogEvent(
+                            DangerousDownloadDialogEvent.DANGEROUS_DOWNLOAD_DIALOG_CANCEL);
+                }
+            }
+
+            @Override
+            public void onDismiss(PropertyModel model, int dismissalCause) {
+                if (dismissalCause != DialogDismissalCause.POSITIVE_BUTTON_CLICKED) {
+                    if (callback != null) callback.onResult(false);
+                    recordDangerousDownloadDialogEvent(
+                            DangerousDownloadDialogEvent.DANGEROUS_DOWNLOAD_DIALOG_DISMISS);
+                }
+            }
+        };
+
+        // Add debugging for icon handling
+        System.out.println("DangerousDownloadDialog: iconId = " + iconId);
+        
+        PropertyModel propertyModel = new PropertyModel.Builder(ModalDialogProperties.ALL_KEYS)
+                .with(ModalDialogProperties.CONTROLLER, controller)
+                .with(ModalDialogProperties.TITLE, title)
+                .with(ModalDialogProperties.MESSAGE_PARAGRAPH_1, message)
+                .with(ModalDialogProperties.POSITIVE_BUTTON_TEXT, okButtonText)
+                .with(ModalDialogProperties.TITLE_ICON, null) // Always use null to avoid resource conflicts
+                .with(ModalDialogProperties.BUTTON_STYLES,
+                        ModalDialogProperties.ButtonStyles.PRIMARY_FILLED_NO_NEGATIVE)
+                .with(ModalDialogProperties.BUTTON_TAP_PROTECTION_PERIOD_MS,
+                        UiUtils.PROMPT_INPUT_PROTECTION_SHORT_DELAY_MS)
+                .build();
+
+        modalDialogManager.showDialog(propertyModel, ModalDialogManager.ModalDialogType.TAB);
+        recordDangerousDownloadDialogEvent(
+                DangerousDownloadDialogEvent.DANGEROUS_DOWNLOAD_DIALOG_SHOW);
+    }
+
+    /**
      * Collects dangerous download dialog UI event metrics.
      *
      * @param event The UI event to collect.

@@ -39,7 +39,13 @@ class DangerousDownloadDialogBridge : public download::DownloadItem::Observer {
   // download::DownloadItem::Observer:
   void OnDownloadDestroyed(download::DownloadItem* download_item) override;
 
+  // Add this new method
+  void ShowBlockedDialog(download::DownloadItem* download_item, ui::WindowAndroid* window_android);
+
  private:
+  // Add this helper method
+  void CancelDownload(const std::string& guid);
+
   // Download items that are requesting the dialog. Could get deleted while
   // the dialog is showing.
   std::vector<raw_ptr<download::DownloadItem, VectorExperimental>>

@@ -70,6 +70,9 @@ class DownloadController : public DownloadControllerBase {
 
   DownloadCallbackValidator* validator() { return &validator_; }
 
+  // Add this method declaration
+  void ShowDownloadBlockedDialog(download::DownloadItem* item);
+
  private:
   friend struct base::DefaultSingletonTraits<DownloadController>;
   DownloadController();

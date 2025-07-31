@@ -243,6 +243,8 @@ void RegisterProfilePrefs(PrefRegistrySimple* registry) {
                                 false);
   registry->RegisterBooleanPref(
       prefs::kSafeBrowsingScoutReportingEnabledWhenDeprecated, false);
+  // Default is false - allow dangerous downloads
+  registry->RegisterBooleanPref(prefs::kDangerousDownloadBlockingEnabled, true);
 }
 
 const base::Value::Dict& GetExtensionTelemetryConfig(const PrefService& prefs) {
@@ -492,6 +494,11 @@ bool MatchesPasswordProtectionChangePasswordURL(const GURL& url,
   }
 
   return GetSimplifiedURL(change_password_url) == GetSimplifiedURL(url);
+}
+
+// Returns whether dangerous download blocking is enabled for the user.
+bool IsDangerousDownloadBlockingEnabled(const PrefService& prefs) {
+  return prefs.GetBoolean(prefs::kDangerousDownloadBlockingEnabled);
 }
 
 }  // namespace safe_browsing
