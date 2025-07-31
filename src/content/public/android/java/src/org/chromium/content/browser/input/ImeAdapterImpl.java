@@ -1005,7 +1005,6 @@ public class ImeAdapterImpl
                     event.getAction(),
                     event.getKeyCode());
         }
-                event.getKeyCode(), event.getMetaState());
         if ((event.getMetaState() & KeyEvent.META_NUM_LOCK_ON) != 0) {
             return sendKeyEvent(event);
         }
