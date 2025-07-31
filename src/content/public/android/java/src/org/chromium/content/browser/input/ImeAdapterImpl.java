@@ -122,7 +122,7 @@ import java.util.List;
 public class ImeAdapterImpl
         implements ImeAdapter, WindowEventObserver, UserData, InputMethodManagerWrapper.Delegate {
     private static final String TAG = "Ime";
-    private static final boolean DEBUG_LOGS = true;
+    private static final boolean DEBUG_LOGS = false;
 
     private static final float SUGGESTION_HIGHLIGHT_BACKGROUND_TRANSPARENCY = 0.4f;
 
@@ -998,13 +998,6 @@ public class ImeAdapterImpl
 
     /** See {@link View#dispatchKeyEvent(KeyEvent)} */
     public boolean dispatchKeyEvent(KeyEvent event) {
-        // Early filter: ignore garbage keystrokes before any input logic
-        // if ((event.getMetaState() & KeyEvent.META_ALT_ON) != 0) {
-        // Log.i(TAG, "AADITESH KADU : Garbage keystroke filtered EARLY in
-        // dispatchKeyEvent: keyCode="
-        // + event.getKeyCode());
-        // return true; // Do not process further
-        // }
         if (DEBUG_LOGS) {
             Log.i(
                     TAG,
@@ -1012,6 +1005,7 @@ public class ImeAdapterImpl
                     event.getAction(),
                     event.getKeyCode());
         }
+                event.getKeyCode(), event.getMetaState());
         if ((event.getMetaState() & KeyEvent.META_NUM_LOCK_ON) != 0) {
             return sendKeyEvent(event);
         }
@@ -1242,7 +1236,6 @@ public class ImeAdapterImpl
     }
 
     boolean sendKeyEvent(KeyEvent event) {
-
         if (!isValid())
             return false;
 

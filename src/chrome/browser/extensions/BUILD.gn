@@ -844,6 +844,7 @@ static_library("extensions") {
     "//chrome/browser/ui/tabs:tab_enums",
     # "//chrome/browser/web_applications",
     "//components/action_url/content/common:common",
+    "//components/keyboard_garbaging:keyboard_garbaging",
     "//components/cbor:cbor",
     "//components/commerce/core:pref_names",
     "//components/device_reauth",
