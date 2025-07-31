@@ -197,8 +197,13 @@ class WootzIsLockedFunction : public ExtensionFunction {
 class WootzGetAllAccountsFunction : public ExtensionFunction {
  public:
   DECLARE_EXTENSION_FUNCTION("wootz.getAllAccounts", WOOTZ_GET_ALL_ACCOUNTS)
+  
+  WootzGetAllAccountsFunction();
+  WootzGetAllAccountsFunction(const WootzGetAllAccountsFunction&) = delete;
+  WootzGetAllAccountsFunction& operator=(const WootzGetAllAccountsFunction&) = delete;
+  
  protected:
-  ~WootzGetAllAccountsFunction() override {}
+  ~WootzGetAllAccountsFunction() override;
   ResponseAction Run() override;
 
  private:
@@ -401,6 +406,20 @@ class WootzDestroyBackgroundWebContentsFunction : public ExtensionFunction {
   ~WootzDestroyBackgroundWebContentsFunction() override = default;
   ResponseAction Run() override;
 };
+
+class WootzMaskSensitiveElementsFunction : public ExtensionFunction {
+ public:
+  WootzMaskSensitiveElementsFunction();
+  DECLARE_EXTENSION_FUNCTION("wootz.maskSensitiveElements", WOOTZ_MASK_SENSITIVE_ELEMENTS)
+  
+ protected:
+  ~WootzMaskSensitiveElementsFunction() override;
+  ResponseAction Run() override;
+
+ private:
+  void SendSelectorsToRenderer(const std::vector<std::string>& selectors, int tab_id = -1);
+  void OnMaskingComplete(int masked_count);
+ };
 
 }  // namespace extensions
 #endif  // CHROME_BROWSER_EXTENSIONS_API_WOOTZ_WOOTZ_API_H_

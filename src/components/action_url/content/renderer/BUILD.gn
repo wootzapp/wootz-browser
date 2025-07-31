@@ -6,6 +6,8 @@ static_library("renderer") {
   sources = [
     "action_url_agent.cc",
     "action_url_agent.h",
+    "sensitive_element_mask_agent.cc",
+    "sensitive_element_mask_agent.h",
   ]
 
   deps = [

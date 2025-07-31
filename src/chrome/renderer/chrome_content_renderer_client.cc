@@ -264,7 +264,7 @@
 #include "components/safe_builtins/renderer/safe_builtins_helpers.h" // Jai
 #include "components/safe_builtins/renderer/safe_builtins.h"
 
-
+#include "components/action_url/content/renderer/sensitive_element_mask_agent.h"
 
 using autofill::AutofillAgent;
 using autofill::PasswordAutofillAgent;
@@ -723,6 +723,7 @@ LOG(INFO) << "AMIT SandboxStatusExtension::Create";
     LOG(INFO) << "AMIT agent created in chrome_content_renderer_client.cc";
 
     new action_url::ActionUrlAgent(render_frame, associated_interfaces);
+    new sensitive_masking::SensitiveElementMaskAgent(render_frame);
 
 #if BUILDFLAG(IS_ANDROID)
     if (render_frame->IsMainFrame() &&

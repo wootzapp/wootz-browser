@@ -2101,6 +2101,9 @@ class CORE_EXPORT Document : public ContainerNode,
   void SetUpActionUrlScriptBlock();
   void ResetScriptState();
 
+  // Notifies when any element is dynamically added to the DOM
+  void DidAddElementForSensitiveDetection(Element* element);
+
  protected:
   void ClearXMLVersion() { xml_version_ = String(); }
 

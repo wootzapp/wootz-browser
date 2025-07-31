@@ -9316,6 +9316,17 @@ void Document::ResetScriptState() {
   ScriptBlockStates::GetInstance().ResetScriptState();
 }
 
+void Document::DidAddElementForSensitiveDetection(Element* element) {
+  if (!GetFrame() || !GetFrame()->GetPage() || !HasFinishedParsing() ||
+      !GetFrame()->IsAttached()) {
+    return;
+  }
+  GetFrame()
+      ->GetPage()
+      ->GetChromeClient()
+      .DidAddElementForSensitiveDetection(GetFrame(), element);
+}
+
 void Document::ProcessScheduledShadowTreeCreationsNow() {
   if (elements_needing_shadow_tree_.empty()) {
     return;

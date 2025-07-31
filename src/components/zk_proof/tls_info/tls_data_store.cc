@@ -4,6 +4,10 @@
 
 namespace zk_proof {
 
+TlsData::TlsData() = default;
+
+TlsData::~TlsData() = default;
+
 // static
 TlsDataStore* TlsDataStore::GetInstance() {
   return base::Singleton<TlsDataStore>::get();

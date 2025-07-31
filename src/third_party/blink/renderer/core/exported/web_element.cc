@@ -51,12 +51,14 @@
 #include "third_party/blink/renderer/core/html/custom/custom_element.h"
 #include "third_party/blink/renderer/core/html/forms/html_label_element.h"
 #include "third_party/blink/renderer/core/html/forms/text_control_element.h"
+#include "third_party/blink/renderer/core/html/forms/html_input_element.h"
 #include "third_party/blink/renderer/core/html/html_element.h"
 #include "third_party/blink/renderer/core/html_names.h"
 #include "third_party/blink/renderer/platform/bindings/exception_state.h"
 #include "third_party/blink/renderer/platform/graphics/image.h"
 #include "third_party/blink/renderer/platform/runtime_enabled_features.h"
 #include "third_party/blink/renderer/platform/wtf/casting.h"
+#include "third_party/blink/renderer/platform/wtf/text/atomic_string.h"
 #include "third_party/blink/renderer/platform/wtf/text/wtf_string.h"
 #include "ui/gfx/geometry/size.h"
 
@@ -391,6 +393,68 @@ Image* WebElement::GetImage() {
   if (IsNull())
     return nullptr;
   return Unwrap<Element>()->ImageContents();
+}
+
+void WebElement::SetInnerHTML(const WebString& html) {
+  if (IsNull())
+    return;
+  Element* element = Unwrap<Element>();
+  element->setInnerHTML(html, ASSERT_NO_EXCEPTION);
+}
+
+void WebElement::SetInnerText(const WebString& text) {
+  if (IsNull())
+    return;
+  Element* element = Unwrap<Element>();
+  // Use setInnerText for HTMLElement, setTextContent for generic Element
+  if (auto* html_element = blink::DynamicTo<HTMLElement>(element)) {
+    html_element->setInnerText(text);
+  } else {
+    element->setTextContent(text);
+  }
+}
+
+void WebElement::MaskSensitiveContent(const WebString& mask_text) {
+  if (IsNull())
+    return;
+  Element* element = Unwrap<Element>();
+  
+  // For input elements, don't mask - they should use ShowInputWarning instead
+  if (blink::DynamicTo<HTMLInputElement>(element)) {
+    return; // Input elements handled separately
+  } else if (auto* html_element = blink::DynamicTo<HTMLElement>(element)) {
+    // For HTML elements, use setInnerText
+    html_element->setInnerText(mask_text);
+  } else {
+    // For generic elements, use setTextContent
+    element->setTextContent(mask_text);
+  }
+}
+
+void WebElement::ShowInputWarning(const WebString& warning_text) {
+  if (IsNull())
+    return;
+  Element* element = Unwrap<Element>();
+  
+  // Only work with input elements
+  auto* input = blink::DynamicTo<HTMLInputElement>(element);
+  if (!input) {
+    return;
+  }
+  
+  // Set placeholder with warning (using Element's setAttribute)
+  element->setAttribute(AtomicString("placeholder"), AtomicString(warning_text));
+  
+  // Add warning styling via CSS
+  element->setAttribute(AtomicString("style"), 
+    AtomicString("border: 2px solid #ff4444 !important; "
+                 "background-color: #fff5f5 !important; "
+                 "color: #cc0000 !important; "
+                 "font-weight: bold !important; "
+                 "box-shadow: 0 0 5px rgba(255, 68, 68, 0.5) !important;"));
+  
+  // Set a warning data attribute for potential JS detection
+  element->setAttribute(AtomicString("data-sensitive-warning"), AtomicString("true"));
 }
 
 }  // namespace blink

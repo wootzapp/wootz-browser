@@ -82,6 +82,10 @@ class BLINK_EXPORT WebElement : public WebNode {
   WebString TextContent() const;
   WebString TextContentAbridged(unsigned int max_length) const;
   WebString InnerHTML() const;
+  void SetInnerHTML(const WebString& html);
+  void SetInnerText(const WebString& text);
+  void MaskSensitiveContent(const WebString& mask_text = WebString::FromUTF8("XXX"));
+  void ShowInputWarning(const WebString& warning_text = WebString::FromUTF8("⚠️ You're about to enter personal information"));
 
   // Returns true if the element's contenteditable attribute is in the true
   // state or in the plaintext-only state:

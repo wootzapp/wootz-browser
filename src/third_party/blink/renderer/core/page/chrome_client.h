@@ -609,6 +609,8 @@ class CORE_EXPORT ChromeClient : public GarbageCollected<ChromeClient> {
 
   virtual float ZoomFactorForViewportLayout() { return 1; }
 
+  virtual void DidAddElementForSensitiveDetection(LocalFrame*, Element*) {}
+
  protected:
   ChromeClient() = default;
 
