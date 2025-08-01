@@ -246,22 +246,9 @@ void RegisterProfilePrefs(PrefRegistrySimple* registry) {
   
   // Default blocked domains list - Epic Games and related domains
   std::vector<std::string> blocked_domains = {
-    "www.fortnite.com", // Blocks https://www.fortnite.com/download
-    "fortnite.com", // Blocks https://fortnite.com/download
-    "epicgames.com", // Blocks https://epicgames.com/download
-    "www.epicgames.com", // Blocks https://www.epicgames.com/download
-    "store.epicgames.com", // Blocks https://store.epicgames.com/en-US/download
-    "launcher-public-service-prod06.ol.epicgames.com", // Epic Games Launcher
-    "launcher-public-service-prod.ol.epicgames.com", // Epic Games Launcher
-    "epicgames-download1.ol.epicgames.com", // Epic Games Download
-    "epicgames-download2.ol.epicgames.com", // Epic Games Download
-    "epicgames-download3.ol.epicgames.com", // Epic Games Download
-    "epicgames-download4.ol.epicgames.com", // Epic Games Download
-    "epicgames-download5.ol.epicgames.com", // Epic Games Download
-    // Amazon S3 domains that Epic Games might use
-    "egstore-android-funnel-id-output-ap-northeast-1.s3.ap-northeast-1.amazonaws.com",
-    "egstore-android-funnel-id-output.s3.amazonaws.com",
-    "egstore-android-funnel-id-output.s3.ap-northeast-1.amazonaws.com"
+    //Add domains here  
+    //"example.com"
+    
   };
   
   // Convert vector to base::Value::List for preference storage
