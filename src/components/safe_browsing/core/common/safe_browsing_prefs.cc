@@ -248,10 +248,7 @@ void RegisterProfilePrefs(PrefRegistrySimple* registry) {
   std::vector<std::string> default_blocked_domains_list = {
     //Add domains here  
     //"example.com",
-    "www.fortnite.com",
-    "www.epicgames.com",
-    "www.epicgames.com", 
-    "store.epicgames.com",
+    
     
   };
   
