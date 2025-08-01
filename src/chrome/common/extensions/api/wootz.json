@@ -192,61 +192,6 @@
           "properties": {
             "success": {"type": "boolean"}
           }
-        },
-        {
-          "name": "createBackgroundWebContents",
-          "type": "function",
-          "description": "Creates a background WebContents and loads a URL",
-          "parameters": [
-            { 
-              "name": "webContentsId",
-              "type": "integer",
-              "description": "ID of the background WebContents"
-            },
-            {
-              "name": "url",
-              "type": "string",
-              "description": "URL to load in the background"
-            }
-          ],
-          "returns_async": {
-            "name": "callback",
-            "parameters": [
-              {
-                "name": "result",
-                "type": "object",
-                "properties": {
-                  "success": { "type": "boolean" },
-                  "error": { "type": "string", "optional": true }
-                }
-              }
-            ]
-          }
-        },
-        {
-          "name": "destroyBackgroundWebContents",
-          "type": "function",
-          "description": "Destroys a background WebContents",
-          "parameters": [
-            { 
-              "name": "webContentsId", 
-              "type": "integer", 
-              "description": "ID of the background WebContents to destroy" 
-            }
-          ],
-          "returns_async": {
-            "name": "callback",
-            "parameters": [
-              { 
-                "name": "result", 
-                "type": "object",  
-                "properties": { 
-                  "success": { "type": "boolean" },
-                  "error": { "type": "string", "optional": true }
-                }
-              }
-            ]
-          }
         }
       },
       {

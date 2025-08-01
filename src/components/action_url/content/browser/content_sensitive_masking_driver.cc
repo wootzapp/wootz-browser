@@ -62,7 +62,7 @@ int ContentSensitiveMaskingDriver::GetId() const {
 void ContentSensitiveMaskingDriver::UpdateMaskingSelectorsDirectly(
     const std::vector<std::string>& selectors, 
     UpdateMaskingSelectorsCallback callback) {
-  LOG(INFO) << "[SensitiveMasking][Driver] Received selectors from extension API, forwarding to renderer";
+  DVLOG(1) << "Received selectors from extension API, forwarding to renderer";
   
   // Forward to the simplified Mojo interface (no callback) and then call our callback
   UpdateMaskingSelectors(selectors);
@@ -73,29 +73,26 @@ void ContentSensitiveMaskingDriver::UpdateMaskingSelectorsDirectly(
 
 void ContentSensitiveMaskingDriver::UpdateMaskingSelectors(
     const std::vector<std::string>& selectors) {
-  LOG(INFO) << "[SensitiveMasking][Driver] Browser-side UpdateMaskingSelectors called with " 
+  DVLOG(1) << "Browser-side UpdateMaskingSelectors called with " 
             << selectors.size() << " selectors, forwarding to renderer";
   
   // Forward to renderer-side agent via Mojo (no callback - simplified like replace_element)
   if (renderer_remote_.is_bound()) {
     renderer_remote_->UpdateMaskingSelectors(selectors);
   } else {
-    LOG(ERROR) << "[SensitiveMasking][Driver] Renderer remote not bound, cannot forward selectors";
+    LOG(ERROR) << "Renderer remote not bound, cannot forward selectors";
   }
 }
 
 void ContentSensitiveMaskingDriver::SetMaskingEnabled(bool enabled) {
-  LOG(INFO) << "[SensitiveMasking][Driver] Setting masking enabled: " << enabled;
+  DVLOG(1) << "Setting masking enabled: " << enabled;
   
   // Forward to renderer-side agent via Mojo
-  // TEMPORARILY DISABLED to test if Mojo send to renderer is causing crashes
-  // if (renderer_remote_.is_bound()) {
-  //   renderer_remote_->SetMaskingEnabled(enabled);
-  // } else {
-  //   LOG(ERROR) << "[SensitiveMasking][Driver] Renderer remote not bound, cannot forward masking enabled";
-  // }
-  
-  LOG(INFO) << "[SensitiveMasking][Driver] Mojo send to renderer disabled, SetMaskingEnabled ignored";
+  if (renderer_remote_.is_bound()) {
+    renderer_remote_->SetMaskingEnabled(enabled);
+  } else {
+    LOG(ERROR) << "Renderer remote not bound, cannot forward masking enabled";
+  }
 }
 
 }  // namespace sensitive_masking 

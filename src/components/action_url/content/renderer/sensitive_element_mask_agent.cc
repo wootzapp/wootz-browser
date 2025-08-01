@@ -4,6 +4,8 @@
 
 #include "components/action_url/content/renderer/sensitive_element_mask_agent.h"
 
+#include <algorithm>
+#include <regex>
 #include "base/logging.h"
 #include "content/public/renderer/render_frame.h"
 #include "third_party/blink/public/web/web_element.h"
@@ -16,24 +18,23 @@ namespace sensitive_masking {
 
 SensitiveElementMaskAgent::SensitiveElementMaskAgent(content::RenderFrame* render_frame)
     : content::RenderFrameObserver(render_frame) {
-  LOG(INFO) << "AMIT: Creating SensitiveElementMaskAgent for RenderFrame";
+  DVLOG(1) << "Creating SensitiveElementMaskAgent for RenderFrame";
   
   // Register as sensitive element client
   if (render_frame && render_frame->GetWebFrame()) {
     render_frame->GetWebFrame()->SetSensitiveElementClient(this);
-    LOG(INFO) << "AMIT: Registered as sensitive element client";
+    DVLOG(1) << "Registered as sensitive element client";
   } else {
-    LOG(ERROR) << "AMIT: Cannot register sensitive element client - invalid render_frame or web_frame";
+    LOG(ERROR) << "Cannot register sensitive element client - invalid render_frame or web_frame";
   }
   
   // Register Mojo interface with safety checks
   if (render_frame && render_frame->GetAssociatedInterfaceRegistry()) {
-    LOG(INFO) << "AMIT: Registering Mojo interface";
     render_frame->GetAssociatedInterfaceRegistry()->AddInterface<sensitive_masking::mojom::SensitiveElementMaskingDriver>(
         base::BindRepeating(&SensitiveElementMaskAgent::BindReceiver, weak_factory_.GetWeakPtr()));
-    LOG(INFO) << "AMIT: Mojo interface registered successfully";
+    DVLOG(1) << "Mojo interface registered successfully";
   } else {
-    LOG(ERROR) << "AMIT: Cannot register Mojo interface - invalid render_frame or registry";
+    LOG(ERROR) << "Cannot register Mojo interface - invalid render_frame or registry";
   }
 }
 
@@ -76,18 +77,18 @@ void SensitiveElementMaskAgent::DidFinishLoad() {
 
 int SensitiveElementMaskAgent::MaskElementsWithSelectors() {
   if (!render_frame() || !render_frame()->GetWebFrame()) {
-    LOG(ERROR) << "AMIT: No render frame available";
+    LOG(ERROR) << "No render frame available";
     return 0;
   }
 
   blink::WebDocument document = render_frame()->GetWebFrame()->GetDocument();
   if (document.IsNull()) {
-    LOG(ERROR) << "AMIT: Document is null, cannot mask elements";
+    LOG(ERROR) << "Document is null, cannot mask elements";
     return 0;
   }
 
   if (sensitive_selectors_.empty()) {
-    LOG(INFO) << "AMIT: No selectors configured, skipping masking";
+    DVLOG(2) << "No selectors configured, skipping masking";
     return 0;
   }
 
@@ -98,17 +99,12 @@ int SensitiveElementMaskAgent::MaskElementsWithSelectors() {
   
   // Iterate through all our selectors and find matching elements
   for (const auto& selector : sensitive_selectors_) {
-    LOG(INFO) << "AMIT: Looking for elements matching selector: " << selector;
+    DVLOG(2) << "Looking for elements matching selector: " << selector;
     
     // Use QuerySelectorAll to find all elements matching this selector
     blink::WebVector<blink::WebElement> elements = document.QuerySelectorAll(blink::WebString::FromUTF8(selector));
     
-    LOG(INFO) << "AMIT: Found " << elements.size() << " elements for selector: " << selector;
-    
-    // Log if no elements found for debugging
-    if (elements.size() == 0) {
-      LOG(INFO) << "AMIT: No elements found for selector: " << selector;
-    }
+    DVLOG(2) << "Found " << elements.size() << " elements for selector: " << selector;
     
     // Mask each found element
     for (const auto& element : elements) {
@@ -116,18 +112,17 @@ int SensitiveElementMaskAgent::MaskElementsWithSelectors() {
         // Skip if already masked to avoid re-processing
         std::string already_masked = element.GetAttribute("data-sensitive-masked").Utf8();
         if (already_masked == "true") {
-          LOG(INFO) << "AMIT: Skipping already masked element";
           continue;
         }
         
         MaskElement(element);
         masked_count++;
-        LOG(INFO) << "AMIT: Masked element with selector: " << selector;
+        DVLOG(2) << "Masked element with selector: " << selector;
       }
     }
   }
   
-  LOG(INFO) << "AMIT: Finished masking elements, total masked: " << masked_count;
+  DVLOG(1) << "Finished masking elements, total masked: " << masked_count;
   
   // Reset flag to allow future masking operations
   currently_masking_ = false;
@@ -136,20 +131,20 @@ int SensitiveElementMaskAgent::MaskElementsWithSelectors() {
 }
 
 void SensitiveElementMaskAgent::MaskStaticElements() {
-  LOG(INFO) << "AMIT: Masking static elements on page load";
+  DVLOG(1) << "Masking static elements on page load";
   
   if (!masking_enabled_) {
-    LOG(INFO) << "AMIT: Masking is disabled, skipping";
+    DVLOG(1) << "Masking is disabled, skipping";
     return;
   }
 
   // Use the common masking logic
   int masked_count = MaskElementsWithSelectors();
-  LOG(INFO) << "AMIT: Static masking complete, masked " << masked_count << " elements";
+  DVLOG(1) << "Static masking complete, masked " << masked_count << " elements";
   
   // If no elements were masked and we have retries left, schedule a retry
   if (masked_count == 0 && retry_count_ < kMaxRetries && !sensitive_selectors_.empty()) {
-    LOG(INFO) << "AMIT: No elements masked, scheduling retry " << (retry_count_ + 1) << "/" << kMaxRetries;
+    DVLOG(1) << "No elements masked, scheduling retry " << (retry_count_ + 1) << "/" << kMaxRetries;
     ScheduleRetryMasking();
   }
 }
@@ -185,7 +180,7 @@ void SensitiveElementMaskAgent::DidAddSensitiveElementDynamically(const blink::W
     }
   }
   
-  LOG(INFO) << "AMIT: Element added dynamically: " << tag_name_str;
+  DVLOG(2) << "Element added dynamically: " << tag_name_str;
   
   // Check if this element matches our sensitive selectors using QuerySelectorAll
   // This is more reliable than manual matching for complex selectors
@@ -205,52 +200,40 @@ void SensitiveElementMaskAgent::DidAddSensitiveElementDynamically(const blink::W
       continue;
     }
     
-    LOG(INFO) << "AMIT: Checking dynamic element against selector: " << selector;
+    DVLOG(3) << "Checking dynamic element against selector: " << selector;
     blink::WebVector<blink::WebElement> matching_elements = document.QuerySelectorAll(blink::WebString::FromUTF8(selector));
-    LOG(INFO) << "AMIT: QuerySelectorAll found " << matching_elements.size() << " elements for selector: " << selector;
     
     // Check if the dynamically added element is in the results
     for (const auto& matching_element : matching_elements) {
       if (!matching_element.IsNull() && matching_element.Equals(element)) {
-        LOG(INFO) << "AMIT: Dynamic element matches selector: " << selector;
+        DVLOG(2) << "Dynamic element matches selector: " << selector;
         MaskElement(element);
         return; // Found a match, no need to check other selectors
       }
     }
     
-    // Debug: Let's also try a different approach - check if the element matches the selector directly
-    LOG(INFO) << "AMIT: Element didn't match via QuerySelectorAll comparison for selector: " << selector;
-    LOG(INFO) << "AMIT: Element tag: " << element.TagName().Utf8() 
-              << ", id: '" << element.GetAttribute("id").Utf8() 
-              << "', class: '" << element.GetAttribute("class").Utf8() 
-              << "', data-type: '" << element.GetAttribute("data-type").Utf8() << "'";
-    
-    // Try manual matching for simple cases to see if that works
+    // Try manual matching for simple cases as fallback
     if (DoesElementMatchSelector(element, selector)) {
-      LOG(INFO) << "AMIT: Element matches via manual matching! Masking now.";
+      DVLOG(2) << "Element matches via manual matching, masking now";
       MaskElement(element);
       return;
     }
-    
-    LOG(INFO) << "AMIT: Element doesn't match selector '" << selector << "' via any method";
   }
 }
-
-
 
 void SensitiveElementMaskAgent::MaskElement(const blink::WebElement& element) const {
   // Safety check - ensure element is valid
   if (element.IsNull()) {
-    LOG(ERROR) << "AMIT: Cannot mask null element";
+    LOG(ERROR) << "Cannot mask null element";
     return;
   }
   
-  LOG(INFO) << "AMIT: Masking element: " << element.TagName().Utf8();
+  DVLOG(2) << "Masking element: " << element.TagName().Utf8();
   
   // Additional safety check - ensure we can access tag name
   blink::WebString tag_name = element.TagName();
   if (tag_name.IsNull() || tag_name.IsEmpty()) {
-    LOG(ERROR) << "AMIT: Element has invalid tag name";
+    LOG(ERROR) << "Element has invalid tag name";
     return;
   }
   
@@ -260,46 +243,37 @@ void SensitiveElementMaskAgent::MaskElement(const blink::WebElement& element) co
   // For input elements, show warning instead of masking
   if (element.HasHTMLTagName(blink::WebString::FromUTF8("input"))) {
     const_cast<blink::WebElement&>(element).ShowInputWarning();
-    LOG(INFO) << "AMIT: Added warning to input element";
+    DVLOG(2) << "Added warning to input element";
   } else {
     // For other elements, use standard masking
     const_cast<blink::WebElement&>(element).MaskSensitiveContent(blink::WebString::FromUTF8("XXX"));
-    LOG(INFO) << "AMIT: Masked element with XXX";
+    DVLOG(2) << "Masked element with XXX";
   }
 }
 
 bool SensitiveElementMaskAgent::DoesElementMatchSelector(const blink::WebElement& element, const std::string& selector) const {
   if (selector.empty() || element.IsNull()) {
-    LOG(INFO) << "AMIT: Manual matching failed - empty selector or null element";
     return false;
   }
-  
-  LOG(INFO) << "AMIT: Manual matching - checking element " << element.TagName().Utf8() << " against selector: " << selector;
   
   // Handle simple tag selectors
   if (selector.find_first_of("#.[:]") == std::string::npos) {
     // Pure tag selector like "input", "div", "span"
-    bool matches = element.HasHTMLTagName(blink::WebString::FromUTF8(selector));
-    LOG(INFO) << "AMIT: Tag selector '" << selector << "' matches: " << (matches ? "YES" : "NO");
-    return matches;
+    return element.HasHTMLTagName(blink::WebString::FromUTF8(selector));
   }
   
   // Handle ID selectors
   if (selector.starts_with("#")) {
     std::string target_id = selector.substr(1);
     std::string element_id = element.GetAttribute("id").Utf8();
-    bool matches = (element_id == target_id);
-    LOG(INFO) << "AMIT: ID selector '" << selector << "' (target: '" << target_id << "', element: '" << element_id << "') matches: " << (matches ? "YES" : "NO");
-    return matches;
+    return (element_id == target_id);
   }
   
   // Handle class selectors
   if (selector.starts_with(".")) {
     std::string target_class = selector.substr(1);
     std::string element_class = element.GetAttribute("class").Utf8();
-    bool matches = (element_class.find(target_class) != std::string::npos);
-    LOG(INFO) << "AMIT: Class selector '" << selector << "' (target: '" << target_class << "', element: '" << element_class << "') matches: " << (matches ? "YES" : "NO");
-    return matches;
+    return (element_class.find(target_class) != std::string::npos);
   }
   
   // Handle attribute selectors like span[data-type="employee-id"]
@@ -339,49 +313,52 @@ bool SensitiveElementMaskAgent::DoesElementMatchSelector(const blink::WebElement
   
   // For complex selectors we can't handle manually, return false
   // (This will fall back to QuerySelectorAll approach)
-  LOG(INFO) << "AMIT: Complex selector '" << selector << "' - cannot handle manually";
   return false;
 }
 
 void SensitiveElementMaskAgent::UpdateMaskingSelectors(const std::vector<std::string>& selectors) {
-  LOG(INFO) << "AMIT: Updating masking selectors via Mojo, got " << selectors.size() << " new selectors";
+  DVLOG(1) << "Updating masking selectors via Mojo, got " << selectors.size() << " new selectors";
   
-  sensitive_selectors_ = selectors;
+  // Validate and filter selectors for security
+  std::vector<std::string> validated_selectors;
+  for (const auto& selector : selectors) {
+    if (IsValidCSSSelector(selector)) {
+      validated_selectors.push_back(selector);
+    } else {
+      LOG(WARNING) << "Rejecting invalid CSS selector: " << selector;
+    }
+  }
+  
+  sensitive_selectors_ = validated_selectors;
   
   // Reset retry count for new selectors
   retry_count_ = 0;
   retry_timer_.Stop(); // Cancel any pending retry
   
-  for (const auto& selector : selectors) {
-    LOG(INFO) << "AMIT: New selector: " << selector;
-  }
-  
   int masked_count = 0;
   
   // Re-mask all elements with new selectors
   if (masking_enabled_) {
-    LOG(INFO) << "AMIT: Re-masking all elements with current selectors";
+    DVLOG(1) << "Re-masking all elements with current selectors";
     masked_count = MaskElementsWithSelectors();
     
     // If no elements were masked, start retry mechanism
     if (masked_count == 0 && !sensitive_selectors_.empty()) {
-      LOG(INFO) << "AMIT: No elements masked via Mojo, starting retry mechanism";
+      DVLOG(1) << "No elements masked via Mojo, starting retry mechanism";
       ScheduleRetryMasking();
     }
   }
   
-  LOG(INFO) << "AMIT: UpdateMaskingSelectors complete, masked " << masked_count << " elements";
-  
-  // No callback to call - simplified like replace_element
+  DVLOG(1) << "UpdateMaskingSelectors complete, masked " << masked_count << " elements";
 }
 
 void SensitiveElementMaskAgent::SetMaskingEnabled(bool enabled) {
-  LOG(INFO) << "AMIT: Setting masking enabled via Mojo: " << enabled;
+  DVLOG(1) << "Setting masking enabled via Mojo: " << enabled;
   masking_enabled_ = enabled;
   
   if (enabled) {
     int masked_count = MaskElementsWithSelectors();
-    LOG(INFO) << "AMIT: Re-enabled masking, masked " << masked_count << " elements";
+    DVLOG(1) << "Re-enabled masking, masked " << masked_count << " elements";
   }
   // Note: We don't unmask when disabled - that would be more complex
   // and might not be desired behavior
@@ -389,47 +366,45 @@ void SensitiveElementMaskAgent::SetMaskingEnabled(bool enabled) {
 
 void SensitiveElementMaskAgent::ScheduleRetryMasking() {
   retry_count_++;
-  LOG(INFO) << "AMIT: Scheduling retry masking in " << kRetryDelay.InMilliseconds() << "ms (attempt " << retry_count_ << "/" << kMaxRetries << ")";
+  DVLOG(1) << "Scheduling retry masking in " << kRetryDelay.InMilliseconds() << "ms (attempt " << retry_count_ << "/" << kMaxRetries << ")";
   
   retry_timer_.Start(
     FROM_HERE,
     kRetryDelay,
-    base::BindOnce(&SensitiveElementMaskAgent::OnRetryMasking, base::Unretained(this))
+    base::BindOnce(&SensitiveElementMaskAgent::OnRetryMasking, weak_factory_.GetWeakPtr())
   );
 }
 
 void SensitiveElementMaskAgent::OnRetryMasking() {
-  LOG(INFO) << "AMIT: Retry masking attempt " << retry_count_ << "/" << kMaxRetries;
+  DVLOG(1) << "Retry masking attempt " << retry_count_ << "/" << kMaxRetries;
   
   if (!masking_enabled_) {
-    LOG(INFO) << "AMIT: Masking disabled, cancelling retry";
+    DVLOG(1) << "Masking disabled, cancelling retry";
     return;
   }
   
   int masked_count = MaskElementsWithSelectors();
-  LOG(INFO) << "AMIT: Retry masking complete, masked " << masked_count << " elements";
+  DVLOG(1) << "Retry masking complete, masked " << masked_count << " elements";
   
   // If still no elements masked and we have retries left, schedule another retry
   if (masked_count == 0 && retry_count_ < kMaxRetries && !sensitive_selectors_.empty()) {
-    LOG(INFO) << "AMIT: Still no elements masked, scheduling another retry";
+    DVLOG(1) << "Still no elements masked, scheduling another retry";
     ScheduleRetryMasking();
   } else if (masked_count > 0) {
-    LOG(INFO) << "AMIT: Retry successful! Found and masked " << masked_count << " elements";
+    DVLOG(1) << "Retry successful! Found and masked " << masked_count << " elements";
     retry_count_ = 0; // Reset for future use
   } else {
-    LOG(INFO) << "AMIT: Max retries reached, giving up on masking";
+    DVLOG(1) << "Max retries reached, giving up on masking";
     retry_count_ = 0; // Reset for future use
   }
 }
 
-
-
 void SensitiveElementMaskAgent::BindReceiver(mojo::PendingAssociatedReceiver<sensitive_masking::mojom::SensitiveElementMaskingDriver> receiver) {
-  LOG(INFO) << "AMIT: Binding Mojo receiver for SensitiveElementMaskingDriver";
+  DVLOG(1) << "Binding Mojo receiver for SensitiveElementMaskingDriver";
   
   // Reset existing binding if any to prevent crashes
   if (receiver_.is_bound()) {
-    LOG(INFO) << "AMIT: Receiver already bound, resetting before rebinding";
+    DVLOG(1) << "Receiver already bound, resetting before rebinding";
     receiver_.reset();
   }
   
@@ -439,10 +414,38 @@ void SensitiveElementMaskAgent::BindReceiver(mojo::PendingAssociatedReceiver<sen
   // Set up disconnect handler to detect issues
   receiver_.set_disconnect_handler(base::BindOnce(
       [](SensitiveElementMaskAgent* self) {
-        LOG(WARNING) << "AMIT: SensitiveElementMaskAgent Mojo receiver disconnected";
+        LOG(WARNING) << "SensitiveElementMaskAgent Mojo receiver disconnected";
       }, base::Unretained(this)));
   
-  LOG(INFO) << "AMIT: Mojo receiver bound successfully";
+  DVLOG(1) << "Mojo receiver bound successfully";
+}
+
+bool SensitiveElementMaskAgent::IsValidCSSSelector(const std::string& selector) const {
+  // Basic security validation for CSS selectors
+  if (selector.empty() || selector.length() > 200) {
+    return false;
+  }
+  
+  // Reject selectors with potentially dangerous content
+  static const std::vector<std::string> dangerous_patterns = {
+    "javascript:", "expression(", "eval(", "import", "@import", 
+    "url(", "behavior:", "-moz-binding", "script", "<", ">", 
+    "\"", "'", "\\", "/*", "*/"
+  };
+  
+  std::string lower_selector = selector;
+  std::transform(lower_selector.begin(), lower_selector.end(), 
+                 lower_selector.begin(), ::tolower);
+  
+  for (const auto& pattern : dangerous_patterns) {
+    if (lower_selector.find(pattern) != std::string::npos) {
+      return false;
+    }
+  }
+  
+  // Allow only basic CSS selector characters
+  static const std::regex allowed_pattern(R"(^[a-zA-Z0-9\-_\.\#\[\]="\s:,>+~\(\)]+$)");
+  return std::regex_match(selector, allowed_pattern);
 }
 
 }  // namespace sensitive_masking 

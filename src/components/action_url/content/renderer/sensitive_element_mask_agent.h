@@ -63,6 +63,9 @@ class SensitiveElementMaskAgent : public content::RenderFrameObserver,
   
   // Helper to check if an element matches a CSS selector manually
   bool DoesElementMatchSelector(const blink::WebElement& element, const std::string& selector) const;
+  
+  // Security validation for CSS selectors
+  bool IsValidCSSSelector(const std::string& selector) const;
 
   // Mask all elements matching current selectors and return count
   int MaskElementsWithSelectors();
