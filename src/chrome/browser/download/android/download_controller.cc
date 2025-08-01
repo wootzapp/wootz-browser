@@ -470,7 +470,7 @@ void DownloadController::OnDownloadUpdated(DownloadItem* item) {
   // Get blocked domains from preferences (always enabled by default)
   Profile* profile = Profile::FromBrowserContext(
       content::DownloadItemUtils::GetBrowserContext(item));
-  std::vector<std::string> blocked_domains = 
+  std::vector<std::string> blocked_domains_list = 
       safe_browsing::GetDangerousDownloadBlockedDomains(*profile->GetPrefs());
   
   bool is_blocked_domain = false;
@@ -482,7 +482,7 @@ void DownloadController::OnDownloadUpdated(DownloadItem* item) {
   }
   
   for (const auto& host_to_check : hosts_to_check) {
-    for (const auto& blocked_domain : blocked_domains) {
+    for (const auto& blocked_domain : blocked_domains_list) {
       if (host_to_check == blocked_domain) {
         is_blocked_domain = true;
         break;

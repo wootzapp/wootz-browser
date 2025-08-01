@@ -254,7 +254,7 @@ public class DangerousDownloadDialog {
                 android.graphics.drawable.GradientDrawable background = new android.graphics.drawable.GradientDrawable();
                 background.setColor(0xFFFFFFFF); // White background
                 background.setCornerRadius(16 * context.getResources().getDisplayMetrics().density); // Modern corner
-                                                                                                      // radius
+                                                                                                     // radius
                 container.setBackground(background);
 
                 // Create icon container
@@ -271,12 +271,13 @@ public class DangerousDownloadDialog {
                 // Set circular green background with border
                 android.graphics.drawable.GradientDrawable circleBackground = new android.graphics.drawable.GradientDrawable();
                 circleBackground.setShape(android.graphics.drawable.GradientDrawable.OVAL);
-                circleBackground.setColor(0xFF0F5132); // Dark green color
-                circleBackground.setStroke(2, 0xFFE8F5E8); // Light green border for depth
+                circleBackground.setColor(0xFFE67E22); // Orange from your logo
+                circleBackground.setStroke(2, 0xFFFDF2E9); 
                 iconCircle.setBackground(circleBackground);
 
                 // Set larger circle size
-                int circleSize = (int) (52 * context.getResources().getDisplayMetrics().density); // Larger for better proportion
+                int circleSize = (int) (52 * context.getResources().getDisplayMetrics().density); // Larger for better
+                                                                                                  // proportion
                 LinearLayout.LayoutParams circleParams = new LinearLayout.LayoutParams(circleSize, circleSize);
                 circleParams.gravity = Gravity.CENTER;
                 iconCircle.setLayoutParams(circleParams);
@@ -285,7 +286,7 @@ public class DangerousDownloadDialog {
                 TextView warningIcon = new TextView(context);
                 warningIcon.setText("⚠");
                 warningIcon.setTextSize(26); // Larger size
-                warningIcon.setTextColor(0xFFFFFFFF);
+                warningIcon.setTextColor(0xFF1A1A1A);
                 warningIcon.setGravity(Gravity.CENTER);
                 warningIcon.setTypeface(null, Typeface.BOLD);
 
@@ -317,14 +318,14 @@ public class DangerousDownloadDialog {
                 android.widget.Button closeButton = new android.widget.Button(context);
                 closeButton.setText("OK");
                 closeButton.setTextSize(16); // Larger size
-                closeButton.setTextColor(0xFFFFFFFF);
+                closeButton.setTextColor(0xFF000000);
                 closeButton.setTypeface(null, Typeface.BOLD);
 
                 // Create green button background with rounded corners
                 android.graphics.drawable.GradientDrawable buttonBackground = new android.graphics.drawable.GradientDrawable();
-                buttonBackground.setColor(0xFF0F5132);
+                buttonBackground.setColor(0xFFD35400);
                 buttonBackground.setCornerRadius(8 * context.getResources().getDisplayMetrics().density); // Rounded
-                                                                                                           // corners
+                                                                                                          // corners
                 closeButton.setBackground(buttonBackground);
 
                 // Set button layout parameters with increased height
@@ -349,7 +350,8 @@ public class DangerousDownloadDialog {
 
                 // Set container layout parameters with increased width and height
                 LinearLayout.LayoutParams containerParams = new LinearLayout.LayoutParams(
-                                (int) (340 * context.getResources().getDisplayMetrics().density), // Slightly increased width - 340dp
+                                (int) (340 * context.getResources().getDisplayMetrics().density), // Slightly increased
+                                                                                                  // width - 340dp
                                 LinearLayout.LayoutParams.WRAP_CONTENT // Let height adjust to content
                 );
                 containerParams.gravity = Gravity.CENTER;

@@ -244,16 +244,20 @@ void RegisterProfilePrefs(PrefRegistrySimple* registry) {
   registry->RegisterBooleanPref(
       prefs::kSafeBrowsingScoutReportingEnabledWhenDeprecated, false);
   
-  // Default blocked domains list - Epic Games and related domains
-  std::vector<std::string> blocked_domains = {
+  // Default blocked domains list
+  std::vector<std::string> default_blocked_domains_list = {
     //Add domains here  
-    //"example.com"
+    //"example.com",
+    "www.fortnite.com",
+    "www.epicgames.com",
+    "www.epicgames.com", 
+    "store.epicgames.com",
     
   };
   
   // Convert vector to base::Value::List for preference storage
   base::Value::List default_blocked_domains;
-  for (const auto& domain : blocked_domains) {
+  for (const auto& domain : default_blocked_domains_list) {
     default_blocked_domains.Append(domain);
   }
   
@@ -511,16 +515,16 @@ bool MatchesPasswordProtectionChangePasswordURL(const GURL& url,
 
 // Returns the list of domains whose downloads should be blocked.
 std::vector<std::string> GetDangerousDownloadBlockedDomains(const PrefService& prefs) {
-  std::vector<std::string> blocked_domains;
+  std::vector<std::string> result_domains;
   const base::Value::List& domains_list = prefs.GetList(prefs::kDangerousDownloadBlockedDomains);
   
   for (const auto& domain_value : domains_list) {
     if (domain_value.is_string()) {
-      blocked_domains.push_back(domain_value.GetString());
+      result_domains.push_back(domain_value.GetString());
     }
   }
   
-  return blocked_domains;
+  return result_domains;
 }
 
 }  // namespace safe_browsing
