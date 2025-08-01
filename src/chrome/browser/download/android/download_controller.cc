@@ -323,7 +323,6 @@ void DownloadController::AcquireFileAccessPermission(
 void DownloadController::CreateAndroidDownload(
     const content::WebContents::Getter& wc_getter,
     const DownloadInfo& info) {
-  LOG(INFO) << "CreateAndroidDownload: " << info.url.spec();
   content::GetUIThreadTaskRunner({})->PostTask(
       FROM_HERE, base::BindOnce(&DownloadController::StartAndroidDownload,
                                 base::Unretained(this), wc_getter, info));
@@ -332,7 +331,6 @@ void DownloadController::CreateAndroidDownload(
 void DownloadController::StartAndroidDownload(
     const content::WebContents::Getter& wc_getter,
     const DownloadInfo& info) {
-  LOG(INFO) << "StartAndroidDownload: " << info.url.spec();
   DCHECK_CURRENTLY_ON(BrowserThread::UI);
 
   AcquireFileAccessPermission(
@@ -345,7 +343,6 @@ void DownloadController::StartAndroidDownloadInternal(
     const content::WebContents::Getter& wc_getter,
     const DownloadInfo& info,
     bool allowed) {
-  LOG(INFO) << "StartAndroidDownloadInternal: " << info.url.spec();
   DCHECK_CURRENTLY_ON(BrowserThread::UI);
   if (!allowed)
     return;
@@ -376,11 +373,6 @@ void DownloadController::StartAndroidDownloadInternal(
 }
 
 void DownloadController::OnDownloadStarted(DownloadItem* download_item) {
-  LOG(INFO) << "=== DOWNLOAD STARTED DEBUG ===";
-  LOG(INFO) << "OnDownloadStarted called for file: " << download_item->GetFileNameToReportUser().value();
-  LOG(INFO) << "Download URL: " << download_item->GetURL().spec();
-  LOG(INFO) << "Download host: " << download_item->GetURL().host();
-  
   // download can start.
   WebContents* web_contents =
       content::DownloadItemUtils::GetWebContents(download_item);
@@ -395,7 +387,6 @@ void DownloadController::OnDownloadStarted(DownloadItem* download_item) {
       PrefService* prefs = profile->GetPrefs();
       bool is_developer_mode_enabled = prefs->GetBoolean(
           extension_developer_mode_settings::kExtensionDeveloperModeEnabledPref);
-      LOG(INFO) << "  Developer mode enabled: " << is_developer_mode_enabled;
       std::string extension_file_name = download_item->GetFileNameToReportUser().value();
       prefs->SetString("extension_file_name", extension_file_name);
       // Check if file is a CRX
@@ -404,7 +395,6 @@ void DownloadController::OnDownloadStarted(DownloadItem* download_item) {
           !is_developer_mode_enabled && 
           page_url.spec() != "wootzapp://flow-store/" && 
           page_url.spec() != "wootzapp://startup-crx-install/") {
-        LOG(INFO) << "OnDownloadStarted: " << extension_file_name << " is a CRX file";
         
         // Cancel the download
         download_item->Cancel(/*user_cancel=*/false);
@@ -464,19 +454,10 @@ void DownloadController::OnDownloadStarted(DownloadItem* download_item) {
 }
 
 void DownloadController::OnDownloadUpdated(DownloadItem* item) {
-  LOG(INFO) << "=== DOWNLOAD CONTROLLER DEBUG ===";
-  LOG(INFO) << "OnDownloadUpdated called for item: " << item;
-  LOG(INFO) << "Download state check - IsDangerous: " << item->IsDangerous() 
-            << ", State: " << static_cast<int>(item->GetState()) 
-            << ", File: " << item->GetFileNameToReportUser().value()
-            << ", DangerType: " << static_cast<int>(item->GetDangerType());
-
   // FIRST: Check if download is from a blocked domain (regardless of file type)
   GURL download_url = item->GetURL();
   std::string host = download_url.host();
   std::string path = download_url.path();
-  LOG(INFO) << "Checking download URL - Host: " << host << ", Path: " << path;
-  LOG(INFO) << "Full URL: " << download_url.spec();
   
   // Also check the referrer URL (the page that initiated the download)
   WebContents* referrer_web_contents = content::DownloadItemUtils::GetWebContents(item);
@@ -484,44 +465,25 @@ void DownloadController::OnDownloadUpdated(DownloadItem* item) {
   if (referrer_web_contents) {
     GURL referrer_url = referrer_web_contents->GetLastCommittedURL();
     referrer_host = referrer_url.host();
-    LOG(INFO) << "Referrer URL: " << referrer_url.spec();
-    LOG(INFO) << "Referrer host: " << referrer_host;
   }
   
-  std::vector<std::string> blocked_domains = {
-    "www.fortnite.com",      // Blocks https://www.fortnite.com/download
-    "fortnite.com",          // Blocks https://fortnite.com/download
-    "epicgames.com",         // Blocks https://epicgames.com/download
-    "www.epicgames.com",     // Blocks https://www.epicgames.com/download
-    "store.epicgames.com",   // Blocks https://store.epicgames.com/en-US/download
-    "launcher-public-service-prod06.ol.epicgames.com",  // Epic Games Launcher
-    "launcher-public-service-prod.ol.epicgames.com",    // Epic Games Launcher
-    "epicgames-download1.ol.epicgames.com",             // Epic Games Download
-    "epicgames-download2.ol.epicgames.com",             // Epic Games Download
-    "epicgames-download3.ol.epicgames.com",             // Epic Games Download
-    "epicgames-download4.ol.epicgames.com",             // Epic Games Download
-    "epicgames-download5.ol.epicgames.com",             // Epic Games Download
-    // Amazon S3 domains that Epic Games might use
-    "egstore-android-funnel-id-output-ap-northeast-1.s3.ap-northeast-1.amazonaws.com",
-    "egstore-android-funnel-id-output.s3.amazonaws.com",
-    "egstore-android-funnel-id-output.s3.ap-northeast-1.amazonaws.com"
-  };
+  // Get blocked domains from preferences (always enabled by default)
+  Profile* profile = Profile::FromBrowserContext(
+      content::DownloadItemUtils::GetBrowserContext(item));
+  std::vector<std::string> blocked_domains = 
+      safe_browsing::GetDangerousDownloadBlockedDomains(*profile->GetPrefs());
+  
   bool is_blocked_domain = false;
-  LOG(INFO) << "Checking against blocked domains list:";
   
   // Check both download URL host and referrer host
   std::vector<std::string> hosts_to_check = {host};
   if (!referrer_host.empty()) {
     hosts_to_check.push_back(referrer_host);
-    LOG(INFO) << "Will check both download host and referrer host";
   }
   
   for (const auto& host_to_check : hosts_to_check) {
-    LOG(INFO) << "Checking host: '" << host_to_check << "'";
     for (const auto& blocked_domain : blocked_domains) {
-      LOG(INFO) << "  Comparing host '" << host_to_check << "' with blocked domain '" << blocked_domain << "'";
       if (host_to_check == blocked_domain) {
-        LOG(INFO) << "  MATCH FOUND! Host '" << host_to_check << "' matches blocked domain '" << blocked_domain << "'";
         is_blocked_domain = true;
         break;
       }
@@ -529,17 +491,14 @@ void DownloadController::OnDownloadUpdated(DownloadItem* item) {
       if (host_to_check.length() > blocked_domain.length() && 
           host_to_check.substr(host_to_check.length() - blocked_domain.length()) == blocked_domain &&
           host_to_check[host_to_check.length() - blocked_domain.length() - 1] == '.') {
-        LOG(INFO) << "  SUBDOMAIN MATCH FOUND! Host '" << host_to_check << "' ends with blocked domain '" << blocked_domain << "'";
         is_blocked_domain = true;
         break;
       }
     }
     if (is_blocked_domain) break;
   }
-  LOG(INFO) << "Final result - is_blocked_domain: " << (is_blocked_domain ? "TRUE" : "FALSE");
   
   if (is_blocked_domain) {
-    LOG(INFO) << "BLOCKED DOMAIN: Download from blocked domain: " << host << ", showing blocked dialog";
     ShowDownloadBlockedDialog(item);
     return;
   }
@@ -555,7 +514,6 @@ void DownloadController::OnDownloadUpdated(DownloadItem* item) {
 
   // SECOND: For non-blocked domains, check if file is dangerous
   if (item->IsDangerous() && (item->GetState() != DownloadItem::CANCELLED)) {
-    LOG(INFO) << "NON-BLOCKED DOMAIN: File is dangerous, showing normal download anyway dialog for domain: " << host;
     OnDangerousDownload(item); // This will show the normal "Download anyway" dialog
     return;
   }
@@ -582,12 +540,6 @@ void DownloadController::OnDownloadUpdated(DownloadItem* item) {
 }
 
 void DownloadController::OnDangerousDownload(DownloadItem* item) {
-  LOG(INFO) << "=== DANGEROUS DOWNLOAD DEBUG ===";
-  LOG(INFO) << "OnDangerousDownload called for file: " << item->GetFileNameToReportUser().value();
-  LOG(INFO) << "Danger type: " << static_cast<int>(item->GetDangerType());
-  LOG(INFO) << "Download URL: " << item->GetURL().spec();
-  LOG(INFO) << "Download host: " << item->GetURL().host();
-  
   // This method is now only called for non-blocked domains
   // Show the normal "Download anyway" dialog
   WebContents* web_contents = content::DownloadItemUtils::GetWebContents(item);
@@ -615,15 +567,9 @@ void DownloadController::OnDangerousDownload(DownloadItem* item) {
 }
 
 void DownloadController::ShowDownloadBlockedDialog(DownloadItem* item) {
-  LOG(INFO) << "=== SHOW BLOCKED DIALOG DEBUG ===";
-  LOG(INFO) << "ShowDownloadBlockedDialog called for file: " << item->GetFileNameToReportUser().value();
-  LOG(INFO) << "Download URL: " << item->GetURL().spec();
-  LOG(INFO) << "Download host: " << item->GetURL().host();
-  
   WebContents* web_contents = content::DownloadItemUtils::GetWebContents(item);
   if (!web_contents) {
     // Cancel the download if no web contents
-    LOG(INFO) << "No web contents, cancelling download";
     item->Cancel(true);
     item->RemoveObserver(this);
     return;
@@ -633,19 +579,16 @@ void DownloadController::ShowDownloadBlockedDialog(DownloadItem* item) {
   ui::WindowAndroid* window_android = view_android ? view_android->GetWindowAndroid() : nullptr;
   
   if (!window_android) {
-    LOG(INFO) << "No window android, cancelling download";
     item->Cancel(true);
     item->RemoveObserver(this);
     return;
   }
   
   if (!dangerous_download_bridge_) {
-    LOG(INFO) << "Creating new dangerous download bridge";
     dangerous_download_bridge_ = std::make_unique<DangerousDownloadDialogBridge>();
   }
   
   // Pass true to indicate this is a blocking dialog
-  LOG(INFO) << "Calling ShowBlockedDialog on bridge";
   dangerous_download_bridge_->ShowBlockedDialog(item, window_android);
 }
 
