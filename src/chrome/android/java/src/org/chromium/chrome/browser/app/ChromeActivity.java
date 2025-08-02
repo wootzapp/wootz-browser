@@ -316,6 +316,7 @@ import org.chromium.chrome.browser.wootz_wallet.WootzWalletServiceFactory;
 import org.chromium.chrome.browser.wootz_wallet.BlockchainRegistryFactory;
 import org.chromium.chrome.browser.wootz_wallet.AssetRatioServiceFactory;
 import org.chromium.chrome.browser.wootz_wallet.SwapServiceFactory;
+import org.chromium.chrome.browser.wootzapp_search.AiChatBottomSheetFragment;
 
 /**
  * A {@link AsyncInitializationActivity} that builds and manages a {@link CompositorViewHolder}
@@ -3356,6 +3357,7 @@ public abstract class ChromeActivity<C extends ChromeActivityComponent>
                 NewTabPageUma.recordAction(NewTabPageUma.ACTION_OPENED_HISTORY_MANAGER);
             }
             RecordUserAction.record("MobileMenuHistory");
+            Log.e("ChromeActivity", "MAC_onMenuOrKeyboardAction APP_MENU_HISTORY: called in onMenuOrKeyboardAction at Line 3359 " + currentTab.getUrl());
             HistoryManagerUtils.showHistoryManager(
                     this, currentTab, getTabModelSelector().isIncognitoSelected());
             RecordHistogram.recordEnumeratedHistogram(
@@ -3443,6 +3445,12 @@ public abstract class ChromeActivity<C extends ChromeActivityComponent>
             Tracker tracker = TrackerFactory.getTrackerForProfile(currentTab.getProfile());
             tracker.notifyEvent(EventConstants.TRANSLATE_MENU_BUTTON_CLICKED);
             TranslateBridge.translateTabWhenReady(currentTab);
+            return true;
+        }
+
+        if (id == R.id.ai_chat_with_search_id) {
+            RecordUserAction.record("MobileMenuAiChatWithSearch");
+            openAiChatWithSearch(currentTab);
             return true;
         }
 
@@ -3965,5 +3973,74 @@ public abstract class ChromeActivity<C extends ChromeActivityComponent>
      */
     protected @Nullable View getBaseChromeLayout() {
         return mBaseChromeLayout;
+    }
+
+    private void openAiChatWithSearch(Tab currentTab) {
+        Log.d(TAG, "openAiChatWithSearch called");
+        
+        // Extract search query from Google search results
+        String searchQuery = extractSearchQueryFromGoogle(currentTab);
+        
+        if (searchQuery != null && !searchQuery.isEmpty()) {
+            Log.d(TAG, "Extracted search query: " + searchQuery);
+            
+            // Create and show the AI chat bottom sheet
+            AiChatBottomSheetFragment fragment = AiChatBottomSheetFragment.newInstance(searchQuery);
+            fragment.show(getSupportFragmentManager(), "ai_chat_bottom_sheet");
+        } else {
+            Log.d(TAG, "No search query found, showing empty AI chat");
+            // Show AI chat without initial query
+            AiChatBottomSheetFragment fragment = AiChatBottomSheetFragment.newInstance("");
+            fragment.show(getSupportFragmentManager(), "ai_chat_bottom_sheet");
+        }
+    }
+
+    private String extractSearchQueryFromGoogle(Tab currentTab) {
+        if (currentTab == null) return null;
+        
+        String url = currentTab.getUrl().getSpec();
+        Log.d(TAG, "Current URL: " + url);
+        
+        // Check if this is a Google search results page
+        if (url.contains("google.com/search") || url.contains("google.co.in/search")) {
+            // Extract the search query from the URL
+            String query = extractQueryFromGoogleUrl(url);
+            Log.d(TAG, "Extracted query from Google URL: " + query);
+            return query;
+        }
+        
+        // Check if this is a Google search results page with different patterns
+        if (url.contains("google.com") && url.contains("q=")) {
+            String query = extractQueryFromGoogleUrl(url);
+            Log.d(TAG, "Extracted query from Google URL: " + query);
+            return query;
+        }
+        
+        Log.d(TAG, "Not a Google search results page");
+        return null;
+    }
+
+    private String extractQueryFromGoogleUrl(String url) {
+        try {
+            // Look for the 'q=' parameter in the URL
+            int qIndex = url.indexOf("q=");
+            if (qIndex == -1) return null;
+            
+            // Find the end of the query parameter
+            int endIndex = url.indexOf("&", qIndex);
+            if (endIndex == -1) {
+                endIndex = url.length();
+            }
+            
+            // Extract the query and decode it
+            String encodedQuery = url.substring(qIndex + 2, endIndex);
+            String decodedQuery = java.net.URLDecoder.decode(encodedQuery, "UTF-8");
+            
+            Log.d(TAG, "Encoded query: " + encodedQuery + ", Decoded query: " + decodedQuery);
+            return decodedQuery;
+        } catch (Exception e) {
+            Log.e(TAG, "Error extracting query from URL: " + url, e);
+            return null;
+        }
     }
 }

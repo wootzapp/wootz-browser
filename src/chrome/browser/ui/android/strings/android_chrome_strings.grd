@@ -564,6 +564,10 @@ CHAR_LIMIT guidelines:
     <message name="IDS_BACKUP_YOUR_WALLET_TEXT" desc="Wootz Wallet onboarding text">
       In the next step you’ll see a 12-word recovery phrase, which you can use to recover your primary crypto accounts. Save it someplace safe. Your recovery phrase is the only way to regain account access in case of forgotten password, lost or stolen device, or you want to switch wallets.
     </message>
+
+    <message name="IDS_CHAT_INPUT_HINT" desc="Chat input hint">Type a message...</message>
+    <message name="IDS_SEND_MESSAGE" desc="Send message">Send message</message>
+
     <message name="IDS_CONTINUE_TEXT" desc="Wootz Wallet onboarding text">
       Continue
     </message>
@@ -3113,7 +3117,7 @@ Your Google account may have other forms of browsing history like searches and a
         Keep
       </message>
       <message name="IDS_INSECURE_DOWNLOAD_DIALOG_DISCARD_TEXT" desc="Text label for the cancel button on the insecure download dialog for user to confirm the download.">
-        Discardf
+        Discard
       </message>
 
       <!-- Downloads location -->
@@ -3806,6 +3810,9 @@ To change this setting, <ph name="BEGIN_LINK">BEGIN_LINK</ph>delete the WootzApp
 
       <message name="IDS_MENU_TRANSLATE" desc="Menu item for triggering a page translation. The word 'Translate' should match the translation in TC ID 1613971242435858090. [CHAR_LIMIT=27]">
         Translate…
+      </message>
+      <message name="IDS_MENU_AI_CHAT_WITH_SEARCH" desc="Menu item for triggering a page translation. The word 'Translate' should match the translation in TC ID 1613971242435858090. [CHAR_LIMIT=27]">
+        AI Chat with Search
       </message>
 
       <message name="IDS_MENU_LISTEN_TO_THIS_PAGE" desc="Menu item for making the browser read out the page's text in spoken audio form. [CHAR_LIMIT=27]">

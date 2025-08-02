@@ -29,20 +29,3 @@ java_library("trace_event_adder_java") {
     "//third_party/android_deps:org_ow2_asm_asm_util_java",
   ]
 }
-
-java_binary("java_bytecode_rewriter") {
-  sources = [
-    "//build/android/bytecode/java/org/chromium/bytecode/ByteCodeProcessor.java",
-    "//build/android/bytecode/java/org/chromium/bytecode/ClassPathValidator.java",
-    "//build/android/bytecode/java/org/chromium/bytecode/WootzAppClassVisitor.java",
-    "//build/android/bytecode/java/org/chromium/bytecode/TypeUtils.java",
-  ]
-  main_class = "org.chromium.bytecode.ByteCodeProcessor"
-  deps = [
-    "//third_party/android_deps:org_ow2_asm_asm_java",
-    "//third_party/android_deps:org_ow2_asm_asm_tree_java",
-    "//third_party/android_deps:org_ow2_asm_asm_util_java",
-  ]
-  wrapper_script_name = "helper/java_bytecode_rewriter"
-  enable_bytecode_checks = false
-}

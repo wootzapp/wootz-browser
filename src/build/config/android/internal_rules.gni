@@ -4148,7 +4148,7 @@ if (enable_java_templates) {
       } else {
         not_needed(invoker, [ "missing_classes_allowlist" ])
       }
-      foreach(bytecode_jar, wootzapp_bytecode_jars) { if (rebase_path(_unprocessed_jar_path, root_build_dir) == bytecode_jar) { _bytecode_rewriter_output_jar = "$target_out_dir/$target_name.bytecode-rewritten.jar" wootzapp_bytecode_rewriter("${target_name}__bytecode_rewrite") { build_config = _build_config } _unprocessed_jar_deps = [] _unprocessed_jar_deps = [ ":${target_name}__bytecode_rewrite" ] _unprocessed_jar_path = _bytecode_rewriter_output_jar } }
+
       if (_build_host_jar) {
         _process_host_jar_target_name = "${target_name}__host"
         process_java_library(_process_host_jar_target_name) {
