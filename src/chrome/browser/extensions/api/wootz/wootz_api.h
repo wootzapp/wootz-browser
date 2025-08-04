@@ -197,13 +197,8 @@ class WootzIsLockedFunction : public ExtensionFunction {
 class WootzGetAllAccountsFunction : public ExtensionFunction {
  public:
   DECLARE_EXTENSION_FUNCTION("wootz.getAllAccounts", WOOTZ_GET_ALL_ACCOUNTS)
-  
-  WootzGetAllAccountsFunction();
-  WootzGetAllAccountsFunction(const WootzGetAllAccountsFunction&) = delete;
-  WootzGetAllAccountsFunction& operator=(const WootzGetAllAccountsFunction&) = delete;
-  
  protected:
-  ~WootzGetAllAccountsFunction() override;
+  ~WootzGetAllAccountsFunction() override {}
   ResponseAction Run() override;
 
  private:

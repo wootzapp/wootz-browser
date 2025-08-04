@@ -85,7 +85,6 @@
 #include "content/public/browser/domain_block_checker.h"
 #include "components/saml_verifier/saml_verifier.h"
 #include "content/public/browser/copy_paste_blocker_prefs.h"
-#include "chrome/browser/extensions/extension_tab_util.h"
 #include "content/public/browser/render_frame_host.h"
 #include "components/action_url/content/common/mojom/sensitive_element_masking.mojom.h"
 #include "mojo/public/cpp/bindings/associated_remote.h"
@@ -662,10 +661,6 @@ void WootzIsLockedFunction::OnIsLocked(bool is_locked) {
   Respond(ArgumentList(std::move(result_list)));
 }
 
-
-WootzGetAllAccountsFunction::WootzGetAllAccountsFunction() = default;
-
-WootzGetAllAccountsFunction::~WootzGetAllAccountsFunction() = default;
 
 ExtensionFunction::ResponseAction WootzGetAllAccountsFunction::Run() {
   auto* keyring_service = GetKeyringService(browser_context());
@@ -1559,8 +1554,6 @@ ExtensionFunction::ResponseAction WootzMaskSensitiveElementsFunction::Run() {
   if (args().size() > 1 && args()[1].is_int()) {
     tab_id = args()[1].GetInt();
     LOG(INFO) << "[WootzAPI][Masking] Using specified tab ID: " << tab_id;
-  } else {
-    LOG(INFO) << "[WootzAPI][Masking] No tab ID specified, will use active tab";
   }
   
   LOG(INFO) << "[WootzAPI][Masking] Got " << selectors.size() << " selectors to mask";

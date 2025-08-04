@@ -11,13 +11,6 @@ namespace zk_proof {
 
 // Struct to hold TLS data for a navigation
 struct TlsData {
-  TlsData();
-  TlsData(const TlsData&) = default;
-  TlsData& operator=(const TlsData&) = default;
-  TlsData(TlsData&&) = default;
-  TlsData& operator=(TlsData&&) = default;
-  ~TlsData();
-  
   std::vector<uint8_t> cert_hash;
   std::string headers_json;
   std::string url;
