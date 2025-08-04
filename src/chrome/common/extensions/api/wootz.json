@@ -47,24 +47,6 @@
             "description": "Height of the ad in pixels"
           }
         }
-      },
-      {
-        "id": "SensitiveFieldsTrigger",
-        "type": "string",
-        "enum": ["pre-visibility-scan", "ai-complete-dom-analysis", "page-reload"],
-        "description": "What triggered the sensitive fields detection"
-      },
-      {
-        "id": "SensitiveFieldCategory",
-        "type": "string",
-        "enum": ["authentication", "financial", "personal-id", "personal-info", "sensitive-data"],
-        "description": "Category of sensitive data"
-      },
-      {
-        "id": "SensitiveFieldSensitivity",
-        "type": "string",
-        "enum": ["high", "medium", "low"],
-        "description": "Sensitivity level"
       }
     ],
     "functions": [
