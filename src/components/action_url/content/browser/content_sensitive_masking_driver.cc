@@ -1,4 +1,4 @@
-// Copyright 2024 The Chromium Authors
+// Copyright 2025 The Wootzapp Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -64,11 +64,18 @@ void ContentSensitiveMaskingDriver::UpdateMaskingSelectorsDirectly(
     UpdateMaskingSelectorsCallback callback) {
   DVLOG(1) << "Received selectors from extension API, forwarding to renderer";
   
-  // Forward to the simplified Mojo interface (no callback) and then call our callback
-  UpdateMaskingSelectors(selectors);
-  
-  // Simulate success since we can't get actual count without Mojo callback
-  std::move(callback).Run(0);
+  // Check if we can forward to renderer
+  if (renderer_remote_.is_bound()) {
+    // Forward to renderer-side agent via Mojo
+    renderer_remote_->UpdateMaskingSelectors(selectors);
+    
+    // Return number of selectors sent to indicate success
+    std::move(callback).Run(static_cast<int32_t>(selectors.size()));
+  } else {
+    LOG(ERROR) << "Renderer remote not bound, cannot forward selectors";
+    // Return 0 to indicate failure
+    std::move(callback).Run(0);
+  }
 }
 
 void ContentSensitiveMaskingDriver::UpdateMaskingSelectors(
@@ -76,11 +83,9 @@ void ContentSensitiveMaskingDriver::UpdateMaskingSelectors(
   DVLOG(1) << "Browser-side UpdateMaskingSelectors called with " 
             << selectors.size() << " selectors, forwarding to renderer";
   
-  // Forward to renderer-side agent via Mojo (no callback - simplified like replace_element)
+  // This method is called internally, error handling done in UpdateMaskingSelectorsDirectly
   if (renderer_remote_.is_bound()) {
     renderer_remote_->UpdateMaskingSelectors(selectors);
-  } else {
-    LOG(ERROR) << "Renderer remote not bound, cannot forward selectors";
   }
 }
 

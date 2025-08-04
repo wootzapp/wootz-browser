@@ -1561,10 +1561,8 @@ ExtensionFunction::ResponseAction WootzMaskSensitiveElementsFunction::Run() {
     LOG(INFO) << "[WootzAPI][Masking] Selector: " << selector;
   }
   
-  // Send selectors to renderer (this will call OnMaskingComplete when done)
   SendSelectorsToRenderer(selectors, tab_id);
   
-  // Return RespondLater - we'll respond when Mojo callback is received
   return RespondLater();
 }
 
