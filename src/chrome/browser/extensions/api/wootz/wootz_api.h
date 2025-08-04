@@ -414,6 +414,9 @@ class WootzMaskSensitiveElementsFunction : public ExtensionFunction {
  private:
   void SendSelectorsToRenderer(const std::vector<std::string>& selectors, int tab_id = -1);
   void OnMaskingComplete(int masked_count);
+  
+  // WeakPtr factory for safe async operations (must be last member)
+  base::WeakPtrFactory<WootzMaskSensitiveElementsFunction> weak_factory_{this};
  };
 
 }  // namespace extensions

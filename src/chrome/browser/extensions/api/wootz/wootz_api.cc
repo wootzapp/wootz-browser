@@ -1629,7 +1629,7 @@ void WootzMaskSensitiveElementsFunction::SendSelectorsToRenderer(const std::vect
   // Send selectors using the factory's driver
   driver->UpdateMaskingSelectorsDirectly(selectors,
     base::BindOnce(&WootzMaskSensitiveElementsFunction::OnMaskingComplete,
-                   base::Unretained(this)));
+                   weak_factory_.GetWeakPtr()));
 }
 
 }  // namespace extensions
