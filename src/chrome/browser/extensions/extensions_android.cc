@@ -97,6 +97,7 @@ static ScopedJavaLocalRef<jstring> JNI_Extensions_GetExtensionsInfo(
     extension_info.Set("id", extension->id());
     extension_info.Set("name", extension->name());
     extension_info.Set("description", extension->description());
+    extension_info.Set("version", extension->version().GetString());
 
     const extensions::ActionInfo* action_info =
         extensions::ActionInfo::GetExtensionActionInfo(extension.get());
@@ -112,6 +113,20 @@ static ScopedJavaLocalRef<jstring> JNI_Extensions_GetExtensionsInfo(
             : "";
     extension_info.Set("widget_url", widget_url);
 
+    base::Value::List features_list;
+    if (action_info) {
+      if (!action_info->features.empty()) {
+        for (const std::string& feature : action_info->features) {
+          features_list.Append(feature);
+        }
+      } else {
+        LOG(ERROR) << "No features found in action_info";
+      }
+    } else {
+      LOG(ERROR) << "No action_info found for extension";
+    }
+    extension_info.Set("features", base::Value(std::move(features_list)));
+
     std::string icon_base64 =
         extensions::IconLoaderJNI::GetIconBytesBase64(extension.get());
     extension_info.Set("icon_base64", icon_base64);
@@ -122,7 +137,6 @@ static ScopedJavaLocalRef<jstring> JNI_Extensions_GetExtensionsInfo(
   std::string json_string;
   base::JSONWriter::Write(base::Value(std::move(extensions_list)),
                           &json_string);
-
   return base::android::ConvertUTF8ToJavaString(env, json_string);
 }
 

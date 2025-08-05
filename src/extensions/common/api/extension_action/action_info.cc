@@ -175,6 +175,33 @@ std::unique_ptr<ActionInfo> ActionInfo::Load(
                                 : ActionInfo::DefaultState::kDisabled;
   }
 
+  if (const base::Value* features = dict.Find(keys::kActionFeatures)) {
+    if (!features->is_list()) {
+      *error = errors::kInvalidActionFeatures;
+      return nullptr;
+    }
+    const base::Value::List& features_list = features->GetList();
+    if (features_list.empty()) {
+      *error = u"Features array cannot be empty.";
+      return nullptr;
+    }
+    for (const auto& feature : features_list) {
+      if (!feature.is_string()) {
+        *error = u"All features must be strings.";
+        return nullptr;
+      }
+      
+      const std::string& feature_name = feature.GetString();
+      if (feature_name.empty()) {
+        *error = u"Feature names cannot be empty.";
+        return nullptr;
+      }
+      result->features.push_back(feature_name);
+    }
+  } else {
+    LOG(ERROR) << "NO features in manifest";
+  }
+
   return result;
 }
 

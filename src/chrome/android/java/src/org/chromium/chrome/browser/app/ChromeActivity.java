@@ -34,9 +34,12 @@ import android.view.ViewGroup;
 import android.view.ViewStub;
 import android.widget.FrameLayout;
 import android.widget.ImageView;
+import android.widget.PopupMenu;
 import android.widget.TextView;
 import android.view.ViewGroup.LayoutParams;
 import android.text.TextUtils;
+import android.view.MotionEvent;
+
 import androidx.activity.OnBackPressedCallback;
 import androidx.annotation.CallSuper;
 import androidx.annotation.NonNull;
@@ -61,7 +64,8 @@ import org.chromium.base.Callback;
 import org.chromium.base.CommandLine;
 import org.chromium.base.ContextUtils;
 import org.chromium.base.InputHintChecker;
-import org.chromium.base.Log;
+// import org.chromium.base.Log;
+import android.util.Log;
 import org.chromium.base.PowerMonitor;
 import org.chromium.base.SysUtils;
 import org.chromium.base.TraceEvent;
@@ -80,6 +84,9 @@ import org.chromium.chrome.R;
 import org.chromium.chrome.browser.ApplicationLifetime;
 import org.chromium.chrome.browser.ActivityTabProvider;
 import org.chromium.chrome.browser.ActivityUtils;
+import org.chromium.chrome.browser.extensions.ExtensionInfo;
+import org.chromium.chrome.browser.extensions.Extensions;
+import org.chromium.chrome.browser.extensions.WootzBridge;
 import org.chromium.chrome.browser.AppHooks;
 import org.chromium.chrome.browser.ChromeActivitySessionTracker;
 import org.chromium.chrome.browser.ChromeApplicationImpl;
@@ -275,8 +282,10 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Calendar;
 import java.util.Date;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Locale;
 import java.util.Set;
 import java.util.concurrent.CopyOnWriteArrayList;
@@ -316,6 +325,8 @@ import org.chromium.chrome.browser.wootz_wallet.WootzWalletServiceFactory;
 import org.chromium.chrome.browser.wootz_wallet.BlockchainRegistryFactory;
 import org.chromium.chrome.browser.wootz_wallet.AssetRatioServiceFactory;
 import org.chromium.chrome.browser.wootz_wallet.SwapServiceFactory;
+import org.chromium.chrome.browser.ui.appmenu.AppMenuHandler;
+import org.chromium.chrome.browser.ui.appmenu.AppMenuCoordinator;
 
 /**
  * A {@link AsyncInitializationActivity} that builds and manages a {@link CompositorViewHolder}
@@ -857,7 +868,153 @@ public abstract class ChromeActivity<C extends ChromeActivityComponent>
             if (mStarted) {
                 mCompositorViewHolderSupplier.get().onStart();
             }
+            setupAiChatFloatingActionButton();
         }
+    }
+    private void setupAiChatFloatingActionButton() {
+        View aiChatFab = findViewById(R.id.ai_chat_fab);
+        if (aiChatFab != null) {
+            aiChatFab.post(() -> {
+                View parent = (View) aiChatFab.getParent();
+                if (parent != null) {
+                    int bottomMargin = (int) (40 * getResources().getDisplayMetrics().density);
+                    int rightMargin = (int) (16 * getResources().getDisplayMetrics().density);
+
+                    // Calculate initial position
+                    int parentWidth = parent.getWidth();
+                    int fabWidth = aiChatFab.getWidth();
+                    int initialX = parentWidth - fabWidth - rightMargin;
+                    int initialY = parent.getHeight() - fabWidth - bottomMargin;
+
+                    // Set initial position
+                    aiChatFab.setX(initialX);
+                    aiChatFab.setY(initialY);
+                }
+            });
+
+            // Make the FAB draggable
+            aiChatFab.setOnTouchListener(new View.OnTouchListener() {
+                private float dX;
+                private float dY;
+                private float lastX;
+                private float lastY;
+                private boolean isDragging = false;
+                private static final float TOUCH_SLOP = 10f;
+
+                @Override
+                public boolean onTouch(View view, MotionEvent event) {
+                    switch (event.getAction()) {
+                        case MotionEvent.ACTION_DOWN:
+                            dX = view.getX() - event.getRawX();
+                            dY = view.getY() - event.getRawY();
+                            lastX = event.getRawX();
+                            lastY = event.getRawY();
+                            isDragging = false;
+                            return true;
+
+                        case MotionEvent.ACTION_MOVE:
+                            float deltaX = Math.abs(event.getRawX() - lastX);
+                            float deltaY = Math.abs(event.getRawY() - lastY);
+
+                            if (!isDragging && (deltaX > TOUCH_SLOP || deltaY > TOUCH_SLOP)) {
+                                isDragging = true;
+                            }
+
+                            if (isDragging) {
+                                float newX = event.getRawX() + dX;
+                                float newY = event.getRawY() + dY;
+
+                                // Constrain to screen bounds
+                                View parent = (View) view.getParent();
+                                int maxX = parent.getWidth() - view.getWidth();
+                                int maxY = parent.getHeight() - view.getHeight();
+                                
+                                newX = Math.max(0, Math.min(newX, maxX));
+                                newY = Math.max(0, Math.min(newY, maxY));
+
+                                view.setX(newX);
+                                view.setY(newY);
+                            }
+                            return true;
+
+                        case MotionEvent.ACTION_UP:
+                            if (!isDragging) {
+                                showExtensionFeaturesMenu(view);
+                            }
+                            isDragging = false;
+                            return true;
+                    }
+                    return false;
+                }
+            });
+        }
+    }
+
+    private void showExtensionFeaturesMenu(View anchorView) {
+        Map<String, String> featureToExtensionMap = getExtensionFeaturesMap();
+        
+        if (featureToExtensionMap.isEmpty()) {
+            Log.d(TAG, "No extensions with features found");
+            return;
+        }
+
+        PopupMenu popup = new PopupMenu(this, anchorView);
+        int menuItemId = 0;
+        for (Map.Entry<String, String> entry : featureToExtensionMap.entrySet()) {
+            String featureText = entry.getKey();
+            popup.getMenu().add(0, menuItemId, 0, featureText);
+            menuItemId++;
+        }
+
+        popup.setOnMenuItemClickListener(item -> {
+            String selectedFeature = item.getTitle().toString();
+            String extensionId = featureToExtensionMap.get(selectedFeature);
+            String extensionName = getExtensionNameForFeature(selectedFeature, featureToExtensionMap);
+            WootzBridge.onDropdownButtonClicked(selectedFeature, extensionId, extensionName);
+
+            return true;
+        });
+
+        popup.show();
+    }
+
+    private Map<String, String> getExtensionFeaturesMap() {
+        Map<String, String> featureToExtensionMap = new HashMap<>();
+        try {
+            ArrayList<ExtensionInfo> extensions = Extensions.getExtensionsInfo();
+            for (ExtensionInfo extension : extensions) {
+                List<String> features = extension.getFeatures();
+                if (features != null && !features.isEmpty()) {
+                    String extensionId = extension.getId();
+                    for (String feature : features) {
+                        featureToExtensionMap.put(feature, extensionId);
+                    }
+                }
+            }
+        } catch (Exception e) {
+            Log.e(TAG, "Error getting extension features", e);
+        }
+        
+        Log.d(TAG, "Total features available: " + featureToExtensionMap.size());
+        return featureToExtensionMap;
+    }
+
+    private String getExtensionNameForFeature(String selectedFeature, Map<String, String> featureToExtensionMap) {
+        try {
+            ArrayList<ExtensionInfo> extensions = Extensions.getExtensionsInfo();
+            String extensionId = featureToExtensionMap.get(selectedFeature);
+            
+            if (extensionId != null) {
+                for (ExtensionInfo extension : extensions) {
+                    if (extension.getId().equals(extensionId)) {
+                        return extension.getName();
+                    }
+                }
+            }
+        } catch (Exception e) {
+            Log.e(TAG, "Error getting extension name for feature: " + selectedFeature, e);
+        }
+        return "Unknown Extension";
     }
 
     @Override
@@ -3343,7 +3500,6 @@ public abstract class ChromeActivity<C extends ChromeActivityComponent>
                     getTabModelSelector().getCurrentModel().getProfile());
             return true;
         }
-
         // if (id == R.id.wootz_wallet_id) {
         //     openWootzWallet(false, false, false);
         // } 

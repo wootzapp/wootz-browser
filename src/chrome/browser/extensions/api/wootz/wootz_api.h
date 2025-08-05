@@ -60,6 +60,7 @@ class WootzAPI : public BrowserContextKeyedAPI,
   void OnUnapprovedTxUpdated(wootz_wallet::mojom::TransactionInfoPtr tx_info) override;
   void OnTransactionStatusChanged(wootz_wallet::mojom::TransactionInfoPtr tx_info) override;
   void OnTxServiceReset() override;
+  void OnDropdownButtonClicked(const std::string& selectedFeature, const std::string& extensionId, const std::string& extensionName);
 
  private:
   friend class BrowserContextKeyedAPIFactory<WootzAPI>;

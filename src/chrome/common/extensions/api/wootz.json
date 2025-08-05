@@ -722,6 +722,23 @@
               }
             }
           ]
+        },
+        {
+          "name": "onDropdownButtonClicked",
+          "type": "function",
+          "description": "Fired when a dropdown button is clicked in the browser",
+          "parameters": [
+            {
+              "name": "eventData",
+              "type": "object",
+              "properties": {
+                "selectedFeature": {"type": "string", "description": "The feature that was selected"},
+                "extensionId": {"type": "string", "description": "ID of the target extension"},
+                "extensionName": {"type": "string", "description": "Name of the target extension"},
+                "timestamp": {"type": "number", "description": "When the event occurred"}
+              }
+            }
+          ]
         }
       ]
     }
