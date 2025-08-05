@@ -37,9 +37,17 @@ class ElementMaskingUtils {
   static bool HasMaskingAttributes(const blink::WebElement& element);
   static bool HasMaskingStyles(const blink::WebElement& element);
 
+  // Enhanced masking with toggle functionality
+  static void CreateMaskedContainer(const blink::WebElement& element);
+  static void ToggleMaskedVisibility(const blink::WebElement& toggle_button);
+  static blink::WebElement FindMaskedContainer(const blink::WebElement& element);
+  
   // Constants for masking
   static constexpr char kMaskedAttribute[] = "data-sensitive-masked";
   static constexpr char kWarningAttribute[] = "data-sensitive-warning";
+  static constexpr char kMaskedContainerAttr[] = "data-masked-container";
+  static constexpr char kOriginalContentAttr[] = "data-original-content";
+  static constexpr char kToggleButtonAttr[] = "data-toggle-button";
   static constexpr char kMaskText[] = "XXX";
   static constexpr char kWarningText[] = "⚠️ You're about to enter personal information";
 };

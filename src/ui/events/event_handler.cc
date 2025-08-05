@@ -30,40 +30,35 @@ void EventHandler::OnEvent(Event* event) {
   // with the following line commented without first discussing with OWNERs.
   // See crbug/1210633 for details.
   // VLOG(5) << GetLogContext() << "::OnEvent(" << event->ToString() << ")";
-  if (event->IsKeyEvent())
+  if (event->IsKeyEvent()) {
     OnKeyEvent(event->AsKeyEvent());
-  else if (event->IsMouseEvent())
+  } else if (event->IsMouseEvent()) {
     OnMouseEvent(event->AsMouseEvent());
-  else if (event->IsScrollEvent())
+  } else if (event->IsScrollEvent()) {
     OnScrollEvent(event->AsScrollEvent());
-  else if (event->IsTouchEvent())
+  } else if (event->IsTouchEvent()) {
     OnTouchEvent(event->AsTouchEvent());
-  else if (event->IsGestureEvent())
+  } else if (event->IsGestureEvent()) {
     OnGestureEvent(event->AsGestureEvent());
-  else if (event->IsCancelModeEvent())
+  } else if (event->IsCancelModeEvent()) {
     OnCancelMode(event->AsCancelModeEvent());
+  }
 }
 
-void EventHandler::OnKeyEvent(KeyEvent* event) {
-}
+void EventHandler::OnKeyEvent(KeyEvent* event) {}
 
-void EventHandler::OnMouseEvent(MouseEvent* event) {
-}
+void EventHandler::OnMouseEvent(MouseEvent* event) {}
 
-void EventHandler::OnScrollEvent(ScrollEvent* event) {
-}
+void EventHandler::OnScrollEvent(ScrollEvent* event) {}
 
-void EventHandler::OnTouchEvent(TouchEvent* event) {
-}
+void EventHandler::OnTouchEvent(TouchEvent* event) {}
 
-void EventHandler::OnGestureEvent(GestureEvent* event) {
-}
+void EventHandler::OnGestureEvent(GestureEvent* event) {}
 
-void EventHandler::OnCancelMode(CancelModeEvent* event) {
-}
+void EventHandler::OnCancelMode(CancelModeEvent* event) {}
 
 std::string_view EventHandler::GetLogContext() const {
-  return "(Unknown EventHandler)"; // Please override
+  return "(Unknown EventHandler)";  // Please override
 }
 
 }  // namespace ui

@@ -86,3 +86,35 @@ void DangerousDownloadDialogBridge::Cancelled(
   if (download)
     download->Remove();
 }
+
+void DangerousDownloadDialogBridge::ShowBlockedDialog(download::DownloadItem* download_item,
+                                                     ui::WindowAndroid* window_android) {
+  // Don't show blocked dialog again if it is already showing.
+  if (base::Contains(download_items_, download_item)) {
+    return;
+  }
+  if (!window_android) {
+    download_item->Remove();
+    return;
+  }
+  download_item->AddObserver(this);
+  download_items_.push_back(download_item);
+
+  JNIEnv* env = base::android::AttachCurrentThread();
+  if (!java_object_) {
+    return;
+  }
+
+  // Use 0 for no icon to avoid resource ID conflicts
+  int icon_id = 0;
+  
+  LOG(INFO) << "DangerousDownloadDialogBridge: ShowBlockedDialog called with icon_id: " << icon_id;
+
+  Java_DangerousDownloadDialogBridge_showBlockedDialog(
+      env, java_object_, window_android->GetJavaObject(),
+      base::android::ConvertUTF8ToJavaString(env, download_item->GetGuid()),
+      base::android::ConvertUTF8ToJavaString(env, download_item->GetFileNameToReportUser().value()),
+      download_item->GetTotalBytes(), icon_id);
+}
+
+

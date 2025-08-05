@@ -34,6 +34,10 @@
 #include "content/public/browser/domain_block_checker.h"
 #include "content/public/browser/content_privacy_prefs.h"
 #include "content/public/browser/copy_paste_blocker_prefs.h"
+#include "content/public/browser/upload_blocking_prefs.h"
+#include "components/safe_browsing/core/common/safe_browsing_prefs.h"
+#include "components/keyboard_garbaging/keyboard_garbaging_prefs.h"
+#include "chrome/common/pref_names.h"
 
 // Use Chromium's crypto instead of xmlsec
 #include "crypto/signature_verifier.h"
@@ -206,17 +210,15 @@ bool DomainAttributeProcessor::ProcessAttributes(
     }
   }
 
-  if (blocked_domains.empty()) {
-    return true;  // Not an error, just no domains to block
-  }
-
-  // Update the blocked domains preference
+  // Always update the blocked domains preference (even if empty to clear old values)
   base::Value::List domain_list;
   for (const std::string& domain : blocked_domains) {
     domain_list.Append(domain);
   }
 
   prefs->SetList(blocked_domains::prefs::kBlockedDomains, std::move(domain_list));
+  
+  LOG(INFO) << "Domain blocking updated with " << blocked_domains.size() << " domains";
   
   return true;
 }
@@ -326,14 +328,161 @@ bool CopyPasteAttributeProcessor::ProcessAttributes(
   
   prefs->SetList(copy_paste_blocker::prefs::kCopyPasteBlockingDomains, std::move(domain_list));
   
+  // SAML Integration: Control WebKit clipboard preferences for additional security layers
+  if (copy_paste_blocking_enabled) {
+    // When copy/paste blocking is enabled, also disable WebKit-level clipboard access
+    prefs->SetBoolean(prefs::kWebKitDomPasteEnabled, false);
+    prefs->SetBoolean(prefs::kWebKitJavascriptCanAccessClipboard, false);
+    LOG(INFO) << "SAML: Disabled WebKit DOM paste and JavaScript clipboard access for enhanced security";
+  } else {
+    // When copy/paste blocking is disabled, restore WebKit clipboard functionality
+    prefs->SetBoolean(prefs::kWebKitDomPasteEnabled, true);
+    prefs->SetBoolean(prefs::kWebKitJavascriptCanAccessClipboard, true);
+    LOG(INFO) << "SAML: Enabled WebKit DOM paste and JavaScript clipboard access";
+  }
+  
   LOG(INFO) << "Copy paste blocking " << (found_copy_paste ? "set" : "defaulted") 
             << " to: " << (copy_paste_blocking_enabled ? "enabled" : "disabled");
+  LOG(INFO) << "Copy paste blocked domains updated with " << copy_paste_blocked_domains.size() << " domains";
   
   return true;
 }
 
 std::vector<std::string> CopyPasteAttributeProcessor::GetHandledAttributes() const {
   return {"copy_paste", "copy_paste_blocked_domains"};
+}
+
+// DownloadBlockingAttributeProcessor implementation
+bool DownloadBlockingAttributeProcessor::ProcessAttributes(
+    const std::vector<SamlAttribute>& attributes,
+    PrefService* prefs) {
+  if (!prefs) {
+    LOG(ERROR) << "DownloadBlockingAttributeProcessor: PrefService is null";
+    return false;
+  }
+
+  std::vector<std::string> download_blocked_domains;
+  
+  // Look for download_blocked_domains attribute
+  for (const auto& attr : attributes) {
+    if (attr.name == "download_blocked_domains" && !attr.values.empty()) {
+      // Parse comma-separated domains from the first value
+      download_blocked_domains = ParseDomainList(attr.values[0]);
+      break;
+    }
+  }
+
+  // Always update the download blocked domains preference (even if empty to clear old values)
+  base::Value::List domain_list;
+  for (const std::string& domain : download_blocked_domains) {
+    domain_list.Append(domain);
+  }
+
+  prefs->SetList(::prefs::kDangerousDownloadBlockedDomains, std::move(domain_list));
+  
+  LOG(INFO) << "Download blocking domains updated with " << download_blocked_domains.size() << " domains";
+  
+  return true;
+}
+
+std::vector<std::string> DownloadBlockingAttributeProcessor::GetHandledAttributes() const {
+  return {"download_blocked_domains"};
+}
+
+// UploadBlockingAttributeProcessor implementation
+bool UploadBlockingAttributeProcessor::ProcessAttributes(
+    const std::vector<SamlAttribute>& attributes,
+    PrefService* prefs) {
+  if (!prefs) {
+    LOG(ERROR) << "UploadBlockingAttributeProcessor: PrefService is null";
+    return false;
+  }
+
+  std::vector<std::string> upload_blocked_domains;
+  
+  // Look for upload_blocked_domains attribute
+  for (const auto& attr : attributes) {
+    if (attr.name == "upload_blocked_domains" && !attr.values.empty()) {
+      // Parse comma-separated domains from the first value
+      upload_blocked_domains = ParseDomainList(attr.values[0]);
+      break;
+    }
+  }
+
+  // Always update the upload blocked domains preference directly (even if empty to clear old values)
+  base::Value::List domain_list;
+  for (const std::string& domain : upload_blocked_domains) {
+    domain_list.Append(domain);
+  }
+
+  prefs->SetList(content::upload_blocking_prefs::kBlockedUploadDomains, std::move(domain_list));
+  
+  LOG(INFO) << "[SAML] Upload blocking domains updated with " << upload_blocked_domains.size() << " domains";
+  
+  // Log the specific domains being set for debugging
+  if (!upload_blocked_domains.empty()) {
+    std::string domains_str = "";
+    for (const auto& domain : upload_blocked_domains) {
+      if (!domains_str.empty()) domains_str += ", ";
+      domains_str += domain;
+    }
+    LOG(INFO) << "[SAML] Upload blocked domains set to: [" << domains_str << "]";
+  } else {
+    LOG(INFO) << "[SAML] Upload blocking domains cleared (empty list)";
+  }
+  
+  return true;
+}
+
+std::vector<std::string> UploadBlockingAttributeProcessor::GetHandledAttributes() const {
+  return {"upload_blocked_domains"};
+}
+
+// SyntheticKeystrokesAttributeProcessor implementation
+bool SyntheticKeystrokesAttributeProcessor::ProcessAttributes(
+    const std::vector<SamlAttribute>& attributes,
+    PrefService* prefs) {
+  if (!prefs) {
+    LOG(ERROR) << "SyntheticKeystrokesAttributeProcessor: PrefService is null";
+    return false;
+  }
+
+  bool synthetic_keystrokes_enabled = false;  // Default to false
+  bool found_synthetic_keystrokes = false;
+  
+  // Look for synthetic_keystrokes attribute
+  for (const auto& attr : attributes) {
+    if (attr.name == "synthetic_keystrokes" && !attr.values.empty()) {
+      found_synthetic_keystrokes = true;
+      std::string value = attr.values[0];
+      
+      // Convert to lowercase for case-insensitive comparison
+      std::transform(value.begin(), value.end(), value.begin(), ::tolower);
+      
+      // Parse boolean values: true/false, 1/0, yes/no
+      if (value == "true" || value == "1" || value == "yes") {
+        synthetic_keystrokes_enabled = true;
+      } else if (value == "false" || value == "0" || value == "no") {
+        synthetic_keystrokes_enabled = false;
+      } else {
+        LOG(WARNING) << "Invalid synthetic_keystrokes value: " << attr.values[0] 
+                     << " - defaulting to false";
+      }
+      break;
+    }
+  }
+
+  // Update the synthetic keystrokes (keyboard garbaging) preference
+  prefs->SetBoolean(keyboard_garbaging_prefs::kObfuscationEnabled, synthetic_keystrokes_enabled);
+  
+  LOG(INFO) << "Synthetic keystrokes " << (found_synthetic_keystrokes ? "set" : "defaulted") 
+            << " to: " << (synthetic_keystrokes_enabled ? "enabled" : "disabled");
+  
+  return true;
+}
+
+std::vector<std::string> SyntheticKeystrokesAttributeProcessor::GetHandledAttributes() const {
+  return {"synthetic_keystrokes"};
 }
 
 // SamlVerifier implementation
@@ -449,21 +598,54 @@ void SamlVerifier::RegisterCopyPasteProcessor() {
   RegisterAttributeProcessor(std::make_unique<CopyPasteAttributeProcessor>());
 }
 
+void SamlVerifier::RegisterDownloadBlockingProcessor() {
+  RegisterAttributeProcessor(std::make_unique<DownloadBlockingAttributeProcessor>());
+}
+
+void SamlVerifier::RegisterUploadBlockingProcessor() {
+  RegisterAttributeProcessor(std::make_unique<UploadBlockingAttributeProcessor>());
+}
+
+void SamlVerifier::RegisterSyntheticKeystrokesProcessor() {
+  RegisterAttributeProcessor(std::make_unique<SyntheticKeystrokesAttributeProcessor>());
+}
+
 // static
 void SamlVerifier::ProcessNewSamlResponse(PrefService* prefs) {
   if (!prefs) {
-    LOG(ERROR) << "SAML: PrefService is null";
+    LOG(ERROR) << "[SAML] PrefService is null";
     return;
   }
   
+  LOG(INFO) << "[SAML] ========== Starting SAML Response Processing ==========";
+  
   // Create and configure verifier
   auto verifier = std::make_unique<SamlVerifier>();
+  
+  LOG(INFO) << "[SAML] Registering attribute processors:";
   verifier->RegisterDomainProcessor();
+  LOG(INFO) << "[SAML] - Domain blocking processor registered";
+  
   verifier->RegisterContentPrivacyProcessor();
+  LOG(INFO) << "[SAML] - Content privacy processor registered";
+  
   verifier->RegisterCopyPasteProcessor();
+  LOG(INFO) << "[SAML] - Copy/paste blocking processor registered";
+  
+  verifier->RegisterDownloadBlockingProcessor();
+  LOG(INFO) << "[SAML] - Download blocking processor registered";
+  
+  verifier->RegisterUploadBlockingProcessor();
+  LOG(INFO) << "[SAML] - Upload blocking processor registered";
+  
+  verifier->RegisterSyntheticKeystrokesProcessor();
+  LOG(INFO) << "[SAML] - Synthetic keystrokes processor registered";
+  
   verifier->SetSignatureVerificationEnabled(true);
   verifier->SetDynamicCertificateFetchingEnabled(true);
   verifier->SetDevelopmentMode(true);  // Enable for Okta trial instances
+  
+  LOG(INFO) << "[SAML] SAML verifier configured with signature verification and dynamic cert fetching";
   
   // Move the verifier to the callback to keep it alive
   auto* verifier_ptr = verifier.get();
@@ -471,8 +653,12 @@ void SamlVerifier::ProcessNewSamlResponse(PrefService* prefs) {
       prefs,
       base::BindOnce([](std::unique_ptr<SamlVerifier> verifier,
                         const VerificationResult& result) {
-        if (!result.success) {
-          LOG(ERROR) << "SAML: Failed to process SAML response: " << result.error_message;
+        if (result.success) {
+          LOG(INFO) << "[SAML] ========== SAML Response Processing COMPLETED SUCCESSFULLY ==========";
+          LOG(INFO) << "[SAML] All security policies have been updated from SAML attributes";
+        } else {
+          LOG(ERROR) << "[SAML] ========== SAML Response Processing FAILED ==========";
+          LOG(ERROR) << "[SAML] Error: " << result.error_message;
         }
         // verifier is automatically destroyed here
       }, std::move(verifier)));

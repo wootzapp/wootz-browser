@@ -1,0 +1,30 @@
+source_set("upload_blocking") {
+  sources = [
+    "upload_blocking_service.cc",
+    "upload_blocking_service.h",
+  ]
+
+  if (is_android) {
+    sources += [
+      "upload_blocked_dialog_bridge.cc",
+      "upload_blocked_dialog_bridge.h",
+    ]
+  }
+
+  deps = [
+    "//base",
+    "//content/common",
+  ]
+
+  if (is_android) {
+    deps += [
+      "//content/public/android:content_jni_headers",
+      "//content/public/android:jni",
+      "//ui/android",
+    ]
+  }
+
+  include_dirs = [
+    "//content/browser",
+  ]
+}

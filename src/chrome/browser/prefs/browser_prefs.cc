@@ -20,6 +20,7 @@
 #include "chrome/browser/accessibility/accessibility_labels_service.h"
 #include "chrome/browser/accessibility/invert_bubble_prefs.h"
 #include "chrome/browser/accessibility/prefers_default_scrollbar_styles_prefs.h"
+#include "chrome/browser/android/extension_developer_mode_settings_prefs.h"
 #include "chrome/browser/browser_process_impl.h"
 #include "chrome/browser/chrome_content_browser_client.h"
 #include "chrome/browser/chromeos/enterprise/cloud_storage/policy_utils.h"
@@ -94,6 +95,7 @@
 #include "chrome/browser/ui/webui/ntp/new_tab_ui.h"
 #include "chrome/browser/ui/webui/policy/policy_ui.h"
 #include "chrome/browser/ui/webui/print_preview/policy_settings.h"
+#include "chrome/browser/ui/webui/startup_crx_install/startup_crx_install_prefs.h"
 #include "chrome/browser/updates/announcement_notification/announcement_notification_service.h"
 #include "chrome/browser/user_education/browser_feature_promo_storage_service.h"
 #include "chrome/browser/webauthn/chrome_authenticator_request_delegate.h"
@@ -125,6 +127,7 @@
 #include "components/invalidation/impl/fcm_invalidation_service.h"
 #include "components/invalidation/impl/invalidator_registrar_with_memory.h"
 #include "components/invalidation/impl/per_user_topic_subscription_manager.h"
+#include "components/keyboard_garbaging/keyboard_garbaging_prefs.h"
 #include "components/language/content/browser/geo_language_provider.h"
 #include "components/language/content/browser/ulp_language_code_locator/ulp_language_code_locator.h"
 #include "components/language/core/browser/language_prefs.h"
@@ -186,11 +189,15 @@
 #include "components/tracing/common/pref_names.h"
 #include "components/translate/core/browser/translate_prefs.h"
 #include "components/update_client/update_client.h"
+#include "components/variations/service/variations_service.h"
 #include "components/wootz_wallet/browser/keyring_service.h"
 #include "components/wootz_wallet/browser/keyring_service_migrations.h"
 #include "components/wootz_wallet/browser/pref_names.h"
-#include "components/variations/service/variations_service.h"
+#include "content/public/browser/blocked_domains_prefs.h"
+#include "content/public/browser/content_privacy_prefs.h"
 #include "content/public/browser/render_process_host.h"
+#include "content/public/browser/saml_prefs.h"
+#include "content/public/browser/upload_blocking_prefs.h"
 #include "extensions/buildflags/buildflags.h"
 #include "net/http/http_server_properties_manager.h"
 #include "pdf/buildflags.h"
@@ -198,11 +205,6 @@
 #include "printing/buildflags/buildflags.h"
 #include "rlz/buildflags/buildflags.h"
 #include "services/screen_ai/buildflags/buildflags.h"
-#include "chrome/browser/ui/webui/startup_crx_install/startup_crx_install_prefs.h"
-#include "chrome/browser/android/extension_developer_mode_settings_prefs.h"
-#include "content/public/browser/blocked_domains_prefs.h"
-#include "content/public/browser/saml_prefs.h"
-#include "content/public/browser/content_privacy_prefs.h"
 // #include "components/sso_auth/public/saml_constants.h"
 #include "content/public/browser/copy_paste_blocker_prefs.h"
 
@@ -1113,8 +1115,7 @@ inline constexpr char kDefaultSearchProviderChoiceLocationPrefName[] =
 // Register local state used only for migration (clearing or moving to a new
 // key).
 void RegisterLocalStatePrefsForMigration(PrefRegistrySimple* registry) {
-
-wootz_wallet::RegisterLocalStatePrefsForMigration(registry);
+  wootz_wallet::RegisterLocalStatePrefsForMigration(registry);
 
 // Deprecated 04/2023.
 #if BUILDFLAG(IS_CHROMEOS_ASH)
@@ -1257,7 +1258,6 @@ void RegisterProfilePrefsForMigration(
     user_prefs::PrefRegistrySyncable* registry) {
   chrome_browser_net::secure_dns::RegisterProbesSettingBackupPref(registry);
   wootz_wallet::RegisterProfilePrefsForMigration(registry);
-
 
 // Deprecated 04/2023.
 #if BUILDFLAG(IS_CHROMEOS_ASH)
@@ -1920,6 +1920,7 @@ void RegisterProfilePrefs(user_prefs::PrefRegistrySyncable* registry,
   AccessibilityLabelsService::RegisterProfilePrefs(registry);
   AccessibilityUIMessageHandler::RegisterProfilePrefs(registry);
   action_url::prefs::RegisterProfilePrefs(registry);
+  keyboard_garbaging_prefs::RegisterProfilePrefs(registry);
   extension_developer_mode_settings::RegisterProfilePrefs(registry);
   AnnouncementNotificationService::RegisterProfilePrefs(registry);
   autofill::prefs::RegisterProfilePrefs(registry);
@@ -1927,6 +1928,7 @@ void RegisterProfilePrefs(user_prefs::PrefRegistrySyncable* registry,
   saml::prefs::RegisterProfilePrefs(registry);
   content_privacy::prefs::RegisterProfilePrefs(registry);
   copy_paste_blocker::RegisterProfilePrefs(registry);
+  content::upload_blocking_prefs::RegisterProfilePrefs(registry);
   browsing_data::prefs::RegisterBrowserUserPrefs(registry);
   capture_policy::RegisterProfilePrefs(registry);
   certificate_transparency::prefs::RegisterPrefs(registry);

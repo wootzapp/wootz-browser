@@ -273,6 +273,14 @@
       <message name="IDS_SPEECH_RECOGNITION_SERVICE_NOT_FOUND" desc="Toast message notifying Google speech service can't be found.">
         Google speech engine can't be found
       </message>
+            
+      <!-- Upload blocking dialog -->
+      <message name="IDS_UPLOAD_BLOCKED_DIALOG_TITLE" desc="Title for the upload blocking dialog. [CHAR_LIMIT=32]">
+        Upload Blocked
+      </message>
+      <message name="IDS_UPLOAD_BLOCKED_DIALOG_TEXT" desc="Text for the upload blocking dialog explaining that the upload has been blocked by policy.">
+        Upload has been blocked on this site by your organization by policy.
+      </message>
     </messages>
   </release>
 </grit>

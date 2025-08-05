@@ -92,9 +92,11 @@ int SensitiveElementMaskAgent::MaskElementsWithSelectors() {
   }
 
   if (sensitive_selectors_.empty()) {
-    DVLOG(2) << "No selectors configured, skipping masking";
+    LOG(INFO) << "[Renderer][Masking] No selectors configured, skipping masking";
     return 0;
   }
+
+  LOG(INFO) << "[Renderer][Masking] Starting to mask elements with " << sensitive_selectors_.size() << " selectors";
 
   // Set flag to prevent recursion during masking
   currently_masking_ = true;
@@ -103,12 +105,12 @@ int SensitiveElementMaskAgent::MaskElementsWithSelectors() {
   
   // Iterate through all our selectors and find matching elements
   for (const auto& selector : sensitive_selectors_) {
-    DVLOG(2) << "Looking for elements matching selector: " << selector;
+    LOG(INFO) << "[Renderer][Masking] Looking for elements matching selector: " << selector;
     
     // Use QuerySelectorAll to find all elements matching this selector
     blink::WebVector<blink::WebElement> elements = document.QuerySelectorAll(blink::WebString::FromUTF8(selector));
     
-    DVLOG(2) << "Found " << elements.size() << " elements for selector: " << selector;
+    LOG(INFO) << "[Renderer][Masking] Found " << elements.size() << " elements for selector: " << selector;
     
     // Mask each found element
     for (const auto& element : elements) {
@@ -213,10 +215,17 @@ void SensitiveElementMaskAgent::ProcessDynamicElement(const blink::WebElement& e
 }
 
 void SensitiveElementMaskAgent::UpdateMaskingSelectors(const std::vector<std::string>& selectors) {
-  DVLOG(1) << "Updating masking selectors via Mojo, got " << selectors.size() << " new selectors";
+  LOG(INFO) << "[Renderer][Masking] UpdateMaskingSelectors called with " << selectors.size() << " selectors";
+  for (const auto& selector : selectors) {
+    LOG(INFO) << "[Renderer][Masking] Received selector: " << selector;
+  }
   
   // Validate and filter selectors for security
   sensitive_selectors_ = CssSelectorMatcher::ValidateSelectors(selectors);
+  LOG(INFO) << "[Renderer][Masking] After validation, " << sensitive_selectors_.size() << " selectors remain";
+  for (const auto& selector : sensitive_selectors_) {
+    LOG(INFO) << "[Renderer][Masking] Valid selector: " << selector;
+  }
   
   // Reset retry count for new selectors
   retry_count_ = 0;
@@ -225,8 +234,9 @@ void SensitiveElementMaskAgent::UpdateMaskingSelectors(const std::vector<std::st
   int masked_count = 0;
   
   // Re-mask all elements with new selectors
+  LOG(INFO) << "[Renderer][Masking] Masking enabled: " << masking_enabled_;
   if (masking_enabled_) {
-    DVLOG(1) << "Re-masking all elements with current selectors";
+    LOG(INFO) << "[Renderer][Masking] Re-masking all elements with current selectors";
     masked_count = MaskElementsWithSelectors();
     
     // If no elements were masked, start retry mechanism
@@ -236,7 +246,7 @@ void SensitiveElementMaskAgent::UpdateMaskingSelectors(const std::vector<std::st
     }
   }
   
-  DVLOG(1) << "UpdateMaskingSelectors complete, masked " << masked_count << " elements";
+  LOG(INFO) << "[Renderer][Masking] UpdateMaskingSelectors complete, masked " << masked_count << " elements";
 }
 
 void SensitiveElementMaskAgent::SetMaskingEnabled(bool enabled) {
