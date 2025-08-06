@@ -29,6 +29,7 @@ import android.util.TypedValue;
 import android.view.Display.Mode;
 import android.view.Gravity;
 import android.view.MenuItem;
+import android.view.MotionEvent;
 import android.view.View;
 import android.view.ViewGroup;
 import android.view.ViewStub;
@@ -869,9 +870,12 @@ public abstract class ChromeActivity<C extends ChromeActivityComponent>
             if (mStarted) {
                 mCompositorViewHolderSupplier.get().onStart();
             }
+
+            // Setup AI Chat Floating Action Button
             setupAiChatFloatingActionButton();
         }
     }
+
     private void setupAiChatFloatingActionButton() {
         View aiChatFab = findViewById(R.id.ai_chat_fab);
         if (aiChatFab != null) {
@@ -880,13 +884,14 @@ public abstract class ChromeActivity<C extends ChromeActivityComponent>
                 if (parent != null) {
                     int bottomMargin = (int) (40 * getResources().getDisplayMetrics().density);
                     int rightMargin = (int) (16 * getResources().getDisplayMetrics().density);
-
+                    int extraUpMargin = (int) (40 * getResources().getDisplayMetrics().density);
+                    
                     // Calculate initial position
                     int parentWidth = parent.getWidth();
                     int fabWidth = aiChatFab.getWidth();
                     int initialX = parentWidth - fabWidth - rightMargin;
-                    int initialY = parent.getHeight() - fabWidth - bottomMargin;
-
+                    int initialY = parent.getHeight() - fabWidth - bottomMargin - extraUpMargin;
+                    
                     // Set initial position
                     aiChatFab.setX(initialX);
                     aiChatFab.setY(initialY);
@@ -916,15 +921,15 @@ public abstract class ChromeActivity<C extends ChromeActivityComponent>
                         case MotionEvent.ACTION_MOVE:
                             float deltaX = Math.abs(event.getRawX() - lastX);
                             float deltaY = Math.abs(event.getRawY() - lastY);
-
+                            
                             if (!isDragging && (deltaX > TOUCH_SLOP || deltaY > TOUCH_SLOP)) {
                                 isDragging = true;
                             }
-
+                            
                             if (isDragging) {
                                 float newX = event.getRawX() + dX;
                                 float newY = event.getRawY() + dY;
-
+                                
                                 // Constrain to screen bounds
                                 View parent = (View) view.getParent();
                                 int maxX = parent.getWidth() - view.getWidth();
@@ -932,7 +937,7 @@ public abstract class ChromeActivity<C extends ChromeActivityComponent>
                                 
                                 newX = Math.max(0, Math.min(newX, maxX));
                                 newY = Math.max(0, Math.min(newY, maxY));
-
+                                
                                 view.setX(newX);
                                 view.setY(newY);
                             }
@@ -940,7 +945,12 @@ public abstract class ChromeActivity<C extends ChromeActivityComponent>
 
                         case MotionEvent.ACTION_UP:
                             if (!isDragging) {
-                                showExtensionFeaturesMenu(view);
+                                // Handle click
+                                Log.d(TAG, "AI Chat FAB clicked");
+                                Tab currentTab = getActivityTab();
+                                if (currentTab != null) {
+                                    openAiChatWithSearch(currentTab);
+                                }
                             }
                             isDragging = false;
                             return true;

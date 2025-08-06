@@ -1,3 +1,9 @@
+// Copyright 2024 The Chromium Authors
+// Use of this source code is governed by a BSD-style license that can be
+// found in the LICENSE file.
+
+// Added By DevJangid
+
 package org.chromium.chrome.browser.wootzapp_search;
 
 import android.util.Log;
@@ -22,7 +28,9 @@ import java.util.concurrent.Executors;
 /** Client for communicating with Gemini API. */
 public class GeminiApiClient {
     private static final String TAG = "GeminiApiClient";
-    private static final String GEMINI_API_URL = "https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-pro-latest:generateContent";
+    // Updated to use the latest Gemini 2.5 Flash Pro model
+    
+    private static final String GEMINI_API_URL = "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent";
     
     private final String mApiKey;
     private final ExecutorService mExecutor = Executors.newFixedThreadPool(3);
