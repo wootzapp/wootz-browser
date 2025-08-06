@@ -239,6 +239,8 @@ class CONTENT_EXPORT WebContentsObserver : public base::CheckedObserver {
   // controlled by the capturing tab.
   virtual void OnCapturedSurfaceControl() {}
 
+  virtual void OnCopyPasteBlocked(const std::string& action) {}
+
   // This method is invoked when the `blink::WebView` of the current
   // RenderViewHost is ready, e.g. because we recreated it after a crash.
   virtual void RenderViewReady() {}

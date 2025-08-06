@@ -8,7 +8,6 @@ namespace startup_crx_install {
 
 // Define the preference name constant
 const char kUtmSourcePref[] = "startup_crx_install.utm_source";
-const char kCampaignPref[] = "startup_crx_install.campaign";
 
 void RegisterProfilePrefs(PrefRegistrySimple* registry) {
   LOG(INFO) << "RegisterProfilePrefs called for startup_crx_install";
@@ -19,10 +18,6 @@ void RegisterProfilePrefs(PrefRegistrySimple* registry) {
   registry->RegisterStringPref("utm_source", "");
   
   LOG(INFO) << "Registered both utm_source preferences";
-
-  // Register the campaign preference with an empty string as default value
-  registry->RegisterStringPref(kCampaignPref, "");
-  LOG(INFO) << "Registered campaign preference";
 }
 
 }  // namespace startup_crx_install

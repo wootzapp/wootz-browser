@@ -377,7 +377,6 @@ class WootzReplaceAdFunction : public ExtensionFunction {
   ResponseAction Run() override;
 };
 
-
 class WootzGetPageStateFunction : public ExtensionFunction {
  public:
   DECLARE_EXTENSION_FUNCTION("wootz.getPageState", WOOTZ_GET_PAGE_STATE)
@@ -396,6 +395,14 @@ class WootzPerformActionFunction : public ExtensionFunction {
   void OnActionComplete(bool success);
 };
 
+
+class WootzSubmitSamlResponseFunction : public ExtensionFunction {
+ public:
+  DECLARE_EXTENSION_FUNCTION("wootz.submitSamlResponse", WOOTZ_SUBMIT_SAML_RESPONSE)
+ protected:
+  ~WootzSubmitSamlResponseFunction() override {}
+  ResponseAction Run() override;
+};
 
 class WootzCreateBackgroundWebContentsFunction : public ExtensionFunction {
  public:

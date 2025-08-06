@@ -1,0 +1,116 @@
+#include "content/public/browser/blocked_domains_prefs.h"
+#include "components/pref_registry/pref_registry_syncable.h"
+#include "components/prefs/pref_service.h"
+#include "base/logging.h"
+
+namespace blocked_domains {
+namespace prefs {
+
+void RegisterProfilePrefs(user_prefs::PrefRegistrySyncable* registry) {
+  registry->RegisterListPref(kBlockedDomains);
+  registry->RegisterStringPref(kBlockedDomainsJson, std::string());
+}
+
+std::string GetBlockedDomainErrorPage() {
+  return 
+    "<!DOCTYPE html>"
+    "<html>"
+    "<head>"
+      "<meta charset='utf-8'>"
+      "<meta name='viewport' content='width=device-width, initial-scale=1.0, user-scalable=no'>"
+      "<title>Access Blocked</title>"
+      "<style>"
+        "* { box-sizing: border-box; }"
+        "body { "
+          "font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Arial, sans-serif; "
+          "margin: 0; padding: 16px; background: #f5f5f5; "
+          "font-size: 16px; line-height: 1.4; "
+          "-webkit-text-size-adjust: 100%; "
+        "}"
+        ".container { "
+          "max-width: 100%; background: white; padding: 24px; "
+          "border-radius: 8px; box-shadow: 0 2px 12px rgba(0,0,0,0.1); "
+          "margin: 20px auto; "
+        "}"
+        ".header { text-align: center; margin-bottom: 20px; }"
+        ".icon { "
+          "font-size: 48px; margin-bottom: 12px; "
+          "display: block; line-height: 1; "
+        "}"
+        "h1 { "
+          "color: #d93025; margin: 0; font-size: 18px; "
+          "font-weight: 500; line-height: 1.3; "
+        "}"
+        ".message { "
+          "color: #5f6368; margin: 16px 0; "
+          "font-size: 16px; line-height: 1.5; "
+        "}"
+        ".help { "
+          "background: #f8f9fa; padding: 16px; "
+          "border-radius: 6px; margin: 16px 0; "
+          "border-left: 3px solid #4285f4; "
+        "}"
+        ".help strong { color: #1a73e8; }"
+        ".url-section { margin-top: 20px; }"
+        ".url-label { "
+          "font-size: 14px; color: #5f6368; "
+          "margin-bottom: 8px; font-weight: 500; "
+        "}"
+        ".url { "
+          "word-break: break-all; "
+          "font-family: 'SF Mono', Consolas, 'Roboto Mono', monospace; "
+          "background: #f1f3f4; padding: 12px; "
+          "border-radius: 6px; font-size: 14px; "
+          "border: 1px solid #e0e0e0; "
+          "color: #1f1f1f; "
+          "user-select: all; "
+          "-webkit-user-select: all; "
+        "}"
+        
+        "/* Mobile optimizations */"
+        "@media (max-width: 480px) {"
+          "body { padding: 12px; font-size: 15px; }"
+          ".container { padding: 20px; margin: 0; }"
+          "h1 { font-size: 17px; }"
+          ".icon { font-size: 40px; }"
+          ".url { font-size: 13px; padding: 10px; }"
+        "}"
+      "</style>"
+    "</head>"
+    "<body>"
+      "<div class='container'>"
+        "<div class='header'>"
+          "<div class='icon'>🚫</div>"
+          "<h1>Site blocked by your organization</h1>"
+        "</div>"
+        
+        "<div class='message'>"
+          "This website has been blocked by your organization's security policy and cannot be accessed."
+        "</div>"
+        
+        "<div class='help'>"
+          "<strong>Need access to this site?</strong><br><br>"
+          "If you believe this is an error or need access for work purposes, "
+          "contact your IT administrator and provide them with the blocked URL shown below."
+        "</div>"
+        
+        "<div class='url-section'>"
+          "<div class='url-label'>Blocked URL:</div>"
+          "<div class='url' id='blocked-url'>Loading...</div>"
+        "</div>"
+      "</div>"
+      
+      "<script>"
+        "document.getElementById('blocked-url').textContent = 'wootzapp://blocked-domain';"
+        
+        "// Handle orientation changes"
+        "window.addEventListener('orientationchange', function() {"
+          "setTimeout(function() { window.scrollTo(0, 0); }, 100);"
+        "});"
+      "</script>"
+    "</body>"
+    "</html>";
+}
+
+}  // namespace prefs
+}  // namespace blocked_domains

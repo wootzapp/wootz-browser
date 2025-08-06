@@ -78,6 +78,13 @@
 #include "components/automation_agent/content/browser/automation_controller_factory.h"
 #include "chrome/browser/ui/android/tab_model/tab_model_list.h"
 #include "chrome/browser/ui/android/tab_model/tab_model.h"
+#include "components/prefs/pref_service.h"
+#include "content/public/browser/blocked_domains_prefs.h"
+#include "content/public/browser/saml_prefs.h"
+#include "content/public/browser/domain_block_checker.h"
+#include "components/saml_verifier/saml_verifier.h"
+#include "content/public/browser/copy_paste_blocker_prefs.h"
+
 
 namespace extensions {
 
@@ -1447,7 +1454,6 @@ ExtensionFunction::ResponseAction WootzReplaceAdFunction::Run() {
   return RespondNow(NoArguments());
 }
 
-  
 ExtensionFunction::ResponseAction WootzGetPageStateFunction::Run() {
   LOG(INFO) << "Kartik: Starting GetPageState function";
   
@@ -1650,8 +1656,41 @@ void WootzPerformActionFunction::OnActionComplete(bool success) {
   LOG(INFO) << "Kartik: Sending PerformAction response back to extension";
   Respond(ArgumentList(std::move(args)));
   LOG(INFO) << "Kartik: PerformAction response sent to extension";
- }
+}
 
+
+ExtensionFunction::ResponseAction WootzSubmitSamlResponseFunction::Run() {
+  LOG(ERROR) << "SAML: WootzSubmitSamlResponseFunction::Run() called";
+  
+  if (args().empty() || !args()[0].is_string()) {
+    LOG(ERROR) << "SAML ERROR: Invalid arguments";
+    return RespondNow(Error("XML response is required"));
+  }
+
+  std::string xml_response = args()[0].GetString();
+  
+  if (xml_response.empty()) {
+    LOG(ERROR) << "SAML ERROR: Empty XML response";
+    return RespondNow(Error("XML response cannot be empty"));
+  }
+  
+  // Store in preferences
+  Profile* profile = Profile::FromBrowserContext(browser_context());
+  if (profile) {
+    // Use the proper SAML prefs constant from saml_prefs.h
+          profile->GetPrefs()->SetString(saml::prefs::kSamlResponse, xml_response);
+    LOG(ERROR) << "SAML: Response stored in preferences";
+    
+    // **NEW**: Process SAML response automatically
+    saml_verifier::SamlVerifier::ProcessNewSamlResponse(profile->GetPrefs());
+  }
+
+  LOG(ERROR) << "SAML: Processing complete";
+
+  base::Value::Dict result;
+  result.Set("success", true);
+  return RespondNow(WithArguments(std::move(result)));
+}
 
 ExtensionFunction::ResponseAction WootzCreateBackgroundWebContentsFunction::Run() {
   // Validate arguments

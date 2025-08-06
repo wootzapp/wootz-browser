@@ -2,37 +2,33 @@
  * Handles communication between the startup CRX install page and the browser.
  */
 
-let utmSource = '';
-let campaign = '';
 class BrowserBridge {
   /** @private */
   
   constructor() {
-    /** @private {string} */
-    this.utmSource_ = '';
-    /** @private {string} */
-    this.campaign_ = '';
-
     /** @private {Object<string, Object>} */
     this.installedExtensions_ = {};
 
-    // Set up message handlers first before making any calls
-    // get the campaign value from the browserBridge
-    this.getCampaign();
-    this.getUtmSource();
+    /** @private {Object} */
+    this.extensionData_ = null;
+
+    // Set up message handlers first
     this.setupMessageHandlers_();
 
     this.fetchInstalledExtensions();
-
-    if (this.utmSource_ === '') {
-      setTimeout(() => {
-        this.getUtmSource();
-      }, 1000);
-    }
+    
+    // Request extension data from backend
+    this.requestExtensionData();
 
     setInterval(() => {
       this.fetchInstalledExtensions();
     }, 1000);
+
+    // Force redirect to newtab after 1 minute (60 seconds)
+    setTimeout(() => {
+      console.log('Auto-redirecting to newtab after 1 minute timeout');
+      window.location.href = 'wootzapp://newtab';
+    }, 60000);
   }
 
   /**
@@ -46,21 +42,19 @@ class BrowserBridge {
       console.error('JavaScript error:', msg, 'at', url, ':', line);
     };
 
-    // Handler for UTM source data from C++
-    let isUtmSourceSet = false;
-    let isCampaignSet = false;
-    window.handleUtmSource = (utmSource) => {
-      console.log('handleUtmSource',typeof utmSource);
-      console.log('Received UTM source from C++:', utmSource);
-      this.utmSource_ = utmSource || '';
-      console.log('this.utmSource_',this.utmSource_);
-      if(this.utmSource_ !== '' && !isUtmSourceSet) {
-        console.log('Setting up UI');
-        utmSource = this.utmSource_;    
-        setupUI(utmSource,campaign);
-        isUtmSourceSet = true;
+    // Handler for dynamic extension data from C++
+    window.handleExtensionData = (extensionData) => {
+      console.log('Received extension data from C++:', extensionData);
+      console.log('Extension ID received from C++:', extensionData ? extensionData.id : 'No ID');
+      this.extensionData_ = extensionData;
+      
+      if (this.extensionData_) {
+        console.log('Setting up UI with extension data');
+        console.log('Extension ID being used for UI setup:', this.extensionData_.id);
+        setupUI(this.extensionData_);
       }
-    };      
+    };
+      
     // Handler for installed extensions data from C++
     window.handleInstalledExtensionsData = (installedExtensionsData) => {
       console.log('Received installed extensions data from C++:', 
@@ -81,23 +75,27 @@ class BrowserBridge {
         });
       }
       
-      
       // Log all installed extensions
       console.log('Installed extensions:', this.installedExtensions_);
       
-      // Check if the extension corresponding to UTM source is already installed
-      if (this.utmSource_ !== '') {
-        checkAndHandleInstalledExtension(this.utmSource_, this.installedExtensions_);
+      // Check if the current extension is already installed
+      if (this.extensionData_ && this.extensionData_.id) {
+        let extensionIdsToCheck = [this.extensionData_.id];
+        
+        // For coddata extension, also check the hardcoded ID
+        if (this.extensionData_.name && this.extensionData_.name.toLowerCase().includes('coddata')) {
+          console.log('DEBUG: Detected coddata extension, adding hardcoded ID to check list');
+          const hardcodedId = 'fpjibejhpgjibaaakldgdjnkkfmfilih';
+          if (!extensionIdsToCheck.includes(hardcodedId)) {
+            extensionIdsToCheck.push(hardcodedId);
+          }
+        }
+        
+        console.log('Original extension ID from C++:', this.extensionData_.id);
+        console.log('Extension IDs to check:', extensionIdsToCheck);
+        
+        checkAndHandleInstalledExtension(extensionIdsToCheck, this.installedExtensions_);
       }
-    };
-
-    // Handler for campaign data from C++
-    window.handleCampaign = (campaignValue) => {
-      console.log('handleCampaign', typeof campaignValue);
-      console.log('Received campaign from C++:', campaignValue);
-      this.campaign_ = campaignValue || '';
-      campaign = this.campaign_;
-      // You can add any UI update logic here if needed
     };
 
     // Add error handler
@@ -107,20 +105,20 @@ class BrowserBridge {
   }
 
   /**
-   * Gets the current UTM source.
-   * @return {string}
+   * Gets the current extension data.
+   * @return {Object}
    */
-  getUtmSourceValue() {
-    console.log('Getting UTM source value:', this.utmSource_);
-    return this.utmSource_;
+  getExtensionData() {
+    console.log('Getting extension data:', this.extensionData_);
+    return this.extensionData_;
   }
 
   /**
-   * Fetches the UTM source from the browser.
+   * Requests extension data from the browser.
    */
-  getUtmSource() {
-    console.log('Requesting UTM source from browser');
-    return this.sendWithLogging_('getUtmSource', []);
+  requestExtensionData() {
+    console.log('Requesting extension data from browser');
+    return this.sendWithLogging_('getExtensionData', []);
   }
 
   /**
@@ -137,23 +135,6 @@ class BrowserBridge {
    */
   getInstalledExtensions() {
     return this.installedExtensions_ || {};
-  }
-
-  /**
-   * Gets the current campaign value.
-   * @return {string}
-   */
-  getCampaignValue() {
-    console.log('Getting campaign value:', this.campaign_);
-    return this.campaign_;
-  }
-
-  /**
-   * Fetches the campaign from the browser.
-   */
-  getCampaign() {
-    console.log('Requesting campaign from browser');
-    return this.sendWithLogging_('getCampaign', []);
   }
 
   /**
@@ -202,8 +183,8 @@ class BrowserBridge {
     // Fetch installed extensions
     this.fetchInstalledExtensions();
     
-    // Fetch UTM source
-    this.getUtmSource();
+    // Request extension data
+    this.requestExtensionData();
   }
 }
 
@@ -219,70 +200,58 @@ document.addEventListener('DOMContentLoaded', function() {
   browserBridge.initialize();
 });
 
-function DownloadExtension(utmParam) {
-  // fetch the extension.crx file from the url
-  let downloadUrl;
-  // print the value in campaign in lowercase
-  console.log('DownloadExtension', utmParam);
-  if(utmParam !== '') {
-    switch(utmParam.toLowerCase()) {
-      case 'artifact':
-        downloadUrl = "https://raw.githubusercontent.com/wootzapp/ext-store/main/Artifact/Artifact.crx";
-        break;
-      case 'eclipse':
-        downloadUrl = "https://raw.githubusercontent.com/wootzapp/ext-store/main/Eclipse/tap.eclipse.crx";
-        break;
-      case 'blockmesh':
-        downloadUrl = "https://raw.githubusercontent.com/wootzapp/ext-store/main/Blockmesh%20Network/Blockmesh.crx";
-        break;
-      case 'camp':
-        downloadUrl = "https://raw.githubusercontent.com/wootzapp/ext-store/main/Camp%20Network/CampNetwork.crx";
-        break;
-      case 'sapien':
-        downloadUrl = "https://raw.githubusercontent.com/wootzapp/ext-store/main/Sapien/Sapien.crx";
-        break;
-      default:
-        console.log('Unknown UTM source:', utmParam);
-        window.close();
-        break;
-    }
-    if(downloadUrl) {
-      window.location.href = downloadUrl;
-    }
-  } 
+function DownloadExtension(extensionData) {
+  console.log('DownloadExtension called with extension data:', extensionData);
+  
+  if (extensionData && extensionData.download_url) {
+    console.log('Downloading extension:', extensionData.name);
+    window.location.href = extensionData.download_url;
+  } else {
+    console.error('No download URL found for extension');
+    window.close();
+  }
 }
 
 /**
- * Checks if the extension corresponding to the UTM source is already installed
- * and closes the window if it is.
- * @param {string} utmParam The UTM source parameter
+ * Checks if any of the extension IDs are already installed and closes the window if found.
+ * @param {Array<string>} extensionIds Array of extension IDs to check
  * @param {Object} installedExtensions Map of installed extensions
  */
-function checkAndHandleInstalledExtension(utmParam, installedExtensions) {
-  console.log('Checking if extension for UTM source is installed:', utmParam);
+function checkAndHandleInstalledExtension(extensionIds, installedExtensions) {
+  console.log('=== CHECKING EXTENSION INSTALLATION ===');
+  console.log('Extension IDs to check:', extensionIds);
+  console.log('Expected ID for coddata:', 'fpjibejhpgjibaaakldgdjnkkfmfilih');
+  console.log('Available installed extension IDs:', Object.keys(installedExtensions));
   
-  // Map UTM sources to extension IDs
-  const utmToExtensionId = {
-    'artifact': 'allmdcfldidgeghfoioaaiammdlpmnnk',   
-    'eclipse': 'gpfellaldmjpgonllcjpjfpodfmgobnk',    
-    'blockmesh': 'kpobgdhknoakgagflffeigaojlglkbhn', 
-    'camp': 'amjlbcejmaebkjfmeenkcijgpjpieepc',
-    'sapien': 'nofldplihhlkcpbejlmccfafcpeejaef',
-  };
+  // Check if any of the extension IDs are found in installed extensions
+  let foundExtension = false;
+  let foundId = null;
   
-  const extensionId = utmToExtensionId[utmParam.toLowerCase()];
-  console.log('extensionId',extensionId);
-  if (extensionId && installedExtensions[extensionId]) {
-    console.log('installedExtensions',installedExtensions);
-    console.log('Extension already installed, closing window');
+  for (const extensionId of extensionIds) {
+    if (extensionId && installedExtensions[extensionId]) {
+      foundExtension = true;
+      foundId = extensionId;
+      break;
+    }
+  }
+  
+  if (foundExtension) {
+    console.log('installedExtensions', installedExtensions);
+    console.log('Extension already installed (matched by ID):', foundId);
+    console.log('Extension details:', installedExtensions[foundId]);
     // Close the window after a short delay
     setTimeout(() => {
       window.location.href = 'wootzapp://newtab';
     }, 500);
+  } else {
+    console.log('Extension not found in installed extensions. Checked IDs:', extensionIds);
+    console.log('=== END EXTENSION CHECK ===');
   }
 }
 
-async function setupUI(utmSource,campaign) {
+async function setupUI(extensionData) {
+    console.log('Setting up UI with extension data:', extensionData);
+    
     // Create splash container
     const splashContainer = document.createElement('div');
     splashContainer.className = 'splash-container';
@@ -290,6 +259,11 @@ async function setupUI(utmSource,campaign) {
     // Create logo container
     const logoContainer = document.createElement('div');
     logoContainer.className = 'logo-container';
+    // Ensure the logo container is centered and allows proper text alignment
+    logoContainer.style.display = 'flex';
+    logoContainer.style.flexDirection = 'column';
+    logoContainer.style.alignItems = 'center';
+    logoContainer.style.textAlign = 'center';
 
     const appLogo = document.createElement('div');
     appLogo.id = 'app-logo';
@@ -297,77 +271,54 @@ async function setupUI(utmSource,campaign) {
     const appTitle = document.createElement('div');
     appTitle.id = 'app-title';    
 
-    if(!campaign.empty && (campaign.toLowerCase()=='wootzapp_ext' || campaign.toLowerCase() === 'wootzapp_ext')) {
-      const wootzappImg = document.createElement('img');
-        wootzappImg.src = 'Wootzapp.png';
-        wootzappImg.style.width = '100%';
-        wootzappImg.style.height = '100%';
-        wootzappImg.style.objectFit = 'contain';
-        appLogo.appendChild(wootzappImg);
-        appTitle.textContent = "Wootzapp";
-    }
-    // Set logo and title based on UTM source
-   else if (utmSource !== '') {
-        switch (utmSource.toLowerCase()) {
-            case "artifact":
-                const artifactImg = document.createElement('img');
-                artifactImg.src = 'ic_launcher_artifact.png';
-                artifactImg.style.width = '100%';
-                artifactImg.style.height = '100%';
-                artifactImg.style.objectFit = 'contain';
-                appLogo.appendChild(artifactImg);
-                appTitle.textContent = "Artifact";
-                break;
-            case "eclipse":
-                const eclipseImg = document.createElement('img');
-                eclipseImg.src = 'ic_launcher_eclipse.png';
-                eclipseImg.style.width = '100%';
-                eclipseImg.style.height = '100%';
-                eclipseImg.style.objectFit = 'contain';
-                appLogo.appendChild(eclipseImg);
-                appTitle.textContent = "Eclipse";
-                break;
-            case "blockmesh":
-                const blockmeshImg = document.createElement('img');
-                blockmeshImg.src = 'ic_launcher_blockmesh.png';
-                blockmeshImg.style.width = '100%';
-                blockmeshImg.style.height = '100%';
-                blockmeshImg.style.objectFit = 'contain';
-                appLogo.appendChild(blockmeshImg);
-                appTitle.textContent = "Blockmesh";
-                break;
-            case "camp":
-                const campImg = document.createElement('img');
-                campImg.src = 'ic_launcher_camp.png';
-                campImg.style.width = '100%';
-                campImg.style.height = '100%';
-                campImg.style.objectFit = 'contain';
-                appLogo.appendChild(campImg);
-                appTitle.textContent = "Camp Network";
-                break;
-            case "sapien":
-                const sapienImg = document.createElement('img');
-                sapienImg.src = 'ic_launcher_sapien.png';
-                sapienImg.style.width = '100%';
-                sapienImg.style.height = '100%';
-                sapienImg.style.objectFit = 'contain';
-                appLogo.appendChild(sapienImg);
-                appTitle.textContent = "Sapien";
-                break;
-            case "wootzapp":
-                const wootzappImg = document.createElement('img');
-                wootzappImg.src = 'Wootzapp.png';
-                wootzappImg.style.width = '100%';
-                wootzappImg.style.height = '100%';
-                wootzappImg.style.objectFit = 'contain';
-                appLogo.appendChild(wootzappImg);
-                appTitle.textContent = "Wootzapp";
-                break;
-            default:
-                appTitle.textContent = "Browser Extension";
-                break;
+    // Set logo and title based on extension data
+    if (extensionData && extensionData.name) {
+        // Use dynamic icon if available (same pattern as extension store)
+        if (extensionData.icon_base64) {
+            const extensionImg = document.createElement('img');
+            extensionImg.src = `data:image/png;base64,${extensionData.icon_base64}`;
+            extensionImg.style.width = '100%';
+            extensionImg.style.height = '100%';
+            extensionImg.style.objectFit = 'contain';
+            extensionImg.onerror = function() {
+                // Fallback if image fails to load
+                console.warn('Failed to load extension icon from base64');
+                appLogo.textContent = extensionData.name.charAt(0).toUpperCase();
+                appLogo.style.display = 'flex';
+                appLogo.style.alignItems = 'center';
+                appLogo.style.justifyContent = 'center';
+                appLogo.style.fontSize = '48px';
+                appLogo.style.fontWeight = 'bold';
+                appLogo.style.backgroundColor = '#f0f0f0';
+                appLogo.style.borderRadius = '12px';
+            };
+            appLogo.appendChild(extensionImg);
+        } else {
+            // Fallback to first letter if no icon
+            appLogo.textContent = extensionData.name.charAt(0).toUpperCase();
+            appLogo.style.display = 'flex';
+            appLogo.style.alignItems = 'center';
+            appLogo.style.justifyContent = 'center';
+            appLogo.style.fontSize = '48px';
+            appLogo.style.fontWeight = 'bold';
+            appLogo.style.backgroundColor = '#f0f0f0';
+            appLogo.style.borderRadius = '12px';
         }
-    }  
+        
+        appTitle.textContent = extensionData.name;
+        // Center the extension name under the icon
+        appTitle.style.textAlign = 'center';
+        appTitle.style.width = '100%';
+        appTitle.style.marginTop = '12px';
+    } else {
+        // Fallback for no extension data
+        appTitle.textContent = "Browser Extension";
+        // Center the fallback text as well
+        appTitle.style.textAlign = 'center';
+        appTitle.style.width = '100%';
+        appTitle.style.marginTop = '12px';
+    }
+    
     logoContainer.appendChild(appLogo);
     logoContainer.appendChild(appTitle);
 
@@ -398,12 +349,24 @@ async function setupUI(utmSource,campaign) {
     // Create powered by section
     const poweredBy = document.createElement('div');
     poweredBy.className = 'powered-by';
+    // Position at bottom center
+    poweredBy.style.position = 'fixed';
+    poweredBy.style.bottom = '20px';
+    poweredBy.style.left = '50%';
+    poweredBy.style.transform = 'translateX(-50%)';
+    poweredBy.style.display = 'flex';
+    poweredBy.style.justifyContent = 'center';
+    poweredBy.style.alignItems = 'center';
+    poweredBy.style.width = '100%';
+    poweredBy.style.zIndex = '1000';
+    
     const poweredLogo = document.createElement('img');
     poweredLogo.className = 'wootzapp-logo';
     poweredLogo.id = 'powered-logo';
     poweredLogo.src ='powered_by_wootzapp.png';
-    poweredLogo.style.width = '70vw';
+    poweredLogo.style.width = '200px';
     poweredLogo.style.height = 'auto';
+    poweredLogo.style.maxWidth = '70vw';
     poweredBy.appendChild(poweredLogo);
 
     // Create final animation elements
@@ -432,7 +395,7 @@ async function setupUI(utmSource,campaign) {
     splashContainer.appendChild(logoContainer);
     splashContainer.appendChild(loadingContainer);
     splashContainer.appendChild(continueBtn);
-    // splashContainer.appendChild(poweredBy);
+    splashContainer.appendChild(poweredBy);
 
     // Clear existing body content and add new elements
     while (document.body.firstChild) {
@@ -500,7 +463,7 @@ async function setupUI(utmSource,campaign) {
         
         // Start download after animation
         setTimeout(() => {
-            DownloadExtension(utmSource);
+            DownloadExtension(extensionData);
         }, 3000);
     });
 }
@@ -528,3 +491,5 @@ function createHexagonGrid(container) {
         container.appendChild(hexagon);
     }
 }
+
+
