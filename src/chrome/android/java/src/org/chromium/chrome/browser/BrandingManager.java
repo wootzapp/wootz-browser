@@ -25,7 +25,7 @@ public class BrandingManager {
     private static final String TAG = "BrandingManager";
     
     // GitHub URL - using your actual repository
-    private static final String GITHUB_URL = "https://raw.githubusercontent.com/1311-hack1/rebrand/main/branding.json";
+    private static final String GITHUB_URL = "https://raw.githubusercontent.com/wootzapp/ext-store/main/extensions.json";
     
     // Simple keys
     private static final String KEY_APP_NAME = "app_name";
@@ -54,13 +54,13 @@ public class BrandingManager {
                     conn.disconnect();
                     Log.e(TAG, "json: " + json);
                     // Parse and find matching UTM
-                    JSONArray brands = new JSONObject(json).getJSONArray("brands");
+                    JSONArray brands = new JSONObject(json).getJSONArray("extensions");
                     for (int i = 0; i < brands.length(); i++) {
                         JSONObject brand = brands.getJSONObject(i);
-                        if (utmSource.equals(brand.optString("utmSource"))) {
+                        if (utmSource.equals(brand.optString("campaign"))) {
                             // Save to preferences
-                            String appName = brand.optString("appName", "Browser");
-                            String iconUrl = brand.optString("iconUrl", "");
+                            String appName = brand.optString("name", "Browser");
+                            String iconUrl = brand.optString("icon_url", "");
                             ContextUtils.getAppSharedPreferences().edit()
                                 .putString(KEY_APP_NAME, appName)
                                 .putString(KEY_UTM, utmSource)

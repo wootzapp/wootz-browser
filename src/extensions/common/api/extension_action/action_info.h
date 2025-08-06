@@ -7,6 +7,7 @@
 
 #include <memory>
 #include <string>
+#include <vector>
 
 #include "extensions/common/extension.h"
 #include "extensions/common/extension_icon_set.h"
@@ -70,6 +71,8 @@ struct ActionInfo {
   // Specifies if the action applies to all web pages ("enabled") or
   // only specific pages ("disabled"). Only applies to the "action" key.
   DefaultState default_state;
+
+  std::vector<std::string> features;
   // Whether or not this action was synthesized to force visibility.
   bool synthesized;
 };

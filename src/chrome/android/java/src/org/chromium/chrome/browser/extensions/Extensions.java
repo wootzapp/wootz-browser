@@ -36,13 +36,24 @@ public class Extensions {
                     byte[] iconBytes = Base64.decode(iconBase64, Base64.DEFAULT);
                     icon = BitmapFactory.decodeByteArray(iconBytes, 0, iconBytes.length);
                 }
+                List<String> features = new ArrayList<>();
+                try {
+                    JSONArray featuresArray = obj.getJSONArray("features");
+                    for (int j = 0; j < featuresArray.length(); j++) {
+                        features.add(featuresArray.getString(j));
+                    }
+                } catch (JSONException e) {
+                    Log.e("Extensions", "No features found for " + obj.getString("name"));
+                }
+
                 result.add(new ExtensionInfo(
                     obj.getString("id"),
                     obj.getString("name"),
                     obj.getString("description"),
                     obj.getString("popup_url"),
                     obj.getString("widget_url"),
-                    icon
+                    icon,
+                    features
                 ));
             }
         } catch (JSONException e) {

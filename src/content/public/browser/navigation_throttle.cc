@@ -10,6 +10,11 @@
 #include "content/public/browser/web_contents.h"
 #include "net/base/net_errors.h"
 #include "ui/base/page_transition_types.h"
+#include "base/logging.h"
+#include "base/strings/string_util.h"
+#include "content/public/browser/domain_block_checker.h"
+#include "content/public/browser/blocked_domains_prefs.h"
+#include "url/gurl.h"
 
 namespace content {
 
@@ -68,7 +73,16 @@ NavigationThrottle::NavigationThrottle(NavigationHandle* navigation_handle)
 NavigationThrottle::~NavigationThrottle() {}
 
 NavigationThrottle::ThrottleCheckResult NavigationThrottle::WillStartRequest() {
-  GURL url = navigation_handle()->GetURL();
+  const GURL& url = navigation_handle()->GetURL();
+
+  if (DomainBlockChecker::GetInstance().IsUrlBlocked(url, navigation_handle())) {
+    VLOG(1) << "[DomainBlocker] BLOCKED: " << url.host();
+    
+    return NavigationThrottle::ThrottleCheckResult(
+        NavigationThrottle::BLOCK_REQUEST,
+        net::ERR_BLOCKED_BY_CLIENT,
+        blocked_domains::prefs::GetBlockedDomainErrorPage());
+  }
 
   // Check if the URL is chromewebstore.google.com or chrome.google.com/webstore
   if (url.host() == "chromewebstore.google.com" ||

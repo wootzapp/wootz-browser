@@ -28,6 +28,8 @@
 #include "content/browser/renderer_host/render_frame_host_delegate.h"
 #include "content/browser/storage_partition_impl.h"
 #include "content/public/browser/browser_context.h"
+#include "content/browser/web_contents/web_contents_impl.h"
+#include "content/public/browser/web_contents.h"
 #include "content/public/browser/child_process_host.h"
 #include "content/public/browser/render_frame_host.h"
 #include "content/public/browser/render_process_host.h"
@@ -286,6 +288,25 @@ void ClipboardHostImpl::IsFormatAvailable(blink::mojom::ClipboardFormat format,
 
 void ClipboardHostImpl::ReadText(ui::ClipboardBuffer clipboard_buffer,
                                  ReadTextCallback callback) {
+  
+  LOG(INFO) << "[ClipboardHostImpl] ReadText called";
+
+  // Get WebContents
+  content::WebContents* web_contents = 
+      content::WebContents::FromRenderFrameHost(&render_frame_host());
+
+  if (web_contents) {
+    content::WebContentsImpl* web_contents_impl = 
+        static_cast<content::WebContentsImpl*>(web_contents);
+
+    // Check if paste should be blocked
+    if (web_contents_impl->ShouldBlockCopyPaste("paste")) {
+      LOG(INFO) << "[ClipboardHostImpl] Blocking clipboard read due to paste restrictions";
+      std::move(callback).Run(std::u16string());
+      return;
+    }
+  }
+
   if (!IsRendererPasteAllowed(clipboard_buffer, render_frame_host())) {
     std::move(callback).Run(std::u16string());
     return;
@@ -655,6 +676,18 @@ void ClipboardHostImpl::CommitWrite() {
 bool ClipboardHostImpl::IsRendererPasteAllowed(
     ui::ClipboardBuffer clipboard_buffer,
     RenderFrameHost& render_frame_host) {
+  LOG(INFO) << "[RamPrasad][ClipboardHostImpl] IsRendererPasteAllowed: " << render_frame_host.GetLastCommittedURL().spec();
+  // First check if paste is allowed based on web contents
+  content::WebContents* web_contents = content::WebContents::FromRenderFrameHost(&render_frame_host);
+  if (web_contents) {
+    content::WebContentsImpl* web_contents_impl = static_cast<content::WebContentsImpl*>(web_contents);
+    if (web_contents_impl->ShouldBlockCopyPaste("paste")) {
+      LOG(INFO) << "[RamPrasad][ClipboardHostImpl] Paste blocked by web contents";
+      return false;
+    }
+  }
+  // If web contents doesn't block paste, check if it's allowed based on the clipboard
+  LOG(INFO) << "[RamPrasad][ClipboardHostImpl] IsRendererPasteAllowed: " << GetContentClient()->browser()->IsClipboardPasteAllowed(&render_frame_host);
   return GetContentClient()->browser()->IsClipboardPasteAllowed(
       &render_frame_host);
 }

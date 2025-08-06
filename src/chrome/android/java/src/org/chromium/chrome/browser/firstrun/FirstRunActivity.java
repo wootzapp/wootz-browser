@@ -430,7 +430,7 @@ public class FirstRunActivity extends FirstRunActivityBase implements FirstRunPa
 
                             // Store individual parameters
                             if (referringParams.has("~channel")) {
-                                String utmSource = referringParams.optString("~channel", "");
+                                String utmSource = referringParams.optString("~campaign", "");
                                 editor.putString("utm_source_wootzapp", utmSource);
                                 Log.e(TAG, "Stored utm_source_wootzapp: " + utmSource);
                             }

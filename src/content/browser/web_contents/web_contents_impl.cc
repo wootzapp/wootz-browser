@@ -157,6 +157,9 @@
 #include "content/public/common/referrer_type_converters.h"
 #include "content/public/common/url_constants.h"
 #include "media/base/media_switches.h"
+#include "content/public/browser/copy_paste_blocker_prefs.h"
+#include "components/prefs/pref_service.h"
+#include "chrome/browser/profiles/profile.h"
 #include "media/base/user_input_monitor.h"
 #include "net/base/url_util.h"
 #include "net/http/http_util.h"
@@ -199,6 +202,7 @@
 #include "ui/display/types/display_constants.h"
 #include "ui/events/base_event_utils.h"
 #include "ui/gfx/animation/animation.h"
+
 
 #if BUILDFLAG(IS_WIN)
 #include "base/threading/thread_restrictions.h"
@@ -3840,6 +3844,81 @@ void WebContentsImpl::RenderWidgetWasResized(
 
 KeyboardEventProcessingResult WebContentsImpl::PreHandleKeyboardEvent(
     const NativeWebKeyboardEvent& event) {
+
+  LOG(INFO) << "[RamPrasad][WebContents] PreHandleKeyboardEvent";
+
+  LOG(INFO) << "[RamPrasad][WebContents] PreHandleKeyboardEvent Details:"
+            << " Type=" << static_cast<int>(event.GetType())
+            << " Modifiers=" << event.GetModifiers()
+            << " KeyCode=" << event.windows_key_code
+            << " IsSystemKey=" << event.is_system_key
+            << " Text=" << event.text;
+
+  LOG(INFO) << "[RamPrasad][WebContents] ShouldBlockCopyPaste: " << ShouldBlockCopyPaste("paste");
+
+  // Check for Ctrl+V
+  if((event.GetModifiers() & blink::WebInputEvent::kControlKey) && event.windows_key_code == 'V') {
+    LOG(INFO) << "[RamPrasad][WebContents] Ctrl+V event";
+    if(ShouldBlockCopyPaste("paste")) {
+      LOG(INFO) << "[RamPrasad][WebContents] Blocking paste event";
+      ShowCopyPasteBlockedToast("Paste");
+      return KeyboardEventProcessingResult::HANDLED;
+    }
+  }
+
+  // Check for Command+V
+  if((event.GetModifiers() & blink::WebInputEvent::kMetaKey) && event.windows_key_code == 'V') {
+    LOG(INFO) << "[RamPrasad][WebContents] Command+V event";
+    if(ShouldBlockCopyPaste("paste")) {
+      LOG(INFO) << "[RamPrasad][WebContents] Blocking paste event";
+      ShowCopyPasteBlockedToast("Paste");
+      return KeyboardEventProcessingResult::HANDLED;
+    }
+  }
+
+  // Also check for IME paste events
+  if (event.GetType() == blink::WebInputEvent::Type::kChar && 
+        event.windows_key_code == 0) {
+    LOG(INFO) << "[RamPrasad][WebContents] IME paste detected";
+    if(ShouldBlockCopyPaste("paste")) {
+      LOG(INFO) << "[RamPrasad][WebContents] Blocking paste event";
+      ShowCopyPasteBlockedToast("Paste");
+      return KeyboardEventProcessingResult::HANDLED;
+    }
+  }
+
+  // Critical: Check for Android system clipboard paste
+  if(event.GetType() == blink::WebInputEvent::Type::kRawKeyDown && 
+        event.windows_key_code == 0 && 
+        event.GetModifiers() == 0) {
+    LOG(INFO) << "[RamPrasad][WebContents] System clipboard paste detected";
+    if(ShouldBlockCopyPaste("paste")) {
+      LOG(INFO) << "[RamPrasad][WebContents] Blocking paste event";
+      ShowCopyPasteBlockedToast("Paste");
+      return KeyboardEventProcessingResult::HANDLED;
+    }
+  }
+
+  // Check for Ctrl+C
+  if(event.GetModifiers() & blink::WebInputEvent::kControlKey && event.windows_key_code == 'C') {
+    LOG(INFO) << "[RamPrasad][WebContents] Ctrl+C event";
+    if(ShouldBlockCopyPaste("copy")) {
+      LOG(INFO) << "[RamPrasad][WebContents] Blocking copy event";
+      ShowCopyPasteBlockedToast("Copy");
+      return KeyboardEventProcessingResult::HANDLED;
+    }
+  }
+
+  // Check for Command+C
+  if(event.GetModifiers() & blink::WebInputEvent::kMetaKey && event.windows_key_code == 'C') {
+    LOG(INFO) << "[RamPrasad][WebContents] Command+C event";
+    if(ShouldBlockCopyPaste("copy")) {
+      LOG(INFO) << "[RamPrasad][WebContents] Blocking copy event";
+      ShowCopyPasteBlockedToast("Copy");
+      return KeyboardEventProcessingResult::HANDLED;
+    }
+  }
+
   OPTIONAL_TRACE_EVENT0(TRACE_DISABLED_BY_DEFAULT("content.verbose"),
                         "WebContentsImpl::PreHandleKeyboardEvent");
   auto* outermost_contents = GetOutermostWebContents();
@@ -5627,6 +5706,13 @@ void WebContentsImpl::Redo() {
 
 void WebContentsImpl::Cut() {
   OPTIONAL_TRACE_EVENT0("content", "WebContentsImpl::Cut");
+
+  if (ShouldBlockCopyPaste("cut")) {
+    LOG(INFO) << "[CopyPasteBlocker] WebContents Cut operation blocked for domain: " 
+              << GetLastCommittedURL().host();
+    return;
+  }
+
   auto* input_handler = GetFocusedFrameWidgetInputHandler();
   if (!input_handler) {
     return;
@@ -5637,8 +5723,290 @@ void WebContentsImpl::Cut() {
   RecordAction(base::UserMetricsAction("Cut"));
 }
 
+void WebContentsImpl::ShowCopyPasteBlockedToast(const std::string& action) {
+  LOG(INFO) << "[CopyPasteBlocker] Showing toast for blocked " << action;
+  
+  if (!delegate_) {
+    LOG(WARNING) << "[CopyPasteBlocker] No delegate available for toast";
+    return;
+  }
+
+  // Get current domain
+  GURL url = GetLastCommittedURL();
+  std::string domain = url.host();
+  
+  // Create toast message
+  std::string toast_message = base::StringPrintf(
+      "%s blocked on %s by your organization.", 
+      "Copy-Paste ", 
+      domain.c_str());
+
+  LOG(INFO) << "[CopyPasteBlocker] Toast message: " << toast_message;
+  
+  // Inject a visible overlay using CSS and JavaScript with improved centering
+  std::string script = base::StringPrintf(R"(
+    (function() {
+      // Remove any existing toast
+      var existingToast = document.getElementById('copy-paste-blocked-toast');
+      if (existingToast) existingToast.remove();
+      
+      // Create toast element
+      var toast = document.createElement('div');
+      toast.id = 'copy-paste-blocked-toast';
+      toast.textContent = '%s';
+      
+      // Initial styling with dynamic centering
+      toast.style.cssText = `
+        position: fixed !important;
+        top: 20px !important;
+        left: 50%% !important;
+        transform: translateX(-50%%) !important;
+        background: #f44336 !important;
+        color: white !important;
+        padding: 16px 24px !important;
+        border-radius: 8px !important;
+        font-size: 14px !important;
+        font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif !important;
+        box-shadow: 0 4px 12px rgba(0,0,0,0.3) !important;
+        z-index: 2147483647 !important;
+        width: auto !important;
+        max-width: calc(100vw - 40px) !important;
+        min-width: 280px !important;
+        word-wrap: break-word !important;
+        text-align: center !important;
+        opacity: 0 !important;
+        transition: all 0.3s ease !important;
+        pointer-events: auto !important;
+        user-select: none !important;
+        -webkit-user-select: none !important;
+        -moz-user-select: none !important;
+        -ms-user-select: none !important;
+        display: block !important;
+        visibility: visible !important;
+        will-change: opacity, transform !important;
+        box-sizing: border-box !important;
+      `;
+      
+      // Ensure the toast is added to the highest possible parent
+      var targetParent = document.body || document.documentElement || document;
+      if (targetParent && targetParent.appendChild) {
+        targetParent.appendChild(toast);
+      } else {
+        // Fallback if body doesn't exist yet
+        var fallbackParent = document.head || document.documentElement;
+        if (fallbackParent && fallbackParent.appendChild) {
+          fallbackParent.appendChild(toast);
+        }
+      }
+      
+      // Function to dynamically center the toast
+      function centerToast() {
+        var viewportWidth = window.innerWidth || document.documentElement.clientWidth || 1024;
+        var toastWidth = toast.offsetWidth || 280;
+        
+        // For very small screens, use full width with margins
+        if (viewportWidth < 480) {
+          toast.style.left = '20px';
+          toast.style.right = '20px';
+          toast.style.transform = 'none';
+          toast.style.width = 'auto';
+          toast.style.maxWidth = 'calc(100vw - 40px)';
+          toast.style.minWidth = 'auto';
+        } else {
+          // Center horizontally using left + transform
+          toast.style.left = '50%%';
+          toast.style.right = 'auto';
+          toast.style.transform = 'translateX(-50%%)';
+          toast.style.width = 'auto';
+          toast.style.maxWidth = 'calc(100vw - 40px)';
+          toast.style.minWidth = '280px';
+        }
+      }
+      
+      // Force a reflow to ensure styles are applied
+      if (toast.offsetHeight !== undefined) {
+        // Trigger reflow
+      }
+      
+      // Center the toast and show it
+      setTimeout(function() {
+        centerToast();
+        
+        // Animate in
+        toast.style.opacity = '1';
+        toast.style.transform = toast.style.transform + ' scale(1)';
+        
+        console.log('Toast displayed successfully');
+      }, 10);
+      
+      // Re-center on window resize
+      var resizeHandler = function() {
+        if (toast && toast.parentNode) {
+          centerToast();
+        }
+      };
+      
+      if (window.addEventListener) {
+        window.addEventListener('resize', resizeHandler);
+        window.addEventListener('orientationchange', resizeHandler);
+      }
+      
+      // Auto-remove after 5 seconds
+      setTimeout(function() {
+        if (toast && toast.parentNode) {
+          toast.style.opacity = '0';
+          toast.style.transform = toast.style.transform.replace('scale(1)', 'scale(0.95)');
+          setTimeout(function() {
+            if (toast && toast.parentNode) {
+              // Clean up event listeners
+              if (window.removeEventListener) {
+                window.removeEventListener('resize', resizeHandler);
+                window.removeEventListener('orientationchange', resizeHandler);
+              }
+              if (toast.remove) {
+                toast.remove();
+              } else if (toast.parentNode && toast.parentNode.removeChild) {
+                toast.parentNode.removeChild(toast);
+              }
+              console.log('Toast removed successfully');
+            }
+          }, 300);
+        }
+      }, 5000);
+      
+      console.log('Toast script executed successfully');
+      
+    })();
+  )", toast_message.c_str());
+
+  GetPrimaryMainFrame()->ExecuteJavaScriptForTests(
+      base::UTF8ToUTF16(script), base::NullCallback());
+
+  LOG(WARNING) << "[CopyPasteBlocker] No delegate to show toast";
+}
+
+void WebContentsImpl::HideToast() {
+  // if (auto* browser = chrome::FindBrowserWithWebContents(this)) {
+  //   browser->window()->SetStatusBubbleText(std::u16string());
+  // }
+}
+
+bool WebContentsImpl::ShouldBlockCopyPaste(const std::string& operation_type) {
+  LOG(INFO) << "[RamPrasad][WebContents] Checking if copy-paste should be blocked";
+
+  Profile* profile = Profile::FromBrowserContext(GetBrowserContext());
+  if (!profile) {
+    LOG(INFO) << "[RamPrasad][WebContents] No profile found, not blocking";
+    return false;
+  }
+
+  PrefService* prefs = profile->GetPrefs();
+  if (!prefs) {
+    LOG(INFO) << "[RamPrasad][WebContents] No prefs found, not blocking";
+    return false;
+  }
+
+  // Check if blocking is enabled globally
+  bool enabled = prefs->GetBoolean(copy_paste_blocker::prefs::kCopyPasteBlockingEnabled);
+  LOG(INFO) << "[RamPrasad][WebContents] Copy-paste blocking enabled: " << enabled;
+  if (!enabled) {
+    LOG(INFO) << "[RamPrasad][WebContents] Blocking disabled globally";
+    return false;
+  }
+
+  // // Check if this specific operation type is blocked
+  // const base::Value::Dict& block_types = prefs->GetDict(copy_paste_blocker::prefs::kCopyPasteBlockingTypes);
+  // bool block_operation = block_types.FindBool(operation_type).value_or(true);
+  // if (!block_operation) {
+  //   LOG(INFO) << "[RamPrasad][WebContents] Operation " << operation_type << " not blocked by type";
+  //   return false;
+  // }
+
+  // // Get blocking mode
+  // std::string mode = prefs->GetString(copy_paste_blocker::prefs::kCopyPasteBlockingMode);
+  // LOG(INFO) << "[RamPrasad][WebContents] Blocking mode: " << mode;
+
+  // // If global mode, block everywhere
+  // if (mode == "global") {
+  //   LOG(INFO) << "[RamPrasad][WebContents] Global mode: blocking everywhere";
+  //   return true;
+  // }
+
+  // Get current URL's domain
+  GURL url = GetLastCommittedURL();
+  std::string current_domain = url.host();
+
+  // Get domain list
+  const base::Value::List& domains = prefs->GetList(copy_paste_blocker::prefs::kCopyPasteBlockingDomains);
+
+  // Check if domain is in list
+  bool domain_in_list = false;
+  for (const auto& domain : domains) {
+    if (domain.is_string() && domain.GetString() == current_domain) {
+      domain_in_list = true;
+      break;
+    }
+  }
+
+  // If no exact match, check subdomains
+  if (!domain_in_list) {
+    std::string domain_to_check = current_domain;
+    size_t dot_pos = domain_to_check.find('.');
+    
+    while (dot_pos != std::string::npos) {
+      std::string parent_domain = domain_to_check.substr(dot_pos + 1);
+      
+      // Check if this parent domain is in the blocked list
+      for (const auto& domain : domains) {
+        if (domain.is_string() && domain.GetString() == parent_domain) {
+          domain_in_list = true;
+          break;
+        }
+      }
+      
+      if (domain_in_list) {
+        break;
+      }
+      
+      // Move to the next level up in the domain hierarchy
+      domain_to_check = parent_domain;
+      dot_pos = domain_to_check.find('.');
+    }
+  }
+
+
+  // // Apply whitelist/blacklist logic
+  // if (mode == "whitelist") {
+  //   // In whitelist mode, block if domain is NOT in list
+  //   LOG(INFO) << "[RamPrasad][WebContents] Whitelist mode: blocking = " << !domain_in_list;
+  //   return !domain_in_list;
+  // } else if (mode == "blacklist") {
+  //   // In blacklist mode, block if domain IS in list
+  //   LOG(INFO) << "[RamPrasad][WebContents] Blacklist mode: blocking = " << domain_in_list;
+  //   return domain_in_list;
+  // }
+
+  // LOG(INFO) << "[RamPrasad][WebContents] Global mode: blocking everywhere";
+  // return true;
+
+  if(domain_in_list) {
+    return true;  // Block if domain is in the list
+  }
+  LOG(INFO) << "[RamPrasad][WebContents] Domain is NOT in the list";
+  return false;  // Allow if domain is not in the list
+}
+
+
 void WebContentsImpl::Copy() {
   OPTIONAL_TRACE_EVENT0("content", "WebContentsImpl::Copy");
+  if (ShouldBlockCopyPaste("copy")) {
+    LOG(INFO) << "[CopyPasteBlocker] WebContents Copy operation blocked for domain: " 
+              << GetLastCommittedURL().host();
+    ShowCopyPasteBlockedToast("copy");
+    return;
+  }
+
+  LOG(INFO) << "[RamPrasad][WebContents] Copy operation allowed";
   auto* input_handler = GetFocusedFrameWidgetInputHandler();
   if (!input_handler) {
     return;
@@ -5679,6 +6047,14 @@ void WebContentsImpl::CenterSelection() {
 
 void WebContentsImpl::Paste() {
   OPTIONAL_TRACE_EVENT0("content", "WebContentsImpl::Paste");
+
+  if (ShouldBlockCopyPaste("paste")) {
+    LOG(INFO) << "[CopyPasteBlocker] WebContents Paste operation blocked for domain: " 
+              << GetLastCommittedURL().host();
+    ShowCopyPasteBlockedToast("paste");
+    return;
+  }
+
   auto* input_handler = GetFocusedFrameWidgetInputHandler();
   if (!input_handler) {
     return;
@@ -5692,6 +6068,12 @@ void WebContentsImpl::Paste() {
 
 void WebContentsImpl::PasteAndMatchStyle() {
   OPTIONAL_TRACE_EVENT0("content", "WebContentsImpl::PasteAndMatchStyle");
+  if (ShouldBlockCopyPaste("pasteAndMatchStyle")) {
+    LOG(INFO) << "[CopyPasteBlocker] WebContents PasteAndMatchStyle operation blocked for domain: " 
+              << GetLastCommittedURL().host();
+    return;
+  }
+
   auto* input_handler = GetFocusedFrameWidgetInputHandler();
   if (!input_handler) {
     return;
@@ -5717,6 +6099,12 @@ void WebContentsImpl::Delete() {
 
 void WebContentsImpl::SelectAll() {
   OPTIONAL_TRACE_EVENT0("content", "WebContentsImpl::SelectAll");
+  if (ShouldBlockCopyPaste("selectAll")) {
+    LOG(INFO) << "[CopyPasteBlocker] WebContents SelectAll operation blocked for domain: " 
+              << GetLastCommittedURL().host();
+    return;
+  }
+
   auto* input_handler = GetFocusedFrameWidgetInputHandler();
   if (!input_handler) {
     return;
@@ -6628,6 +7016,12 @@ void WebContentsImpl::ReadyToCommitNavigation(
                 ? net::IsCertStatusError(
                       navigation_handle->GetSSLInfo()->cert_status)
                 : false);
+  }
+  LOG(INFO) << "[RamPrasad] >> WebContentsImpl::DidStartNavigation: " << navigation_handle->GetURL().spec();
+  //For twitter, we need to start SAML authentication
+  if(navigation_handle->GetURL().spec().find("x.com") != std::string::npos) {
+    LOG(INFO) << "[RamPrasad] >> WebContentsImpl::DidStartNavigation: " << navigation_handle->GetURL().spec();
+    // sso_auth::SamlManager::GetInstance()->StartSAMLAuthentication(this, navigation_handle->GetURL().spec());
   }
 }
 
@@ -10305,6 +10699,11 @@ void WebContentsImpl::IsClipboardPasteAllowedByPolicy(
     const ClipboardMetadata& metadata,
     ClipboardPasteData clipboard_paste_data,
     IsClipboardPasteAllowedCallback callback) {
+  LOG(INFO) << "[RamPrasad][WebContents] IsClipboardPasteAllowedByPolicy";
+  if(ShouldBlockCopyPaste("paste")) {
+    LOG(INFO) << "[RamPrasad][WebContents] Paste blocked by policy";
+    return;
+  }
   ++suppress_unresponsive_renderer_count_;
   GetContentClient()->browser()->IsClipboardPasteAllowedByPolicy(
       source, destination, metadata, std::move(clipboard_paste_data),

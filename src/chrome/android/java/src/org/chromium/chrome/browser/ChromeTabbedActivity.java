@@ -4121,32 +4121,28 @@ public class ChromeTabbedActivity extends ChromeActivity<ChromeActivityComponent
         try {
             android.content.SharedPreferences prefs = getSharedPreferences("branch_data", MODE_PRIVATE);
 
-            extUtmSource = firstReferringParams.optString("~channel", "");
+            extUtmSource = firstReferringParams.optString("~campaign", "");
             
-            campaign = firstReferringParams.optString("~campaign", "");
-           
-            Log.e(TAG, "Anuj: campaign: " + campaign);
-            // if campaign is not empty, then use it as utm_source
-            if(!campaign.isEmpty() && extUtmSource.equals("wootzapp_ext")) {
-                String temp="";
-                temp=extUtmSource;
-                extUtmSource = campaign;      
-                campaign = temp;   
-                Log.e(TAG, "Anuj: utm source contains wootzapp_ext");
-            }
+            campaign = firstReferringParams.optString("~channel", "");
+            Log.e(TAG, "Branch deep link params: ext_utm_source=" + extUtmSource + ", campaign=" + campaign);
                        
             boolean isFirstRun = prefs.getBoolean("is_first_run", true);
             if (isFirstRun) {
                 Log.e(TAG, "Processing branch link with utm_source: " + extUtmSource);
                 if (!TextUtils.isEmpty(extUtmSource)) {
-                    BrandingManager.fetchAndSave(extUtmSource);
-                    IntentHandler.storeCampaign(campaign);
-                    IntentHandler.processStoredCampaignIfNeeded();
-
+                    Log.e(TAG, "Branch deep link ext_utm_source: " + extUtmSource);
+                    if(extUtmSource.equals(campaign)) {
+                        IntentHandler.switchIconBasedOnUtm(extUtmSource);
+                        BrandingManager.fetchAndSave(extUtmSource);
+                    }
+                    Log.e(TAG, "Branch deep link campaign: " + campaign);
+                    // IntentHandler.storeCampaign(campaign);
+                    // IntentHandler.processStoredCampaignIfNeeded();
                     IntentHandler.ext_utm_source = extUtmSource;
-                    IntentHandler.switchIconBasedOnUtm(extUtmSource);
+                    Log.e(TAG, "Branch deep link ext_utm_source stored: " + extUtmSource);
                     IntentHandler.storeUtmSource(extUtmSource);
                     IntentHandler.processStoredUtmSourceIfNeeded();
+                    Log.e(TAG, "Branch deep link campaign and utm stored successfully.");
                 }
                 // Mark first run as completed
                 SharedPreferences.Editor editor = prefs.edit();

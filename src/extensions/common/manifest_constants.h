@@ -18,6 +18,7 @@ inline constexpr char kAction[] = "action";
 inline constexpr char kActionDefaultIcon[] = "default_icon";
 inline constexpr char kActionDefaultPopup[] = "default_popup";
 inline constexpr char kActionDefaultWidget[] = "default_widget";
+inline constexpr char kActionFeatures[] = "features";
 inline constexpr char kActionDefaultState[] = "default_state";
 inline constexpr char kActionDefaultTitle[] = "default_title";
 inline constexpr char kApp[] = "app";
@@ -311,6 +312,8 @@ inline constexpr char16_t kInvalidActionDefaultPopup[] =
     u"Invalid type for 'default_popup'.";
 inline constexpr char16_t kInvalidActionDefaultWidget[] =
     u"Invalid type for 'default_widget'.";
+inline constexpr char16_t kInvalidActionFeatures[] =
+    u"Invalid type for 'features'.";
 inline constexpr char16_t kInvalidActionDefaultState[] =
     u"Invalid value for 'default_state'.";
 inline constexpr char16_t kInvalidActionDefaultTitle[] =
