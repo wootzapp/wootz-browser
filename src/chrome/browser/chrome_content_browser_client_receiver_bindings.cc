@@ -38,6 +38,7 @@
 #include "components/password_manager/content/browser/content_password_manager_driver_factory.h"
 #include "components/action_url/content/browser/content_action_url_driver_factory.h"
 #include "components/action_url/content/browser/content_sensitive_masking_driver_factory.h" // declared drivers
+#include "components/automation_agent/content/browser/automation_controller_factory.h"
 #include "components/safe_browsing/buildflags.h"
 #include "components/safe_browsing/content/browser/mojo_safe_browsing_impl.h"
 #include "components/safe_browsing/core/common/features.h"
@@ -440,6 +441,15 @@ void ChromeContentBrowserClient::
              mojo::PendingAssociatedReceiver<action_url::mojom::ActionUrlDriver>
                  receiver) {
             action_url::ContentActionUrlDriverFactory::BindActionUrlDriver(
+                std::move(receiver), render_frame_host);
+          },
+          &render_frame_host));
+  associated_registry.AddInterface<automation::mojom::AutomationDriver>(
+      base::BindRepeating(
+          [](content::RenderFrameHost* render_frame_host,
+             mojo::PendingAssociatedReceiver<automation::mojom::AutomationDriver>
+                 receiver) {
+            automation::AutomationControllerFactory::BindAutomationDriver(
                 std::move(receiver), render_frame_host);
           },
           &render_frame_host));

@@ -1,0 +1,11 @@
+module automation.mojom;
+
+import "mojo/public/mojom/base/string16.mojom";
+
+interface AutomationDriver {
+  // Gets the current state of the page
+  OnGetPageStateComplete(bool success, string state);
+
+  // Performs an action on the page
+  OnPerformActionComplete(bool success);
+};

@@ -1,0 +1,23 @@
+static_library("renderer") {
+    sources = [
+    "automation_agent.cc",
+    "automation_agent.h",
+  ]
+
+  deps = [
+    "//base",
+    "//components/automation_agent/content/common/mojom",
+    "//content/public/renderer",
+    "//mojo/public/cpp/system",
+    "//third_party/blink/public/common",
+    "//third_party/blink/public:blink",
+    "//third_party/blink/public:blink_headers",
+    "//third_party/blink/public:blink",
+    "//third_party/blink/renderer/core",
+    "//third_party/blink/renderer/platform",
+    "//third_party/abseil-cpp:absl", 
+    "//ui/gfx/geometry",
+    "//url",
+    "//v8",
+  ]
+}

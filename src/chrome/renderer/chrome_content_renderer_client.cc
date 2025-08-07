@@ -70,6 +70,7 @@
 #include "chrome/renderer/wootz_render_thread_observer.h"
 #include "chrome/services/speech/buildflags/buildflags.h"
 #include "components/action_url/content/renderer/action_url_agent.h"
+#include "components/automation_agent/content/renderer/automation_agent.h"
 #include "components/autofill/content/renderer/autofill_agent.h"
 #include "components/autofill/content/renderer/password_autofill_agent.h"
 #include "components/autofill/content/renderer/password_generation_agent.h"
@@ -721,6 +722,7 @@ LOG(INFO) << "AMIT SandboxStatusExtension::Create";
 
     new action_url::ActionUrlAgent(render_frame, associated_interfaces);
     new sensitive_masking::SensitiveElementMaskAgent(render_frame);
+    new automation::AutomationAgent(render_frame, associated_interfaces);
 
 #if BUILDFLAG(IS_ANDROID)
     if (render_frame->IsMainFrame() &&

@@ -498,6 +498,7 @@ static_library("ui") {
     "//components/access_code_cast/common:metrics",
     "//components/account_id",
     "//components/action_url/content/browser",
+    "//components/automation_agent/content/browser",
     "//components/affiliations/core/browser:affiliations",
     "//components/autofill/content/browser",
     "//components/autofill/content/browser:risk_proto",
