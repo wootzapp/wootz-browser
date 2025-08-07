@@ -36,45 +36,48 @@ UploadBlockedDialogBridge::~UploadBlockedDialogBridge() {
   Java_UploadBlockedDialogBridge_destroy(AttachCurrentThread(), java_object_);
 }
 
-void UploadBlockedDialogBridge::Show(const std::string& url,
-                                     ui::WindowAndroid* window_android) {
-  if (!window_android) {
-    LOG(ERROR) << "UploadBlockedDialogBridge: No WindowAndroid available";
-    return;
-  }
+// void UploadBlockedDialogBridge::Show(const std::string& url,
+//                                      ui::WindowAndroid* window_android) {
+//   if (!window_android) {
+//     LOG(ERROR) << "UploadBlockedDialogBridge: No WindowAndroid available";
+//     return;
+//   }
 
-  JNIEnv* env = AttachCurrentThread();
-  ScopedJavaLocalRef<jstring> java_url = ConvertUTF8ToJavaString(env, url);
+//   JNIEnv* env = AttachCurrentThread();
+//   ScopedJavaLocalRef<jstring> java_url = ConvertUTF8ToJavaString(env, url);
 
-  LOG(INFO) << "UploadBlockedDialogBridge: Showing dialog for URL: " << url;
+//   LOG(INFO) << "UploadBlockedDialogBridge: Showing dialog for URL: " << url;
 
-  Java_UploadBlockedDialogBridge_showDialog(
-      env, java_object_, window_android->GetJavaObject(), java_url);
-}
+//   Java_UploadBlockedDialogBridge_showDialog(
+//       env, java_object_, window_android->GetJavaObject(), java_url);
+// }
 
 // static
 void UploadBlockedDialogBridge::ShowDialog(WebContents* web_contents,
-                                          const std::string& message) {
+                                           const std::string& message) {
   if (!web_contents) {
-    LOG(ERROR) << "UploadBlockedDialogBridge: No WebContents available for dialog";
+    LOG(ERROR)
+        << "UploadBlockedDialogBridge: No WebContents available for dialog";
     return;
   }
 
   JNIEnv* env = AttachCurrentThread();
-  ScopedJavaLocalRef<jstring> java_message = ConvertUTF8ToJavaString(env, message);
+  ScopedJavaLocalRef<jstring> java_message =
+      ConvertUTF8ToJavaString(env, message);
 
-  LOG(INFO) << "UploadBlockedDialogBridge: Showing dialog with message: " << message;
+  LOG(INFO) << "UploadBlockedDialogBridge: Showing dialog with message: "
+            << message;
 
   // Call static Java method to show dialog
   Java_UploadBlockedDialogBridge_ShowDialog(
       env, web_contents->GetJavaWebContents(), java_message);
 }
 
-void UploadBlockedDialogBridge::OnDialogDismissed(
-    JNIEnv* env,
-    const JavaParamRef<jobject>& jcaller) {
-  LOG(INFO) << "UploadBlockedDialogBridge: Dialog dismissed";
-  // Dialog dismissed, no further action needed for upload blocking
-}
+// void UploadBlockedDialogBridge::OnDialogDismissed(
+//     JNIEnv* env,
+//     const JavaParamRef<jobject>& jcaller) {
+//   LOG(INFO) << "UploadBlockedDialogBridge: Dialog dismissed";
+//   // Dialog dismissed, no further action needed for upload blocking
+// }
 
 }  // namespace content

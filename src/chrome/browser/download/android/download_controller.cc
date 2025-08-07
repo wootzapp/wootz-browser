@@ -542,8 +542,6 @@ void DownloadController::OnDownloadUpdated(DownloadItem* item) {
 }
 
 void DownloadController::OnDangerousDownload(DownloadItem* item) {
-  // This method is now only called for non-blocked domains
-  // Show the normal "Download anyway" dialog
   WebContents* web_contents = content::DownloadItemUtils::GetWebContents(item);
   if (!web_contents) {
     item->Cancel(true);

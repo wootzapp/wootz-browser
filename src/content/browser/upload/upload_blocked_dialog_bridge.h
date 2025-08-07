@@ -23,19 +23,20 @@ class UploadBlockedDialogBridge {
  public:
   UploadBlockedDialogBridge();
   UploadBlockedDialogBridge(const UploadBlockedDialogBridge&) = delete;
-  UploadBlockedDialogBridge& operator=(const UploadBlockedDialogBridge&) = delete;
+  UploadBlockedDialogBridge& operator=(const UploadBlockedDialogBridge&) =
+      delete;
 
   ~UploadBlockedDialogBridge();
 
   // Called to create and show a dialog for a blocked upload.
-  void Show(const std::string& url, ui::WindowAndroid* window_android);
+  // void Show(const std::string& url, ui::WindowAndroid* window_android);
 
   // Static method to show dialog through JNI
   static void ShowDialog(WebContents* web_contents, const std::string& message);
 
   // Called from Java via JNI when dialog is dismissed.
-  void OnDialogDismissed(JNIEnv* env,
-                        const base::android::JavaParamRef<jobject>& jcaller);
+  // void OnDialogDismissed(JNIEnv* env,
+  //                       const base::android::JavaParamRef<jobject>& jcaller);
 
  private:
   // The corresponding java object.

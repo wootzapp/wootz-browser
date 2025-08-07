@@ -72,14 +72,12 @@ public class UploadBlockedDialogBridge {
     public void showDialog(WindowAndroid windowAndroid, String url) {
         Activity activity = windowAndroid.getActivity().get();
         if (activity == null) {
-            onDismissed();
             return;
         }
 
         String message = "Upload blocked on " + extractDomain(url) + " by your organization";
         
         mDialog.show(activity, message, (result) -> {
-            onDismissed();
         });
     }
 
@@ -98,16 +96,6 @@ public class UploadBlockedDialogBridge {
         mNativeUploadBlockedDialogBridge = 0;
     }
 
-    private void onDismissed() {
-        if (mNativeUploadBlockedDialogBridge != 0) {
-            UploadBlockedDialogBridgeJni.get().onDialogDismissed(
-                    mNativeUploadBlockedDialogBridge, UploadBlockedDialogBridge.this);
-        }
-    }
 
-    @NativeMethods
-    interface Natives {
-        void onDialogDismissed(
-                long nativeUploadBlockedDialogBridge, UploadBlockedDialogBridge caller);
-    }
+
 }
