@@ -109,7 +109,7 @@ content::WebContents* WebContentsIdToJavaWebContents(int webContentsId) {
     // Ensure AutomationControllerFactory exists for this WebContents
     if (!automation::AutomationControllerFactory::FromWebContents(web_contents)) {
       automation::AutomationControllerFactory::CreateForWebContents(web_contents);
-      LOG(INFO) << "Kartik: Created AutomationControllerFactory for existing WebContents ID: " << webContentsId;
+      LOG(INFO) << "Created AutomationControllerFactory for existing WebContents ID: " << webContentsId;
     }
   }
 
@@ -1455,7 +1455,6 @@ ExtensionFunction::ResponseAction WootzReplaceAdFunction::Run() {
 }
 
 ExtensionFunction::ResponseAction WootzGetPageStateFunction::Run() {
-  LOG(INFO) << "Kartik: Starting GetPageState function";
   
   content::WebContents* web_contents = nullptr;
   bool debug_mode = true;
@@ -1475,103 +1474,81 @@ ExtensionFunction::ResponseAction WootzGetPageStateFunction::Run() {
         background_web_contents_id = id;
         web_contents = WebContentsIdToJavaWebContents(background_web_contents_id.value());
         if (!web_contents) {
-          LOG(ERROR) << "Kartik: Background web contents not found with ID: " << background_web_contents_id.value();
           return RespondNow(Error("Background web contents not found"));
         }
-        LOG(INFO) << "Kartik: Successfully got background web contents with ID: " << background_web_contents_id.value();
+        LOG(INFO) << "Successfully got background web contents with ID: " << background_web_contents_id.value();
       } else {
-        LOG(ERROR) << "Kartik: Missing backgroundWebContentsId for background web contents";
+        LOG(ERROR) << "Missing backgroundWebContentsId for background web contents";
         return RespondNow(Error("backgroundWebContentsId is required when isBackgroundWebContents is true"));
       }
     }
-    
-    LOG(INFO) << "Kartik: Options parsed - debug_mode=" << debug_mode 
-              << ", include_hidden=" << include_hidden
-              << ", is_background=" << is_background_web_contents
-              << ", background_id=" << (background_web_contents_id.has_value() ? 
-                                      std::to_string(background_web_contents_id.value()) : "none")
-              << ", webcontent_url=" << (web_contents ? web_contents->GetURL().spec() : "none");
   }
 
   // If not background web contents, get active web contents
   if (!web_contents) {
     web_contents = TabModelList::GetCurrentTabModel()->GetActiveWebContents();
     if (!web_contents) {
-      LOG(ERROR) << "Kartik: No active web contents found for GetPageState";
+      LOG(ERROR) << "No active web contents found for GetPageState";
       return RespondNow(Error("No active tab found"));
     }
-    LOG(INFO) << "Kartik: Successfully got active web contents";
   }
 
-  LOG(INFO) << "Kartik: Getting automation factory for web contents";
   auto* factory = automation::AutomationControllerFactory::FromWebContents(web_contents);
   if (!factory) {
-    LOG(ERROR) << "Kartik: Failed to get AutomationControllerFactory";
+    LOG(ERROR) << "Failed to get AutomationControllerFactory";
     return RespondNow(Error("AutomationControllerFactory not available"));
   }
-  LOG(INFO) << "Kartik: Successfully got automation factory";
 
-  LOG(INFO) << "Kartik: Getting controller for main frame";
   auto* controller = factory->GetDriverForFrame(web_contents->GetPrimaryMainFrame());
   if (!controller) {
-    LOG(ERROR) << "Kartik: Failed to get AutomationController";
+    LOG(ERROR) << "Failed to get AutomationController";
     return RespondNow(Error("AutomationController not available"));
   }
-  LOG(INFO) << "Kartik: Successfully got controller, calling GetPageState";
 
   controller->GetPageState(
       debug_mode, include_hidden,
       base::BindOnce(&WootzGetPageStateFunction::OnGetPageStateComplete,
                      this));
 
-  LOG(INFO) << "Kartik: GetPageState request sent, waiting for response";
   return RespondLater();
 }
 
 void WootzGetPageStateFunction::OnGetPageStateComplete(bool success, const std::string& state) {
-  LOG(INFO) << "Kartik: GetPageState callback received in WootzAPI - success=" << success;
   
   if (!success) {
-    LOG(ERROR) << "Kartik: GetPageState failed in WootzAPI";
+    LOG(ERROR) << "GetPageState failed in WootzAPI";
     Respond(Error("Failed to get page state"));
     return;
   }
 
-  LOG(INFO) << "Kartik: Parsing page state JSON in WootzAPI";
   absl::optional<base::Value> parsed = base::JSONReader::Read(state);
   if (!parsed || !parsed->is_dict()) {
-    LOG(ERROR) << "Kartik: Failed to parse page state JSON in WootzAPI";
+    LOG(ERROR) << "Failed to parse page state JSON in WootzAPI";
     Respond(Error("Failed to parse page state"));
     return;
-  }
-  LOG(INFO) << "Kartik: Successfully parsed page state JSON in WootzAPI";
+  };
 
   base::Value::Dict result;
   result.Set("success", true);
   result.Set("pageState", std::move(*parsed));
-  LOG(INFO) << "Kartik: Created success response with page state in WootzAPI";
 
   base::Value::List args;
   args.Append(std::move(result));
-  LOG(INFO) << "Kartik: Sending GetPageState response back to extension";
   
   Respond(ArgumentList(std::move(args)));
-  LOG(INFO) << "Kartik: GetPageState response sent to extension";
 }
 
 ExtensionFunction::ResponseAction WootzPerformActionFunction::Run() {
-  LOG(INFO) << "Kartik: Starting PerformAction function";
   
   content::WebContents* web_contents = nullptr;
 
   if (args().size() < 2 || !args()[0].is_string() || !args()[1].is_dict()) {
-    LOG(ERROR) << "Kartik: Invalid arguments for PerformAction";
+    LOG(ERROR) << "Invalid arguments for PerformAction";
     return RespondNow(Error("Invalid arguments"));
   }
 
   const std::string& action = args()[0].GetString();
   const base::Value::Dict& action_params = args()[1].GetDict();
-  LOG(INFO) << "Kartik: Action type: " << action;
   
   // Handle background web contents
   bool is_background_web_contents = action_params.FindBool("isBackgroundWebContents").value_or(false);
@@ -1579,12 +1556,11 @@ ExtensionFunction::ResponseAction WootzPerformActionFunction::Run() {
     if (auto background_id = action_params.FindInt("backgroundWebContentsId")) {
       web_contents = WebContentsIdToJavaWebContents(background_id.value());
       if (!web_contents) {
-        LOG(ERROR) << "Kartik: Background web contents not found with ID: " << background_id.value();
+        LOG(ERROR) << "Background web contents not found with ID: " << background_id.value();
         return RespondNow(Error("Background web contents not found"));
       }
-      LOG(INFO) << "Kartik: Using background web contents with ID: " << background_id.value();
     } else {
-      LOG(ERROR) << "Kartik: Missing backgroundWebContentsId for background web contents";
+      LOG(ERROR) << "Missing backgroundWebContentsId for background web contents";
       return RespondNow(Error("backgroundWebContentsId is required when isBackgroundWebContents is true"));
     }
   }
@@ -1593,69 +1569,43 @@ ExtensionFunction::ResponseAction WootzPerformActionFunction::Run() {
   if (!web_contents) {
     web_contents = TabModelList::GetCurrentTabModel()->GetActiveWebContents();
     if (!web_contents) {
-      LOG(ERROR) << "Kartik: No active web contents found for PerformAction";
+      LOG(ERROR) << "No active web contents found for PerformAction";
       return RespondNow(Error("No active tab found"));
     }
-    LOG(INFO) << "Kartik: Successfully got active web contents";
   }
-  
-  if (auto index = action_params.FindInt("index")) {
-    LOG(INFO) << "Kartik: Target index: " << index.value();
-  }
-  if (const std::string* selector = action_params.FindString("selector")) {
-    LOG(INFO) << "Kartik: Target selector: " << *selector;
-  }
-  if (const std::string* text = action_params.FindString("text")) {
-    LOG(INFO) << "Kartik: Input text: " << *text;
-  }
-  if (const std::string* direction = action_params.FindString("direction")) {
-    LOG(INFO) << "Kartik: Scroll direction: " << *direction;
-  }
-  if (const std::string* amount = action_params.FindString("amount")) {
-    LOG(INFO) << "Kartik: Scroll amount: " << *amount;
-  }
-
-  LOG(INFO) << "Kartik: Getting automation factory for web contents";
   auto* factory = automation::AutomationControllerFactory::FromWebContents(web_contents);
   if (!factory) {
-    LOG(ERROR) << "Kartik: Failed to get AutomationControllerFactory";
+    LOG(ERROR) << "ailed to get AutomationControllerFactory";
     return RespondNow(Error("AutomationControllerFactory not available"));
   }
-  LOG(INFO) << "Kartik: Successfully got automation factory";
 
-  LOG(INFO) << "Kartik: Getting controller for main frame";
   auto* controller = factory->GetDriverForFrame(web_contents->GetPrimaryMainFrame());
   if (!controller) {
-    LOG(ERROR) << "Kartik: Failed to get AutomationController";
+    LOG(ERROR) << "Failed to get AutomationController";
     return RespondNow(Error("AutomationController not available"));
   }
-  LOG(INFO) << "Kartik: Successfully got controller, calling PerformAction";
 
   controller->PerformAction(
       action, action_params,
       base::BindOnce(&WootzPerformActionFunction::OnActionComplete,
                      this));
 
-  LOG(INFO) << "Kartik: PerformAction request sent, waiting for response";
   return RespondLater();
 }
 
 void WootzPerformActionFunction::OnActionComplete(bool success) {
-  LOG(INFO) << "Kartik: PerformAction callback received in WootzAPI - success=" << success;
   
   base::Value::Dict result;
   result.Set("success", success);
   
   if (!success) {
-    LOG(ERROR) << "Kartik: PerformAction failed in WootzAPI";
+    LOG(ERROR) << "PerformAction failed in WootzAPI";
     result.Set("error", "Action execution failed");
   }
   
   base::Value::List args;
   args.Append(std::move(result));
-  LOG(INFO) << "Kartik: Sending PerformAction response back to extension";
   Respond(ArgumentList(std::move(args)));
-  LOG(INFO) << "Kartik: PerformAction response sent to extension";
 }
 
 
@@ -1717,9 +1667,9 @@ ExtensionFunction::ResponseAction WootzCreateBackgroundWebContentsFunction::Run(
   if (web_contents) {
     // Create and attach the AutomationControllerFactory
     automation::AutomationControllerFactory::CreateForWebContents(web_contents);
-    LOG(INFO) << "Kartik: Created AutomationControllerFactory for background WebContents ID: " << webContentsId;
+    LOG(INFO) << "Created AutomationControllerFactory for background WebContents ID: " << webContentsId;
   } else {
-    LOG(ERROR) << "Kartik: Failed to get WebContents after creation for ID: " << webContentsId;
+    LOG(ERROR) << "Failed to get WebContents after creation for ID: " << webContentsId;
   }
 
   base::Value::Dict result;

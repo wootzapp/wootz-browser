@@ -49,12 +49,10 @@ void AutomationAgent::BindPendingReceiver(
 void AutomationAgent::GetPageState(bool debug_mode,
                                  bool include_hidden,
                                  GetPageStateCallback callback) {
-  LOG(INFO) << "Kartik: Starting GetPageState with debug_mode=" << debug_mode 
-            << ", include_hidden=" << include_hidden;
 
   blink::WebLocalFrame* frame = render_frame()->GetWebFrame();
   if (!frame) {
-    LOG(ERROR) << "Kartik: No frame available in GetPageState";
+    LOG(ERROR) << "No frame available in GetPageState";
     auto result = mojom::PageStateResult::New();
     result->success = false;
     result->error_message = "No frame available";
@@ -65,21 +63,15 @@ void AutomationAgent::GetPageState(bool debug_mode,
   blink::WebDocument document = frame->GetDocument();
   CleanupPreviousHighlights(document);
 
-  LOG(INFO) << "Kartik: Frame obtained successfully, getting document";
-  LOG(INFO) << "Kartik: Document URL: " << document.Url().GetString().Utf8();
-
   auto page_state = std::make_unique<base::Value::Dict>();
   base::Value::List elements_list;
 
-  LOG(INFO) << "Kartik: Analyzing page context";
   auto page_context = AnalyzePageContext(document, frame);
   page_state->Set("pageContext", std::move(page_context));
 
-  LOG(INFO) << "Kartik: Analyzing viewport";
   auto viewport_info = AnalyzeViewport(frame);
   page_state->Set("viewport", std::move(viewport_info));
 
-  LOG(INFO) << "Kartik: Starting ENHANCED element collection with AI context";
   blink::WebElementCollection elements = 
       document.GetElementsByHTMLTagName(blink::WebString::FromUTF8("*"));
 
@@ -143,6 +135,7 @@ void AutomationAgent::GetPageState(bool debug_mode,
     element_info.Set("tagName", element.TagName().Utf8());
     
     element_info.Set("xpath", GetElementXPath(element));
+    element_info.Set("selector", GenerateElementSelector(element));
     
     if (should_highlight) {
       element_info.Set("index", highlight_index);
@@ -199,12 +192,6 @@ void AutomationAgent::GetPageState(bool debug_mode,
   auto capabilities = AnalyzePageCapabilities(document);
   page_state->Set("capabilities", std::move(capabilities));
 
-  LOG(INFO) << "Kartik: ENHANCED collection complete. AI context added:"
-            << " Interactive=" << interactive_elements
-            << " Form=" << form_elements
-            << " Navigation=" << nav_elements
-            << " Action=" << action_elements;
-
   // Always inject index attributes for element targeting
   InjectElementIndexes(document, indexed_elements);
 
@@ -219,14 +206,12 @@ void AutomationAgent::GetPageState(bool debug_mode,
 
   std::string json_string;
   base::JSONWriter::Write(*page_state, &json_string);
-  LOG(INFO) << "Kartik: JSON conversion complete, size=" << json_string.length();
 
   auto result = mojom::PageStateResult::New();
   result->success = true;
   result->error_message = "";
   result->page_state.insert({"page_data", json_string});
 
-  LOG(INFO) << "Kartik: GetPageState completed successfully";
   std::move(callback).Run(std::move(result));
 }
 
@@ -323,7 +308,6 @@ base::Value::Dict AutomationAgent::AnalyzeViewport(blink::WebLocalFrame* frame) 
     
     // For background web contents, use default dimensions if viewport is 0
     if (width <= 0 || height <= 0) {
-      LOG(INFO) << "Kartik: Background web contents detected, using default viewport size";
       width = 360;  // Default mobile width (common Android phone width)
       height = 640;  // Default mobile height (common Android phone height)
     }
@@ -446,27 +430,21 @@ void AutomationAgent::PerformAction(
     const std::string& action,
     const base::flat_map<std::string, std::string>& params,
     PerformActionCallback callback) {
-  LOG(INFO) << "Kartik: Starting PerformAction with action=" << action 
-            << ", params_count=" << params.size();
 
   blink::WebLocalFrame* frame = render_frame()->GetWebFrame();
   if (!frame) {
-    LOG(ERROR) << "Kartik: No frame available in PerformAction";
     std::move(callback).Run(false);
     return;
   }
 
-  LOG(INFO) << "Kartik: Frame obtained successfully for action";
   blink::WebDocument document = frame->GetDocument();
   bool success = false;
 
   // Handle scroll action first (doesn't need target element)
   if (action == "scroll") {
-    LOG(INFO) << "Kartik: Processing scroll action";
     
     auto direction_it = params.find("direction");
     if (direction_it == params.end()) {
-      LOG(ERROR) << "Kartik: Missing required 'direction' parameter for scroll action";
       success = false;
     } else {
       std::string direction = direction_it->second;
@@ -482,11 +460,8 @@ void AutomationAgent::PerformAction(
         }
       }
       
-      LOG(INFO) << "Kartik: Direction scroll - " << direction << " by " << amount << "px";
-      
       // Get current scroll position
       gfx::PointF current_offset = frame->GetScrollOffset();
-      LOG(INFO) << "Kartik: Current scroll offset: (" << current_offset.x() << ", " << current_offset.y() << ")";
       
       // Calculate new scroll position based on direction
       gfx::PointF new_offset = current_offset;
@@ -494,32 +469,24 @@ void AutomationAgent::PerformAction(
       if (direction == "down") {
         new_offset.set_y(current_offset.y() + amount);
         success = true;
-        LOG(INFO) << "Kartik: Scrolling down by " << amount << "px";
       } else if (direction == "up") {
         new_offset.set_y(std::max(0.0f, current_offset.y() - amount));
         success = true;
-        LOG(INFO) << "Kartik: Scrolling up by " << amount << "px";
       } else if (direction == "right") {
         new_offset.set_x(current_offset.x() + amount);
         success = true;
-        LOG(INFO) << "Kartik: Scrolling right by " << amount << "px";
       } else if (direction == "left") {
         new_offset.set_x(std::max(0.0f, current_offset.x() - amount));
         success = true;
-        LOG(INFO) << "Kartik: Scrolling left by " << amount << "px";
       } else {
-        LOG(ERROR) << "Kartik: Invalid scroll direction: " << direction 
-                   << ". Valid directions: up, down, left, right";
         success = false;
       }
       
       if (success) {
         frame->SetScrollOffset(new_offset);
-        LOG(INFO) << "Kartik: New scroll offset set to: (" << new_offset.x() << ", " << new_offset.y() << ")";
       }
     }
     
-    LOG(INFO) << "Kartik: PerformAction completed with success=" << success;
     std::move(callback).Run(success);
     return;
   }
@@ -530,61 +497,35 @@ void AutomationAgent::PerformAction(
   auto selector_it = params.find("selector");
   
   if (index_it != params.end()) {
-    // Index-based element selection
     int target_index = std::stoi(index_it->second);
-    LOG(INFO) << "Kartik: Looking for element with index=" << target_index;
-    
     std::string index_selector = "[data-automation-index='" + std::to_string(target_index) + "']";
     target_element = document.QuerySelector(blink::WebString::FromUTF8(index_selector));
-    
-    if (!target_element.IsNull()) {
-      LOG(INFO) << "Kartik: Found element by index " << target_index << ": " << target_element.TagName().Utf8();
-    } else {
-      LOG(ERROR) << "Kartik: Element with index " << target_index << " not found";
-    }
   } else if (selector_it != params.end()) {
-    // Selector-based element selection (existing logic)
-    LOG(INFO) << "Kartik: Looking for element with selector=" << selector_it->second;
     target_element = document.QuerySelector(blink::WebString::FromUTF8(selector_it->second));
-    
-    if (!target_element.IsNull()) {
-      LOG(INFO) << "Kartik: Found element by selector: " << target_element.TagName().Utf8();
-    } else {
-      LOG(ERROR) << "Kartik: Element with selector not found";
-    }
   }
 
   if (target_element.IsNull()) {
-    LOG(ERROR) << "Kartik: No target element found for action";
     std::move(callback).Run(false);
     return;
   }
 
   if (action == "click") {
-    LOG(INFO) << "Kartik: Processing click action on " << target_element.TagName().Utf8();
     target_element.SimulateClick();
     success = true;
-    LOG(INFO) << "Kartik: Click simulation completed";
   } 
   else if (action == "fill") {
-    LOG(INFO) << "Kartik: Processing fill action";
     auto text_it = params.find("text");
     if (text_it != params.end()) {
-      LOG(INFO) << "Kartik: Fill text length=" << text_it->second.length();
       if (target_element.IsEditable()) {
-        LOG(INFO) << "Kartik: Found editable element for fill: " << target_element.TagName().Utf8();
         target_element.PasteText(blink::WebString::FromUTF8(text_it->second), true);
         success = true;
-        LOG(INFO) << "Kartik: Text fill completed";
       } else {
-        LOG(ERROR) << "Kartik: Element is not editable for fill action";
+        LOG(ERROR) << "Element is not editable for fill action";
       }
     } else {
-      LOG(ERROR) << "Kartik: Missing text parameter for fill action";
+      LOG(ERROR) << "Missing text parameter for fill action";
     }
   }
-
-  LOG(INFO) << "Kartik: PerformAction completed with success=" << success;
   std::move(callback).Run(success);
 }
 
@@ -639,7 +580,6 @@ bool AutomationAgent::IsElementInteractive(const blink::WebElement& element) {
   };
   
   if (interactive_cursors.count(cursor)) {
-    LOG(INFO) << "Kartik: Found interactive cursor '" << cursor << "' on " << tag;
     return true;
   }
 
@@ -654,7 +594,6 @@ bool AutomationAgent::IsElementInteractive(const blink::WebElement& element) {
     };
     
     if (interactive_roles.count(role)) {
-      LOG(INFO) << "Kartik: Found interactive role '" << role << "' on " << tag;
       return true;
     }
   }
@@ -679,7 +618,6 @@ bool AutomationAgent::IsElementInteractive(const blink::WebElement& element) {
       }
       
       if (valid_number && tabindex_val >= 0) {
-        LOG(INFO) << "Kartik: Found interactive tabindex '" << tabindex << "' on " << tag;
         return true;
       }
     }
@@ -694,7 +632,6 @@ bool AutomationAgent::IsElementInteractive(const blink::WebElement& element) {
 
   for (const auto& attr : interactive_attrs) {
     if (element.HasAttribute(blink::WebString::FromUTF8(attr))) {
-      LOG(INFO) << "Kartik: Found interactive attribute '" << attr << "' on " << tag;
       return true;
     }
   }
@@ -714,7 +651,6 @@ bool AutomationAgent::IsElementInteractive(const blink::WebElement& element) {
     
     for (const auto& pattern : interactive_class_patterns) {
       if (class_name.find(pattern) != std::string::npos) {
-        LOG(INFO) << "Kartik: Found interactive class pattern '" << pattern << "' on " << tag;
         return true;
       }
     }
@@ -725,7 +661,6 @@ bool AutomationAgent::IsElementInteractive(const blink::WebElement& element) {
     blink::WebString type_attr = element.GetAttribute(blink::WebString::FromUTF8("type"));
     std::string type = type_attr.Utf8();
     // All input types are potentially interactive
-    LOG(INFO) << "Kartik: Found input with type '" << type << "'";
     return true;
   }
 
@@ -751,7 +686,6 @@ bool AutomationAgent::IsElementInteractive(const blink::WebElement& element) {
     if (name.find(pattern) != std::string::npos || 
         id.find(pattern) != std::string::npos || 
         placeholder.find(pattern) != std::string::npos) {
-      LOG(INFO) << "Kartik: Found search pattern '" << pattern << "' on " << tag;
       return true;
     }
   }
@@ -762,7 +696,6 @@ bool AutomationAgent::IsElementInteractive(const blink::WebElement& element) {
     if (cursor == "pointer" || 
         element.HasAttribute(blink::WebString::FromUTF8("onclick")) ||
         element.HasAttribute(blink::WebString::FromUTF8("role"))) {
-      LOG(INFO) << "Kartik: Found interactive " << tag << " with pointer cursor or handlers";
       return true;
     }
   }
@@ -797,7 +730,6 @@ bool AutomationAgent::IsElementInViewport(const blink::WebElement& element) {
   
   // For background web contents, if viewport is 0, consider all elements in viewport
   if (viewport_size_f.width() <= 0 || viewport_size_f.height() <= 0) {
-    LOG(INFO) << "Kartik: Background web contents - considering element " << element.TagName().Utf8() << " as in viewport";
     return true;
   }
   
@@ -817,14 +749,6 @@ bool AutomationAgent::IsElementInViewport(const blink::WebElement& element) {
 
   // Check if element intersects with viewport
   bool in_viewport = viewport_bounds.Intersects(element_bounds);
-  
-  if (in_viewport) {
-    LOG(INFO) << "Kartik: Element " << element.TagName().Utf8() 
-              << " is in viewport - bounds(" << element_bounds.x() << "," << element_bounds.y() 
-              << "," << element_bounds.width() << "," << element_bounds.height() << ")"
-              << " viewport(" << viewport_bounds.x() << "," << viewport_bounds.y()
-              << "," << viewport_bounds.width() << "," << viewport_bounds.height() << ")";
-  }
 
   return in_viewport;
 }
@@ -844,7 +768,6 @@ void AutomationAgent::OnDestruct() {
 
 void AutomationAgent::InjectIndexedHighlightCSS(blink::WebDocument& document, 
                                                std::vector<std::pair<blink::WebElement, int>>& indexed_elements) {
-  LOG(INFO) << "Kartik: Injecting NON-DOM-MODIFYING highlight CSS for " << indexed_elements.size() << " elements";
   
   static const std::vector<std::string> colors = {
     "#FF0000", "#00FF00", "#0000FF", "#FFA500", "#800080", "#008080",
@@ -911,7 +834,6 @@ void AutomationAgent::InjectIndexedHighlightCSS(blink::WebDocument& document,
 
 void AutomationAgent::InjectElementIndexes(blink::WebDocument& document, 
                                           std::vector<std::pair<blink::WebElement, int>>& indexed_elements) {
-  LOG(INFO) << "Kartik: Injecting index attributes for " << indexed_elements.size() << " elements";
   
   // Set index attributes on elements (always needed for PerformAction)
   for (auto& pair : indexed_elements) {
@@ -919,13 +841,11 @@ void AutomationAgent::InjectElementIndexes(blink::WebDocument& document,
     int index = pair.second;
     
     element.SetAttribute("data-automation-index", blink::WebString::FromUTF8(std::to_string(index)));
-    LOG(INFO) << "Kartik: Set data-automation-index=" << index << " on " << element.TagName().Utf8();
   }
 }
 
 void AutomationAgent::InjectVisualHighlightCSS(blink::WebDocument& document, 
                                               std::vector<std::pair<blink::WebElement, int>>& indexed_elements) {
-  LOG(INFO) << "Kartik: Injecting visual highlight CSS for " << indexed_elements.size() << " elements";
   
   static const std::vector<std::string> colors = {
     "#FF0000", "#00FF00", "#0000FF", "#FFA500", "#800080", "#008080",
@@ -989,7 +909,6 @@ void AutomationAgent::InjectVisualHighlightCSS(blink::WebDocument& document,
 }
 
 void AutomationAgent::CleanupPreviousHighlights(blink::WebDocument& document) {
-  LOG(INFO) << "Kartik: Cleaning up previous highlights";
   
   // Remove all elements with automation highlighting
   blink::WebString cleanup_script = blink::WebString::FromUTF8(R"(
@@ -1027,9 +946,9 @@ void AutomationAgent::CleanupPreviousHighlights(blink::WebDocument& document) {
   blink::WebLocalFrame* frame = render_frame()->GetWebFrame();
   if (frame) {
     frame->ExecuteScript(blink::WebScriptSource(cleanup_script));
-    LOG(INFO) << "Kartik: Previous highlights cleanup completed";
+    LOG(INFO) << "Previous highlights cleanup completed";
   } else {
-    LOG(ERROR) << "Kartik: Could not execute cleanup script - no frame available";
+    LOG(ERROR) << "Could not execute cleanup script - no frame available";
   }
 }
 
