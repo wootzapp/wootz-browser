@@ -42,14 +42,18 @@ class ElementMaskingUtils {
   static void ToggleMaskedVisibility(const blink::WebElement& toggle_button);
   static blink::WebElement FindMaskedContainer(const blink::WebElement& element);
   
+  // Clean input warning functionality
+  static void CreateInputWarning(const blink::WebElement& element);
+  
   // Constants for masking
   static constexpr char kMaskedAttribute[] = "data-sensitive-masked";
   static constexpr char kWarningAttribute[] = "data-sensitive-warning";
   static constexpr char kMaskedContainerAttr[] = "data-masked-container";
   static constexpr char kOriginalContentAttr[] = "data-original-content";
   static constexpr char kToggleButtonAttr[] = "data-toggle-button";
+  static constexpr char kWarningContainerAttr[] = "data-warning-container";
   static constexpr char kMaskText[] = "XXX";
-  static constexpr char kWarningText[] = "⚠️ You're about to enter personal information";
+  static constexpr char kWarningText[] = "Enter sensitive info securely.";
 };
 
 }  // namespace sensitive_masking

@@ -54,6 +54,7 @@
 #include "third_party/blink/renderer/core/html/forms/html_input_element.h"
 #include "third_party/blink/renderer/core/html/html_element.h"
 #include "third_party/blink/renderer/core/html_names.h"
+#include "third_party/blink/renderer/core/dom/document.h"
 #include "third_party/blink/renderer/platform/bindings/exception_state.h"
 #include "third_party/blink/renderer/platform/graphics/image.h"
 #include "third_party/blink/renderer/platform/runtime_enabled_features.h"
@@ -442,19 +443,22 @@ void WebElement::ShowInputWarning(const WebString& warning_text) {
     return;
   }
   
-  // Set placeholder with warning (using Element's setAttribute)
-  element->setAttribute(AtomicString("placeholder"), AtomicString(warning_text));
-  
-  // Add warning styling via CSS
-  element->setAttribute(AtomicString("style"), 
-    AtomicString("border: 2px solid #ff4444 !important; "
-                 "background-color: #fff5f5 !important; "
-                 "color: #cc0000 !important; "
-                 "font-weight: bold !important; "
-                 "box-shadow: 0 0 5px rgba(255, 68, 68, 0.5) !important;"));
-  
-  // Set a warning data attribute for potential JS detection
+  // Set a warning data attribute for detection
   element->setAttribute(AtomicString("data-sensitive-warning"), AtomicString("true"));
+  
+  // Create a small warning text element
+  Document& document = element->GetDocument();
+  auto* warning_div = document.CreateRawElement(html_names::kDivTag);
+  warning_div->setAttribute(AtomicString("style"), 
+    AtomicString("font-size: 12px; color: #999; margin-top: 0.8px; "
+                 "font-family: -apple-system, BlinkMacSystemFont, system-ui, sans-serif;"));
+  warning_div->setTextContent(warning_text);
+  
+  // Insert the warning text right after the input element
+  Node* parent = element->parentNode();
+  if (parent) {
+    parent->insertBefore(warning_div, element->nextSibling());
+  }
 }
 
 }  // namespace blink
