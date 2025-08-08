@@ -24,7 +24,6 @@ public class ExtensionsConfirmationDialog {
             .setPositiveButton("Install", (dialog, which) -> {
                 Log.d("exts", "install");
                 ExtensionsConfirmationDialogJni.get().onDialogResult(doneCallback, true);
-                Extensions.notifyExtensionChange();
             })
             .setNegativeButton("Cancel", (dialog, which) -> {
                 Log.d("exts", "cancel");
@@ -37,6 +36,13 @@ public class ExtensionsConfirmationDialog {
             })
             .setCancelable(true)
             .show();
+    }
+    
+    @CalledByNative
+    public static void notifyExtensionInstalled() {
+        Log.e("Extensions", "Extension installed, notifying listeners.");
+        // Notify any listeners or update UI as needed
+        Extensions.notifyExtensionChange();
     }
 
     @NativeMethods

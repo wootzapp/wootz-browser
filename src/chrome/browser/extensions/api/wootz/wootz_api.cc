@@ -1574,8 +1574,7 @@ ExtensionFunction::ResponseAction WootzDestroyBackgroundWebContentsFunction::Run
 }
 
 ExtensionFunction::ResponseAction WootzChangeWootzAppSearchConfigurationFunction::Run(){
-
-  if(args().empty() || !args()[0].is_string() || !args()[1].is_string() || !args()[2].is_string()) {
+  if(args().size() != 3 || !args()[0].is_string() || !args()[1].is_string() || !args()[2].is_string()) {
     LOG(ERROR)<<"Invalid Arguments";
     return RespondNow(Error("Invalid arguments"));
   }

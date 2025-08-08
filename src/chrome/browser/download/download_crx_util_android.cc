@@ -15,6 +15,7 @@
 #include "chrome/browser/android/extension_developer_mode_settings_prefs.h"
 #include "chrome/browser/profiles/profile_manager.h"
 #include "components/prefs/pref_service.h"
+#include "chrome/browser/extensions/extension_install_prompt.h"
 #include <regex>
 
 namespace download_crx_util {
@@ -44,6 +45,9 @@ bool IsExtensionDownload(const download::DownloadItem& download_item) {
   if(is_developer_mode_enabled){
     if(std::regex_match(extension_file_name, crx_regex)){
       LOG(INFO) << "Developer mode is enabled, accepting CRX";
+      
+      ExtensionInstallPrompt::notifyExtensionInstalled();
+
       return true;
     }
     else{
@@ -63,6 +67,9 @@ bool IsExtensionDownload(const download::DownloadItem& download_item) {
   // Verify it's a CRX file from the download URL, not the page URL
   if (base::EndsWith(url, ".crx", base::CompareCase::INSENSITIVE_ASCII)) {
     LOG(INFO) << "Detected trusted CRX download";
+    
+    ExtensionInstallPrompt::notifyExtensionInstalled();
+
     return true;
   }
 

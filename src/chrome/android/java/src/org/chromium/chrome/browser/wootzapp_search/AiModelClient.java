@@ -6,9 +6,20 @@
 
 package org.chromium.chrome.browser.wootzapp_search;
 
+import android.content.Context;
 import android.util.Log;
+import android.widget.Button;
+import android.view.View;
+import android.view.ViewGroup;
+import android.widget.LinearLayout;
+import android.graphics.Color;
+import android.graphics.drawable.GradientDrawable;
 
 import org.chromium.base.ThreadUtils;
+import org.chromium.chrome.browser.app.ChromeActivity;
+import org.chromium.chrome.browser.extensions.ExtensionInfo;
+import org.chromium.chrome.browser.extensions.Extensions;
+import org.chromium.chrome.browser.extensions.OpenExtensionsById;
 import org.chromium.net.ChromiumNetworkAdapter;
 import org.chromium.net.NetworkTrafficAnnotationTag;
 
@@ -66,26 +77,42 @@ public class AiModelClient {
         // Check if API key is configured
         if (apiKey == null || apiKey.isEmpty()) {
             Log.e(TAG, "API key is null or empty");
-            ThreadUtils.runOnUiThread(() -> callback.onError(
-                "🔑 **API Key Not Configured**\n\n" +
-                "To use AI chat, please configure your API key in the Chat Extension.\n\n" +
-                "**Supported Providers:**\n" +
-                "• OpenAI (ChatGPT)\n" +
-                "• Google Gemini\n" +
-                "• Anthropic Claude\n" +
-                "Please add your API key to enable AI chat functionality."
-            ));
+            ThreadUtils.runOnUiThread(() -> {
+                // Show error message via callback
+                callback.onError(
+                    "🔑 **API Key Not Configured**\n\n" +
+                    "To use AI chat, please configure your API key in the Chat Extension.\n\n" +
+                    "**Supported Providers:**\n" +
+                    "• OpenAI (ChatGPT)\n" +
+                    "• Google Gemini\n" +
+                    "• Anthropic Claude\n" +
+                    "Please add your API key to enable AI chat functionality."
+                );
+                // Also show button on activity
+                showConfigurationButton(
+                    "🔑 Configure API Key", 
+                    "Chat Extension"
+                );
+            });
             return;
         }
 
         // Check if AI model URL is configured
         if (apiModelUrl == null || apiModelUrl.isEmpty()) {
             Log.e(TAG, "AI model URL is null or empty");
-            ThreadUtils.runOnUiThread(() -> callback.onError(
-                "🤖 **AI Model Not Configured**\n\n" +
-                "To use AI chat, please configure your AI model URL in the settings.\n\n" +
-                "Please add your AI model to enable AI chat functionality."
-            ));
+            ThreadUtils.runOnUiThread(() -> {
+                // Show error message via callback
+                callback.onError(
+                    "🤖 **AI Model Not Configured**\n\n" +
+                    "To use AI chat, please configure your AI model URL in the settings.\n\n" +
+                    "Please add your AI model to enable AI chat functionality."
+                );
+                // Also show button on activity
+                showConfigurationButton(
+                    "🤖 Configure AI Model",
+                    "Chat Extension"
+                );
+            });
             return;
         }
 
@@ -223,5 +250,99 @@ public class AiModelClient {
             sb.append(line);
         }
         return sb.toString();
+    }
+
+    /**
+     * Shows a configuration button on the AI chat bottom sheet
+     */
+    private void showConfigurationButton(String buttonText, String extensionName) {
+        // This method will be called from the AI chat component
+        // The button will be added to the chat interface by the calling component
+        Log.d(TAG, "Configuration button requested: " + buttonText);
+    }
+    
+    /**
+     * Creates a configuration button for the AI chat interface
+     */
+    public Button createConfigurationButton(Context context, String buttonText) {
+        Button configButton = new Button(context);
+        configButton.setText(buttonText);
+        configButton.setTextSize(14f);
+        configButton.setTypeface(null, android.graphics.Typeface.BOLD);
+        
+        // Create enhanced orange-yellow gradient background
+        GradientDrawable gradient = new GradientDrawable();
+        gradient.setShape(GradientDrawable.RECTANGLE);
+        gradient.setColors(new int[]{
+            Color.parseColor("#FF6B35"), // Vibrant orange
+            Color.parseColor("#F7931E"), // Bright orange
+            Color.parseColor("#FFD700")  // Gold/yellow
+        });
+        gradient.setOrientation(GradientDrawable.Orientation.LEFT_RIGHT);
+        gradient.setCornerRadius(28f); // More rounded corners
+        gradient.setStroke(2, Color.parseColor("#E65100")); // Orange border
+        
+        configButton.setBackground(gradient);
+        configButton.setTextColor(Color.WHITE);
+        configButton.setPadding(40, 20, 40, 20); // More padding
+        configButton.setElevation(12f); // Higher shadow
+        configButton.setTranslationZ(4f); // Additional depth
+        
+        // Add ripple effect for better interaction
+        configButton.setStateListAnimator(null);
+        configButton.setClickable(true);
+        configButton.setFocusable(true);
+        
+        // Set layout parameters for bottom positioning
+        LinearLayout.LayoutParams params = new LinearLayout.LayoutParams(
+            LinearLayout.LayoutParams.MATCH_PARENT, 
+            LinearLayout.LayoutParams.WRAP_CONTENT
+        );
+        params.setMargins(16, 8, 16, 16); // Left, Top, Right, Bottom margins
+        configButton.setLayoutParams(params);
+        
+        // Set click listener
+        configButton.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View v) {
+                // Use the specific extension ID directly
+                final String extensionId = "lhgoolpdddhhfahbnofaomjhfhfjfhop";
+                
+                try {
+                    ChromeActivity activity = ChromeActivity.getChromeActivity();
+                    
+                    // Check if the extension is installed
+                    boolean extensionExists = Extensions.getExtensionsInfo().stream()
+                            .anyMatch(ext -> ext.getId().equals(extensionId));
+                    
+                    if (extensionExists) {
+                        // If extension is installed, open it directly
+                        OpenExtensionsById.openExtensionByIdNative(extensionId);
+                    } else {
+                        // If extension is not installed, navigate to flow-store in a new tab
+                        if (activity.getActivityTab() != null) {
+                            // Create a new tab instead of using the current one
+                            activity.getTabCreator(false).createNewTab(
+                                new org.chromium.content_public.browser.LoadUrlParams("wootzapp://flow-store"),
+                                org.chromium.chrome.browser.tab.TabLaunchType.FROM_CHROME_UI,
+                                activity.getActivityTab());
+                        } else {
+                            // Fallback to intent if no active tab
+                            android.content.Intent intent = new android.content.Intent(android.content.Intent.ACTION_VIEW);
+                            intent.setData(android.net.Uri.parse("wootzapp://flow-store"));
+                            activity.startActivity(intent);
+                        }
+                    }
+                    
+                    // Hide the button after click (the chat component should handle this)
+                    configButton.setVisibility(View.GONE);
+                    
+                } catch (ChromeActivity.ChromeActivityNotFoundException e) {
+                    Log.e(TAG, "ChromeActivity not found: " + e);
+                }
+            }
+        });
+        
+        return configButton;
     }
 }

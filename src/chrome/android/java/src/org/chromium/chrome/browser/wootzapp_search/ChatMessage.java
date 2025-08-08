@@ -11,12 +11,14 @@ public class ChatMessage {
     private final String mMessage;
     private final boolean mIsUser;
     private final MessageType mType;
+    private String mButtonText;
 
     public enum MessageType {
         USER,
         AI_RESPONSE,
         AI_ERROR,
-        LOADING
+        LOADING,
+        CONFIG_BUTTON
     }
 
     public ChatMessage(String message, boolean isUser) {
@@ -49,5 +51,17 @@ public class ChatMessage {
 
     public boolean isLoading() {
         return mType == MessageType.LOADING;
+    }
+
+    public boolean isConfigButton() {
+        return mType == MessageType.CONFIG_BUTTON;
+    }
+
+    public void setButtonText(String buttonText) {
+        this.mButtonText = buttonText;
+    }
+
+    public String getButtonText() {
+        return mButtonText;
     }
 } 

@@ -18,6 +18,8 @@ import android.view.Window;
 import android.view.WindowManager;
 import android.widget.EditText;
 import android.widget.ImageButton;
+import android.widget.Button;
+import android.widget.LinearLayout;
 import android.widget.Toast;
 
 import androidx.annotation.NonNull;
@@ -46,6 +48,8 @@ public class AiChatBottomSheetFragment extends BottomSheetDialogFragment {
     private AiModelClient mAiModelClient;
     private String mInitialSearchQuery;
     private BottomSheetBehavior<View> mBehavior;
+    private LinearLayout mChatContainer;
+    private Button mConfigButton;
 
     private final List<ChatMessage> mMessages = new ArrayList<>();
     private ChatAdapter mAdapter;
@@ -83,6 +87,8 @@ public class AiChatBottomSheetFragment extends BottomSheetDialogFragment {
         
         View root = inflater.inflate(R.layout.fragment_ai_chat, container, false);
 
+        // Use the root LinearLayout as chat container
+        mChatContainer = (LinearLayout) root;
         mRecyclerView = root.findViewById(R.id.chat_recycler_view);
         mInput = root.findViewById(R.id.chat_input);
         mSendBtn = root.findViewById(R.id.chat_send);
@@ -114,6 +120,49 @@ public class AiChatBottomSheetFragment extends BottomSheetDialogFragment {
         mMessages.add(new ChatMessage("Hi, how can I help you?", false));
 
         mAdapter = new ChatAdapter(mMessages);
+        mAdapter.setConfigButtonClickListener(buttonText -> {
+            // Handle configuration button click
+            final String extensionId = "lhgoolpdddhhfahbnofaomjhfhfjfhop";
+            
+            // Hide all config buttons after click
+            hideAllConfigButtons();
+            
+            try {
+                org.chromium.chrome.browser.app.ChromeActivity activity = 
+                    org.chromium.chrome.browser.app.ChromeActivity.getChromeActivity();
+                
+                // Check if the extension is installed
+                boolean extensionExists = org.chromium.chrome.browser.extensions.Extensions.getExtensionsInfo().stream()
+                        .anyMatch(ext -> ext.getId().equals(extensionId));
+                
+                if (extensionExists) {
+                    // If extension is installed, open it directly
+                    org.chromium.chrome.browser.extensions.OpenExtensionsById.openExtensionByIdNative(extensionId);
+                } else {
+                    // If extension is not installed, navigate to flow-store in a new tab
+                    if (activity.getActivityTab() != null) {
+                        // Create a new tab instead of using the current one
+                        activity.getTabCreator(false).createNewTab(
+                            new org.chromium.content_public.browser.LoadUrlParams("wootzapp://flow-store"),
+                            org.chromium.chrome.browser.tab.TabLaunchType.FROM_CHROME_UI,
+                            activity.getActivityTab());
+                    } else {
+                        // Fallback to intent if no active tab
+                        android.content.Intent intent = new android.content.Intent(android.content.Intent.ACTION_VIEW);
+                        intent.setData(android.net.Uri.parse("wootzapp://flow-store"));
+                        activity.startActivity(intent);
+                    }
+                }
+                
+                // Close the AI chat bottom sheet after redirecting
+                dismiss();
+                
+            } catch (org.chromium.chrome.browser.app.ChromeActivity.ChromeActivityNotFoundException e) {
+                Log.e(TAG, "ChromeActivity not found: " + e);
+                // Still close the bottom sheet even if there's an error
+                dismiss();
+            }
+        });
         mRecyclerView.setAdapter(mAdapter);
 
         mSendBtn.setOnClickListener(v -> {
@@ -209,6 +258,9 @@ public class AiChatBottomSheetFragment extends BottomSheetDialogFragment {
             return;
         }
 
+        // Hide any existing config buttons when user sends a new message
+        hideAllConfigButtons();
+
         addSendButtonAnimation();
         closeKeyboard();
         appendMessage(new ChatMessage(userText, true));
@@ -236,6 +288,9 @@ public class AiChatBottomSheetFragment extends BottomSheetDialogFragment {
                             ChatMessage aiMessage = new ChatMessage(response, ChatMessage.MessageType.AI_RESPONSE);
                             appendMessage(aiMessage);
                             
+                            // Hide any existing config buttons when we get a successful response
+                            hideAllConfigButtons();
+                            
                             if (mSendBtn != null) {
                                 mSendBtn.setEnabled(true);
                                 mSendBtn.setImageResource(android.R.drawable.ic_menu_send);
@@ -250,9 +305,16 @@ public class AiChatBottomSheetFragment extends BottomSheetDialogFragment {
                         getActivity().runOnUiThread(() -> {
                             removeLastMessage();
                             
-                            // Add error message to chat
+                            // Add error message to chat with embedded button for configuration errors
                             String errorMessage = "❌ Error: " + error;
                             ChatMessage errorMsg = new ChatMessage(errorMessage, ChatMessage.MessageType.AI_ERROR);
+                            
+                            // Mark if this error should show a config button
+                            if (error.contains("API Key Not Configured") || error.contains("AI Model Not Configured")) {
+                                String buttonText = error.contains("API Key") ? "🔑 Configure API Key" : "🤖 Configure AI Model";
+                                errorMsg.setButtonText(buttonText);
+                            }
+                            
                             appendMessage(errorMsg);
 
                             if (mSendBtn != null) {
@@ -355,6 +417,23 @@ public class AiChatBottomSheetFragment extends BottomSheetDialogFragment {
             animatorSet.setInterpolator(new android.view.animation.OvershootInterpolator());
             
             animatorSet.start();
+        }
+    }
+    
+    /**
+     * Hides all configuration buttons by clearing button text from error messages
+     */
+    private void hideAllConfigButtons() {
+        boolean changedAny = false;
+        for (ChatMessage message : mMessages) {
+            if (message.isError() && message.getButtonText() != null) {
+                message.setButtonText(null);
+                changedAny = true;
+            }
+        }
+        if (changedAny) {
+            mAdapter.notifyDataSetChanged();
+            Log.d(TAG, "Cleared configuration buttons from error messages");
         }
     }
 }

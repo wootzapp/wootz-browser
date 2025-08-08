@@ -14,9 +14,11 @@ import org.chromium.chrome.browser.ntp.NewTabPageLayout;
 import org.jni_zero.CalledByNative;
 import org.jni_zero.NativeMethods;
 import org.chromium.chrome.browser.app.ChromeActivity;
+import org.chromium.chrome.browser.wootzapp_search.AiConfig;
 
 public class Extensions {
     private static NewTabPageLayout newTabPageLayout;
+    private static final String WOOZAPP_SEARCH_EXTENSION_ID = "lhgoolpdddhhfahbnofaomjhfhfjfhop";
 
     public static void setNewTabPageLayout(NewTabPageLayout layout) {
         newTabPageLayout = layout;
@@ -67,7 +69,10 @@ public class Extensions {
         Log.d("Extensions", "Uninstalling extension: " + extensionId);
         ExtensionsJni.get().uninstallExtension(extensionId);
         
-        // Notify ChromeActivity about extension change
+        if (extensionId.equals(WOOZAPP_SEARCH_EXTENSION_ID)) {
+            AiConfig.clearAiPreferencesForExtension(extensionId);
+        }
+
         notifyExtensionChange();
         
         if (newTabPageLayout != null) {
@@ -93,6 +98,13 @@ public class Extensions {
         } catch (Exception e) {
             Log.e("Extensions", "Error notifying ChromeActivity: " + e.getMessage());
         }
+    }
+
+    @CalledByNative
+    public static void notifyExtensionInstalled() {
+        Log.e("Extensions", "Extension installed, notifying listeners.");
+        // Notify any listeners or update UI as needed
+        Extensions.notifyExtensionChange();
     }
 
     @NativeMethods

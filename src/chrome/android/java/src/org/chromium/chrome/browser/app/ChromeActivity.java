@@ -1038,9 +1038,6 @@ public abstract class ChromeActivity<C extends ChromeActivityComponent>
         return isOnSearchPage || hasExtensionFeatures;
     }
 
-    /**
-     * Updates FAB visibility based on current conditions
-     */
     public void updateFabVisibility() {
         View aiChatFab = findViewById(R.id.ai_chat_fab);
         if (aiChatFab != null) {
@@ -1082,6 +1079,7 @@ public abstract class ChromeActivity<C extends ChromeActivityComponent>
         int fabHeight = anchorView.getHeight();
         
         int screenWidth = getResources().getDisplayMetrics().widthPixels;
+        int screenHeight = getResources().getDisplayMetrics().heightPixels;
         int maxMenuWidth = (int) (screenWidth * 0.4);
         int minMenuWidth = dpToPx(200);
         int menuWidth = Math.max(minMenuWidth, Math.min(maxMenuWidth, dpToPx(280)));
@@ -1124,19 +1122,42 @@ public abstract class ChromeActivity<C extends ChromeActivityComponent>
         ));
         scrollView.addView(menuContainer);
         
+        // Calculate maximum height as 60% of screen height to keep menu manageable
+        int maxMenuHeight = (int) (screenHeight * 0.6);
+        
+        scrollView.measure(
+            View.MeasureSpec.makeMeasureSpec(menuWidth, View.MeasureSpec.EXACTLY),
+            View.MeasureSpec.makeMeasureSpec(0, View.MeasureSpec.UNSPECIFIED)
+        );
+        int menuHeight = Math.min(scrollView.getMeasuredHeight(), maxMenuHeight);
+        
         popupWindow = new PopupWindow(
             scrollView,
             menuWidth,
-            ViewGroup.LayoutParams.WRAP_CONTENT
+            menuHeight
         );
         
         int popupX = fabX + (fabWidth / 2) - (menuWidth / 2);
-        int popupY = fabY - dpToPx(10);
         
         if (popupX < dpToPx(16)) {
             popupX = dpToPx(16);
         } else if (popupX + menuWidth > screenWidth - dpToPx(16)) {
             popupX = screenWidth - menuWidth - dpToPx(16);
+        }
+
+        int spaceAboveFab = fabY;
+        int spaceBelowFab = screenHeight - (fabY + fabHeight);
+        int menuMargin = dpToPx(4); 
+        
+        boolean showAbove = spaceAboveFab >= (menuHeight + menuMargin);
+        
+        int offsetX = popupX - fabX;
+        int offsetY;
+        
+        if (showAbove) {
+            offsetY = -(menuHeight + fabHeight + menuMargin);
+        } else {
+            offsetY = menuMargin;
         }
         
         popupWindow.setAnimationStyle(android.R.style.Animation_Dialog);
@@ -1144,9 +1165,9 @@ public abstract class ChromeActivity<C extends ChromeActivityComponent>
         popupWindow.setFocusable(true);
         popupWindow.setOutsideTouchable(true);
         
-        popupWindow.showAsDropDown(anchorView, popupX - fabX, -fabHeight - dpToPx(10));
+        popupWindow.showAsDropDown(anchorView, offsetX, offsetY);
         
-        Log.d(TAG, "Compact menu created with width: " + menuWidth + "px");
+        Log.d(TAG, "Menu positioned " + (showAbove ? "above" : "below") + " FAB with width: " + menuWidth + "px");
     }
 
 
@@ -1155,11 +1176,12 @@ public abstract class ChromeActivity<C extends ChromeActivityComponent>
         itemContainer.setOrientation(LinearLayout.HORIZONTAL);
         itemContainer.setLayoutParams(new LinearLayout.LayoutParams(
             LinearLayout.LayoutParams.MATCH_PARENT,
-            dpToPx(48)
+            LinearLayout.LayoutParams.WRAP_CONTENT
         ));
-        itemContainer.setPadding(dpToPx(12), dpToPx(8), dpToPx(12), dpToPx(8));
+        itemContainer.setPadding(dpToPx(12), dpToPx(12), dpToPx(12), dpToPx(12));
         itemContainer.setBackground(createCompactMenuItemBackground());
         itemContainer.setGravity(android.view.Gravity.CENTER_VERTICAL);
+        itemContainer.setMinimumHeight(dpToPx(48));
         
         // Icon
         ImageView iconView = new ImageView(this);
@@ -1189,6 +1211,8 @@ public abstract class ChromeActivity<C extends ChromeActivityComponent>
         textView.setTextColor(Color.parseColor("#333333"));
         textView.setTypeface(null, android.graphics.Typeface.NORMAL);
         textView.setPadding(dpToPx(12), 0, 0, 0);
+        textView.setMaxLines(Integer.MAX_VALUE);
+        textView.setSingleLine(false);
         
         itemContainer.addView(iconView);
         itemContainer.addView(textView);

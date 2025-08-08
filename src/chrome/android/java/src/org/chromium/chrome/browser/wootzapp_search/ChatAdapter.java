@@ -13,6 +13,8 @@ import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
 import android.widget.TextView;
+import android.widget.Button;
+import android.widget.LinearLayout;
 
 import androidx.annotation.NonNull;
 import androidx.recyclerview.widget.RecyclerView;
@@ -29,9 +31,18 @@ public class ChatAdapter extends RecyclerView.Adapter<ChatAdapter.ChatViewHolder
     private static final int VIEW_TYPE_LOADING = 4;
 
     private final List<ChatMessage> mMessages;
+    private ConfigButtonClickListener mConfigButtonClickListener;
+
+    public interface ConfigButtonClickListener {
+        void onConfigButtonClick(String buttonText);
+    }
 
     public ChatAdapter(List<ChatMessage> messages) {
         mMessages = messages;
+    }
+
+    public void setConfigButtonClickListener(ConfigButtonClickListener listener) {
+        mConfigButtonClickListener = listener;
     }
 
     @NonNull
@@ -60,8 +71,55 @@ public class ChatAdapter extends RecyclerView.Adapter<ChatAdapter.ChatViewHolder
     public void onBindViewHolder(@NonNull ChatViewHolder holder, int position) {
         ChatMessage message = mMessages.get(position);
         
-        Spanned formattedText = formatMessageText(message.getMessage());
+        // Always show the message text
+        holder.messageText.setVisibility(View.VISIBLE);
         
+        // Handle error messages with potential config buttons
+        if (message.isError() && message.getButtonText() != null && !message.getButtonText().isEmpty()) {
+            // This is an error message that needs a config button
+            Spanned formattedText = formatMessageText(message.getMessage());
+            holder.messageText.setText(formattedText);
+            
+            // Show and setup the config button
+            if (holder.configButton == null) {
+                // Create button dynamically
+                AiModelClient aiClient = new AiModelClient();
+                holder.configButton = aiClient.createConfigurationButton(holder.itemView.getContext(), message.getButtonText());
+                
+                // Make button smaller to fit inside message
+                android.widget.LinearLayout.LayoutParams params = new android.widget.LinearLayout.LayoutParams(
+                    android.widget.LinearLayout.LayoutParams.WRAP_CONTENT,
+                    android.widget.LinearLayout.LayoutParams.WRAP_CONTENT
+                );
+                params.setMargins(0, 16, 0, 0); // Add top margin
+                holder.configButton.setLayoutParams(params);
+                holder.configButton.setPadding(24, 12, 24, 12); // Smaller padding
+                holder.configButton.setTextSize(12f); // Smaller text
+                
+                // Add click listener
+                holder.configButton.setOnClickListener(v -> {
+                    if (mConfigButtonClickListener != null) {
+                        mConfigButtonClickListener.onConfigButtonClick(message.getButtonText());
+                    }
+                });
+                
+                // Add to layout
+                if (holder.itemView instanceof LinearLayout) {
+                    ((LinearLayout) holder.itemView).addView(holder.configButton);
+                }
+            }
+            holder.configButton.setVisibility(View.VISIBLE);
+            holder.configButton.setText(message.getButtonText());
+        } else {
+            // Regular message or error without button
+            // Hide button if exists
+            if (holder.configButton != null) {
+                holder.configButton.setVisibility(View.GONE);
+            }
+        }
+        
+        // Set the message text for all types
+        Spanned formattedText = formatMessageText(message.getMessage());
         holder.messageText.setText(formattedText);
         
         if (message.isUser()) {
@@ -147,6 +205,7 @@ public class ChatAdapter extends RecyclerView.Adapter<ChatAdapter.ChatViewHolder
 
     static class ChatViewHolder extends RecyclerView.ViewHolder {
         TextView messageText;
+        Button configButton;
 
         ChatViewHolder(View itemView) {
             super(itemView);
