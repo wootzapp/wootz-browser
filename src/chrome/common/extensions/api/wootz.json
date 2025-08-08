@@ -636,6 +636,41 @@
               }
             ]
           }
+        },
+        {
+          "name": "changeWootzAppSearchConfiguration",
+          "type": "function",
+          "description": "Changes the search configuration for the WootzApp Search",
+          "parameters": [
+            { 
+              "name": "searchEngineKeyword", 
+              "type": "string",
+              "description": "Keyword of the search engine"
+            },
+            { 
+              "name": "aiModelName", 
+              "type": "string", 
+              "description": "Name of the AI model to use for search" 
+            },
+            { 
+              "name": "apiKey", 
+              "type": "string", 
+              "description": "API key for the AI model" 
+            }
+          ],
+          "returns_async": {
+            "name": "callback",
+            "parameters": [
+              { 
+                "name": "result", 
+                "type": "object",  
+                "properties": { 
+                  "success": { "type": "boolean" },
+                  "error": { "type": "string", "optional": true }
+                }
+              }
+            ]
+          }
         }
       ],
       "events": [

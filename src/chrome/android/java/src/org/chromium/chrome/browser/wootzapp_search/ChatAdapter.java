@@ -60,102 +60,70 @@ public class ChatAdapter extends RecyclerView.Adapter<ChatAdapter.ChatViewHolder
     public void onBindViewHolder(@NonNull ChatViewHolder holder, int position) {
         ChatMessage message = mMessages.get(position);
         
-        // Format the message text with enhanced styling
         Spanned formattedText = formatMessageText(message.getMessage());
         
+        holder.messageText.setText(formattedText);
+        
         if (message.isUser()) {
-            holder.messageText.setText(formattedText);
             holder.messageText.setTextColor(android.graphics.Color.BLACK);
-        } else {
-            holder.messageText.setText(formattedText);
-            holder.messageText.setTextColor(android.graphics.Color.BLACK);
+            holder.messageText.setTextSize(android.util.TypedValue.COMPLEX_UNIT_SP, 16);
             
-            // Enable clickable links for AI messages
+            int padding = (int) (16 * holder.itemView.getContext().getResources().getDisplayMetrics().density);
+            holder.messageText.setPadding(padding, padding, padding, padding);
+            
+        } else {
+            holder.messageText.setTextColor(android.graphics.Color.BLACK);
+            holder.messageText.setTextSize(android.util.TypedValue.COMPLEX_UNIT_SP, 15);
+            
+            int padding = (int) (16 * holder.itemView.getContext().getResources().getDisplayMetrics().density);
+            holder.messageText.setPadding(padding, padding, padding, padding);
+            
             holder.messageText.setMovementMethod(LinkMovementMethod.getInstance());
         }
+        
+        holder.messageText.setLineSpacing(4, 1.2f);
     }
 
     private Spanned formatMessageText(String text) {
         if (text == null) return Html.fromHtml("");
         
-        // Handle different types of content sections
         
-        // 1. Handle section headers (## Section Name)
-        text = text.replaceAll("##\\s*(.*?)(?=\\n|$)", "<h3 style='color: #FF6B35; font-weight: bold; margin: 8px 0;'>$1</h3>");
+        // Handle headers (## and ###)
+        text = text.replaceAll("###\\s*(.*?)(?=\\n|$)", "<b><big>$1</big></b>");
+        text = text.replaceAll("##\\s*(.*?)(?=\\n|$)", "<b><big><big>$1</big></big></b>");
+        text = text.replaceAll("#\\s*(.*?)(?=\\n|$)", "<b><big><big><big>$1</big></big></big></b>");
         
-        // 2. Handle subsection headers (### Subsection)
-        text = text.replaceAll("###\\s*(.*?)(?=\\n|$)", "<h4 style='color: #FF8C42; font-weight: bold; margin: 6px 0;'>$1</h4>");
+        // Handle code blocks (```code```) - make them stand out
+        text = text.replaceAll("```([\\s\\S]*?)```", "<tt><small><font color='#2E3440'>$1</font></small></tt>");
         
-        // 3. Handle bullet points and lists
-        text = text.replaceAll("^\\s*[-*]\\s+(.*?)(?=\\n|$)", "<li style='margin: 4px 0; padding-left: 16px;'>• $1</li>");
-        text = text.replaceAll("^\\s*(\\d+)\\.\\s+(.*?)(?=\\n|$)", "<li style='margin: 4px 0; padding-left: 16px;'>$1. $2</li>");
+        // Handle inline code (`code`)
+        text = text.replaceAll("`([^`]*?)`", "<tt><small><font color='#2E3440'>$1</font></small></tt>");
         
-        // 4. Handle bold text (**text**)
-        text = text.replaceAll("\\*\\*(.*?)\\*\\*", "<b style='color: #FF6B35;'>$1</b>");
+        // Handle numbered lists (1. 2. 3.)
+        text = text.replaceAll("(\\d+)\\. ", "<b>$1.</b> ");
         
-        // 5. Handle italic text (*text*)
-        text = text.replaceAll("\\*(.*?)\\*", "<i style='color: #666;'>$1</i>");
+        // Handle bullet points (- or *)
+        text = text.replaceAll("^[-*] ", "• ");
+        text = text.replaceAll("\\n[-*] ", "<br>• ");
         
-        // 6. Handle code blocks (```code```)
-        text = text.replaceAll("```(.*?)```", "<code style='background-color: #f5f5f5; padding: 8px; border-radius: 4px; font-family: monospace; display: block; margin: 8px 0;'>$1</code>");
+        // Handle bold text (**text**)
+        text = text.replaceAll("\\*\\*(.*?)\\*\\*", "<b>$1</b>");
         
-        // 7. Handle inline code (`code`)
-        text = text.replaceAll("`(.*?)`", "<code style='background-color: #f0f0f0; padding: 2px 4px; border-radius: 3px; font-family: monospace;'>$1</code>");
+        // Handle italic text (*text*)
+        text = text.replaceAll("\\*(.*?)\\*", "<i>$1</i>");
         
-        // 8. Handle emphasis sections (__text__)
-        text = text.replaceAll("__(.*?)__", "<span style='background-color: #FFF3E0; padding: 2px 4px; border-radius: 3px;'>$1</span>");
+        // Handle step indicators
+        text = text.replaceAll("(Step\\s*\\d+:?)", "<b>$1</b>");
+        text = text.replaceAll("(First,|Second,|Third,|Next,|Then,|Finally,|Lastly,)", "<b>$1</b>");
         
-        // 9. Handle important sections (!!text!!)
-        text = text.replaceAll("!!(.*?)!!", "<span style='background-color: #FFEBEE; color: #D32F2F; padding: 4px 8px; border-radius: 4px; font-weight: bold;'>$1</span>");
+        // Handle technical terms
+        text = text.replaceAll("(Machine Learning|Data Science|AI|Artificial Intelligence|Deep Learning)", "<b>$1</b>");
+        text = text.replaceAll("(Python|TensorFlow|PyTorch|Scikit-learn|Pandas|NumPy)", "<b>$1</b>");
         
-        // 10. Handle quotes (> text)
-        text = text.replaceAll("^>\\s*(.*?)(?=\\n|$)", "<blockquote style='border-left: 4px solid #FF6B35; padding-left: 12px; margin: 8px 0; color: #666;'>$1</blockquote>");
-        
-        // 11. Handle line breaks
+        // Handle line breaks
         text = text.replaceAll("\n", "<br>");
         
-        // 12. Handle paragraphs (group consecutive text)
-        text = text.replaceAll("(<br>){2,}", "</p><p>");
-        text = "<p style='margin: 4px 0; line-height: 1.4;'>" + text + "</p>";
-        
-        // 13. Handle special formatting for different content types
-        text = handleSpecialContentTypes(text);
-        
         return Html.fromHtml(text, Html.FROM_HTML_MODE_COMPACT);
-    }
-
-    private String handleSpecialContentTypes(String text) {
-        // Handle code examples
-        if (text.contains("```java") || text.contains("```python") || text.contains("```javascript")) {
-            text = text.replaceAll("```(java|python|javascript|html|css|xml)(.*?)```", 
-                "<div style='background-color: #2d3748; color: #e2e8f0; padding: 12px; border-radius: 6px; margin: 8px 0; font-family: monospace;'><div style='color: #ffd700; margin-bottom: 4px;'>$1</div>$2</div>");
-        }
-        
-        // Handle data science sections
-        if (text.toLowerCase().contains("data science") || text.toLowerCase().contains("machine learning")) {
-            text = text.replaceAll("(Data Science|Machine Learning|AI|Artificial Intelligence)", 
-                "<span style='color: #4A90E2; font-weight: bold;'>$1</span>");
-        }
-        
-        // Handle evaluation sections
-        if (text.toLowerCase().contains("evaluation") || text.toLowerCase().contains("testing")) {
-            text = text.replaceAll("(Evaluation|Testing|Performance|Accuracy)", 
-                "<span style='color: #FF8C42; font-weight: bold;'>$1</span>");
-        }
-        
-        // Handle deployment sections
-        if (text.toLowerCase().contains("deployment") || text.toLowerCase().contains("production")) {
-            text = text.replaceAll("(Deployment|Production|Integration)", 
-                "<span style='color: #4CAF50; font-weight: bold;'>$1</span>");
-        }
-        
-        // Handle step-by-step instructions
-        if (text.contains("Step") || text.contains("step")) {
-            text = text.replaceAll("(Step\\s*\\d+:|step\\s*\\d+:)", 
-                "<span style='background-color: #E3F2FD; color: #1976D2; padding: 2px 6px; border-radius: 3px; font-weight: bold;'>$1</span>");
-        }
-        
-        return text;
     }
 
     @Override
@@ -183,6 +151,17 @@ public class ChatAdapter extends RecyclerView.Adapter<ChatAdapter.ChatViewHolder
         ChatViewHolder(View itemView) {
             super(itemView);
             messageText = itemView.findViewById(R.id.message_text);
+            
+            if (messageText != null) {
+                int maxWidth = (int) (itemView.getContext().getResources().getDisplayMetrics().widthPixels * 0.85);
+                messageText.setMaxWidth(maxWidth);
+
+                int minWidth = (int) (itemView.getContext().getResources().getDisplayMetrics().widthPixels * 0.25);
+                messageText.setMinWidth(minWidth);
+                
+                int minHeight = (int) (48 * itemView.getContext().getResources().getDisplayMetrics().density);
+                messageText.setMinHeight(minHeight);
+            }
         }
     }
 }

@@ -29,6 +29,7 @@
 #include "chrome/browser/profiles/profile.h"
 #include "chrome/browser/profiles/profile_manager.h"
 #include "chrome/browser/browser_process.h"
+#include "chrome/browser/search_engines/template_url_service_factory.h"
 #include "chrome/browser/wootz_wallet/wootz_wallet_service_factory.h"
 #include "components/action_url/content/common/action_url_prefs.h"
 #include "components/search_engines/template_url_service.h"
@@ -75,6 +76,9 @@
 #include "content/public/browser/copy_paste_blocker_prefs.h"
 
 namespace extensions {
+
+const char kWootzAppSearchAIModelName[] = "wootzapp_search_ai_model_name";
+const char kWootzAppSearchAIModelAPIKey[] = "wootzapp_search_ai_model_api_key";
 
 wootz_wallet::KeyringService* GetKeyringService(
     content::BrowserContext* context) {
@@ -1567,6 +1571,42 @@ ExtensionFunction::ResponseAction WootzDestroyBackgroundWebContentsFunction::Run
   result.Set("success", true);
   result.Set("message", "Background WebContents [" + std::to_string(webContentsId) + "] destroyed via Java service");
   return RespondNow(WithArguments(std::move(result)));
+}
+
+ExtensionFunction::ResponseAction WootzChangeWootzAppSearchConfigurationFunction::Run(){
+
+  if(args().empty() || !args()[0].is_string() || !args()[1].is_string() || !args()[2].is_string()) {
+    LOG(ERROR)<<"Invalid Arguments";
+    return RespondNow(Error("Invalid arguments"));
+  }
+
+  std::u16string search_engine_keyword = base::UTF8ToUTF16(args()[0].GetString());
+  std::string ai_model_name = args()[1].GetString();
+  std::string api_key = args()[2].GetString();
+
+
+  Profile* profile = Profile::FromBrowserContext(browser_context());
+  if (!profile) {
+    LOG(ERROR) << "WootzReplaceAdFunction: No profile found";
+    return RespondNow(Error("No profile found"));
+  }
+
+  TemplateURLService* template_url_service= TemplateURLServiceFactory::GetForProfile(profile);
+
+  if(!template_url_service) {
+    return RespondNow(Error("No TemplateURLService found"));
+  }
+
+  TemplateURL* template_url = template_url_service->GetTemplateURLForKeyword(search_engine_keyword);
+  template_url_service->SetUserSelectedDefaultSearchProvider(
+      template_url, search_engines::ChoiceMadeLocation::kOther);
+
+  auto prefs = android::shared_preferences::GetChromeSharedPreferences();
+
+  prefs.WriteString(kWootzAppSearchAIModelName, ai_model_name);
+  prefs.WriteString(kWootzAppSearchAIModelAPIKey, api_key);
+
+  return RespondNow(NoArguments());
 }
 
 }  // namespace extensions

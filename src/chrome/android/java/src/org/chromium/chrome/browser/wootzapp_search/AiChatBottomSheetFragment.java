@@ -43,7 +43,7 @@ public class AiChatBottomSheetFragment extends BottomSheetDialogFragment {
     private RecyclerView mRecyclerView;
     private EditText mInput;
     private ImageButton mSendBtn;
-    private GeminiApiClient mGeminiApiClient;
+    private AiModelClient mAiModelClient;
     private String mInitialSearchQuery;
     private BottomSheetBehavior<View> mBehavior;
 
@@ -51,6 +51,7 @@ public class AiChatBottomSheetFragment extends BottomSheetDialogFragment {
     private ChatAdapter mAdapter;
 
     public static AiChatBottomSheetFragment newInstance(String searchQuery) {
+        Log.e(TAG, "newInstance called with searchQuery: " + searchQuery);
         AiChatBottomSheetFragment fragment = new AiChatBottomSheetFragment();
         Bundle args = new Bundle();
         args.putString(ARG_SEARCH_QUERY, searchQuery);
@@ -63,10 +64,8 @@ public class AiChatBottomSheetFragment extends BottomSheetDialogFragment {
     public android.app.Dialog onCreateDialog(Bundle savedInstanceState) {
         BottomSheetDialog dialog = (BottomSheetDialog) super.onCreateDialog(savedInstanceState);
         
-        // Set the dialog to be canceled on touch outside
         dialog.setCanceledOnTouchOutside(true);
         
-        // Remove the dark scrim behind the menu like AppMenu does
         Window window = dialog.getWindow();
         if (window != null) {
             window.clearFlags(WindowManager.LayoutParams.FLAG_DIM_BEHIND);
@@ -83,36 +82,41 @@ public class AiChatBottomSheetFragment extends BottomSheetDialogFragment {
         Log.d(TAG, "onCreateView called");
         
         View root = inflater.inflate(R.layout.fragment_ai_chat, container, false);
-        Log.d(TAG, "Fragment layout inflated: " + root);
 
         mRecyclerView = root.findViewById(R.id.chat_recycler_view);
         mInput = root.findViewById(R.id.chat_input);
         mSendBtn = root.findViewById(R.id.chat_send);
-        
-        Log.d(TAG, "Views found - RecyclerView: " + mRecyclerView + 
-              ", Input: " + mInput + ", SendBtn: " + mSendBtn);
 
         mRecyclerView.setLayoutManager(new LinearLayoutManager(getContext()));
+        
+        int spacingInPixels = (int) (4 * getResources().getDisplayMetrics().density);
+        mRecyclerView.addItemDecoration(new RecyclerView.ItemDecoration() {
+            @Override
+            public void getItemOffsets(android.graphics.Rect outRect, View view, RecyclerView parent, RecyclerView.State state) {
+                outRect.bottom = spacingInPixels;
+                outRect.left = spacingInPixels;
+                outRect.right = spacingInPixels;
+                if (parent.getChildAdapterPosition(view) == 0) {
+                    outRect.top = spacingInPixels;
+                }
+            }
+        });
+        
+        mRecyclerView.setHasFixedSize(false);
+        mRecyclerView.setItemAnimator(new androidx.recyclerview.widget.DefaultItemAnimator());
 
-        // Initialize Gemini API client
-        mGeminiApiClient = new GeminiApiClient("AIzaSyCoNFODrVovsQEFa4nseHbv0d56eMqhtDU");
-        Log.d(TAG, "GeminiApiClient initialized: " + mGeminiApiClient);
+        mAiModelClient = new AiModelClient();
 
-        // Get initial search query from arguments
         if (getArguments() != null) {
             mInitialSearchQuery = getArguments().getString(ARG_SEARCH_QUERY);
-            Log.d(TAG, "Initial search query: " + mInitialSearchQuery);
         }
 
-        // Add welcome message
         mMessages.add(new ChatMessage("Hi, how can I help you?", false));
 
         mAdapter = new ChatAdapter(mMessages);
         mRecyclerView.setAdapter(mAdapter);
-        Log.d(TAG, "ChatAdapter set on RecyclerView");
 
         mSendBtn.setOnClickListener(v -> {
-            Log.d(TAG, "Send button clicked");
             handleSendClicked();
         });
         
@@ -124,36 +128,28 @@ public class AiChatBottomSheetFragment extends BottomSheetDialogFragment {
     public void onActivityCreated(Bundle savedInstanceState) {
         super.onActivityCreated(savedInstanceState);
         Log.e(TAG, "onActivityCreated called");
-        
-        // Get the parent view (the bottom sheet container)
+
         View parent = (View) getView().getParent();
         if (parent != null) {
-            // Set background to white
             parent.setBackgroundColor(android.graphics.Color.WHITE);
 
-            // Get the behavior and configure it
             mBehavior = BottomSheetBehavior.from(parent);
             
-            // Add slide-in animation
             addSlideInAnimation(parent);
             
-            // Increase height to 700px for more content space
-            int fixedHeight = (int) (500 * getResources().getDisplayMetrics().density);
-            mBehavior.setPeekHeight(fixedHeight);
-            mBehavior.setMaxHeight(fixedHeight);
+            int screenHeight = getResources().getDisplayMetrics().heightPixels;
+            int desiredHeight = (int) (screenHeight * 0.6);
+            mBehavior.setPeekHeight(desiredHeight);
+            mBehavior.setMaxHeight(desiredHeight);
 
             mBehavior.setDraggable(false);
             mBehavior.setHideable(false);
             
-            // Set initial state to collapsed
             mBehavior.setState(BottomSheetBehavior.STATE_EXPANDED);
 
-            // Add callback to handle state changes
             mBehavior.addBottomSheetCallback(new BottomSheetBehavior.BottomSheetCallback() {
                 @Override
                 public void onStateChanged(@NonNull View bottomSheet, int newState) {
-                    Log.d(TAG, "Bottom sheet state changed to: " + newState);
-                    // Force the height to stay fixed
                     if (newState == BottomSheetBehavior.STATE_HIDDEN) {
                         mBehavior.setState(BottomSheetBehavior.STATE_COLLAPSED);
                     }
@@ -170,9 +166,8 @@ public class AiChatBottomSheetFragment extends BottomSheetDialogFragment {
                 androidx.coordinatorlayout.widget.CoordinatorLayout.LayoutParams layoutParams = 
                     (androidx.coordinatorlayout.widget.CoordinatorLayout.LayoutParams) parent.getLayoutParams();
                 
-                // Reduce margins to increase width and reduce gaps
-                int margin = (int) (16 * getResources().getDisplayMetrics().density);
-                layoutParams.setMargins(margin, -margin, margin, margin);
+                int margin = (int) (4 * getResources().getDisplayMetrics().density);
+                layoutParams.setMargins(margin, 0, margin, 0);
                 parent.setLayoutParams(layoutParams);
             }
             
@@ -194,7 +189,6 @@ public class AiChatBottomSheetFragment extends BottomSheetDialogFragment {
         super.onResume();
         Log.d(TAG, "onResume called");
         
-        // Auto-search with initial query when AI tab is opened
         if (mInitialSearchQuery != null && !mInitialSearchQuery.isEmpty()) {
             Log.d(TAG, "Auto-searching with initial query: " + mInitialSearchQuery);
             // Add the initial query as a user message
@@ -207,63 +201,44 @@ public class AiChatBottomSheetFragment extends BottomSheetDialogFragment {
     }
 
     private void handleSendClicked() {
-        Log.d(TAG, "handleSendClicked called");
         
         String userText = mInput.getText().toString().trim();
-        Log.d(TAG, "User text: '" + userText + "'");
         
         if (TextUtils.isEmpty(userText)) {
             Log.d(TAG, "User text is empty, returning");
             return;
         }
 
-        // Add button animation
         addSendButtonAnimation();
-
-        // Close keyboard
         closeKeyboard();
-
-        // Add user message to UI
         appendMessage(new ChatMessage(userText, true));
         mInput.setText("");
-        
-        // Send message to AI
         sendMessageToAI(userText);
     }
 
     private void sendMessageToAI(String message) {
-        // Disable send button and show loading
         if (mSendBtn != null) {
             mSendBtn.setEnabled(false);
             mSendBtn.setImageResource(android.R.drawable.ic_menu_upload);
-            Log.d(TAG, "Send button disabled and loading icon shown");
         }
 
-        // Add a loading message to show AI is thinking
         ChatMessage loadingMessage = new ChatMessage("🤔 Thinking...", ChatMessage.MessageType.LOADING);
         appendMessage(loadingMessage);
 
-        // Call Gemini API
-        Log.d(TAG, "Calling Gemini API with text: '" + message + "'");
-        if (mGeminiApiClient != null) {
-            mGeminiApiClient.sendMessage(message, new GeminiApiClient.Callback() {
+        if (mAiModelClient != null) {
+            mAiModelClient.sendMessage(message, new AiModelClient.Callback() {
                 @Override
                 public void onSuccess(String response) {
-                    Log.d(TAG, "Gemini API success - Response: " + response);
                     if (getActivity() != null && !getActivity().isFinishing()) {
                         getActivity().runOnUiThread(() -> {
-                            // Remove the loading message
                             removeLastMessage();
                             
-                            // Add the actual response with proper content type detection
                             ChatMessage aiMessage = new ChatMessage(response, ChatMessage.MessageType.AI_RESPONSE);
                             appendMessage(aiMessage);
                             
-                            // Re-enable send button
                             if (mSendBtn != null) {
                                 mSendBtn.setEnabled(true);
                                 mSendBtn.setImageResource(android.R.drawable.ic_menu_send);
-                                Log.d(TAG, "Send button re-enabled with success response");
                             }
                         });
                     }
@@ -271,33 +246,24 @@ public class AiChatBottomSheetFragment extends BottomSheetDialogFragment {
 
                 @Override
                 public void onError(String error) {
-                    Log.e(TAG, "Gemini API error: " + error);
                     if (getActivity() != null && !getActivity().isFinishing()) {
                         getActivity().runOnUiThread(() -> {
-                            // Remove the loading message
                             removeLastMessage();
                             
                             // Add error message to chat
                             String errorMessage = "❌ Error: " + error;
                             ChatMessage errorMsg = new ChatMessage(errorMessage, ChatMessage.MessageType.AI_ERROR);
                             appendMessage(errorMsg);
-                            
-                            // Show toast for additional feedback
-                            Toast.makeText(getContext(), "AI Error: " + error, Toast.LENGTH_LONG).show();
-                            
-                            // Re-enable send button
+
                             if (mSendBtn != null) {
                                 mSendBtn.setEnabled(true);
                                 mSendBtn.setImageResource(android.R.drawable.ic_menu_send);
-                                Log.d(TAG, "Send button re-enabled after error");
                             }
                         });
                     }
                 }
             });
         } else {
-            Log.e(TAG, "GeminiApiClient is null!");
-            // Handle null client case
             if (getActivity() != null && !getActivity().isFinishing()) {
                 getActivity().runOnUiThread(() -> {
                     removeLastMessage();
@@ -313,20 +279,16 @@ public class AiChatBottomSheetFragment extends BottomSheetDialogFragment {
     }
 
     private void appendMessage(ChatMessage msg) {
-        Log.d(TAG, "Appending message: " + msg.getMessage() + ", isUser: " + msg.isUser());
         mMessages.add(msg);
         mAdapter.notifyItemInserted(mMessages.size() - 1);
         mRecyclerView.scrollToPosition(mMessages.size() - 1);
         
-        // Add animation to the new message
         mRecyclerView.post(() -> {
             View lastChild = mRecyclerView.getLayoutManager().getChildAt(mMessages.size() - 1);
             if (lastChild != null) {
                 addMessageAnimation(lastChild);
             }
         });
-        
-        Log.d(TAG, "Message appended, total messages: " + mMessages.size());
     }
 
     private void removeLastMessage() {
@@ -352,22 +314,17 @@ public class AiChatBottomSheetFragment extends BottomSheetDialogFragment {
         return Math.round((float) dp * density);
     }
 
-    // Add slide-in animation
     private void addSlideInAnimation(View view) {
-        // Set initial position (off-screen)
         view.setTranslationY(view.getHeight());
         
-        // Create slide-in animation
         android.animation.ObjectAnimator slideIn = android.animation.ObjectAnimator.ofFloat(
             view, "translationY", view.getHeight(), 0f);
         slideIn.setDuration(500);
         slideIn.setInterpolator(new android.view.animation.DecelerateInterpolator());
         
-        // Start animation
         slideIn.start();
     }
 
-    // Add fade-in animation for messages
     private void addMessageAnimation(View messageView) {
         messageView.setAlpha(0f);
         messageView.setTranslationY(50f);
@@ -385,7 +342,6 @@ public class AiChatBottomSheetFragment extends BottomSheetDialogFragment {
         animatorSet.start();
     }
 
-    // Add pulse animation for send button
     private void addSendButtonAnimation() {
         if (mSendBtn != null) {
             android.animation.ObjectAnimator scaleX = android.animation.ObjectAnimator.ofFloat(
@@ -400,125 +356,5 @@ public class AiChatBottomSheetFragment extends BottomSheetDialogFragment {
             
             animatorSet.start();
         }
-    }
-
-    // Add typing indicator animation
-    private void addTypingAnimation() {
-        View typingIndicator = getView().findViewById(R.id.typing_indicator);
-        if (typingIndicator != null) {
-            android.animation.ObjectAnimator alpha = android.animation.ObjectAnimator.ofFloat(
-                typingIndicator, "alpha", 0f, 1f, 0f);
-            alpha.setDuration(1500);
-            alpha.setRepeatCount(android.animation.ValueAnimator.INFINITE);
-            alpha.setRepeatMode(android.animation.ValueAnimator.RESTART);
-            alpha.start();
-        }
-    }
-
-    // Add background gradient animation
-    private void addBackgroundAnimation(View view) {
-        android.graphics.drawable.GradientDrawable gradient = new android.graphics.drawable.GradientDrawable(
-            android.graphics.drawable.GradientDrawable.Orientation.TL_BR,
-            new int[]{
-                0xFF4A90E2,  // Blue
-                0xFF7B68EE,  // Medium Slate Blue
-                0xFF9370DB   // Medium Purple
-            }
-        );
-        gradient.setCornerRadius(dpToPx(16));
-        gradient.setGradientType(android.graphics.drawable.GradientDrawable.LINEAR_GRADIENT);
-        
-        view.setBackground(gradient);
-        
-        // Animate gradient colors
-        android.animation.ValueAnimator animator = android.animation.ValueAnimator.ofFloat(0f, 1f);
-        animator.setDuration(4000);
-        animator.setRepeatCount(android.animation.ValueAnimator.INFINITE);
-        animator.setRepeatMode(android.animation.ValueAnimator.REVERSE);
-        
-        animator.addUpdateListener(new android.animation.ValueAnimator.AnimatorUpdateListener() {
-            @Override
-            public void onAnimationUpdate(android.animation.ValueAnimator animation) {
-                float value = (Float) animation.getAnimatedValue();
-                
-                // Create smooth color transitions
-                int color1 = android.graphics.Color.argb(255, 
-                    (int)(74 + (255 - 74) * value),   // R: 74 -> 255
-                    (int)(144 + (107 - 144) * value), // G: 144 -> 107
-                    (int)(226 + (107 - 226) * value)); // B: 226 -> 107
-                
-                int color2 = android.graphics.Color.argb(255, 
-                    (int)(123 + (78 - 123) * value),  // R: 123 -> 78
-                    (int)(104 + (205 - 104) * value), // G: 104 -> 205
-                    (int)(238 + (196 - 238) * value)); // B: 238 -> 196
-                
-                int color3 = android.graphics.Color.argb(255, 
-                    (int)(147 + (69 - 147) * value),  // R: 147 -> 69
-                    (int)(112 + (183 - 112) * value), // G: 112 -> 183
-                    (int)(219 + (209 - 219) * value)); // B: 219 -> 209
-                
-                gradient.setColors(new int[]{color1, color2, color3});
-            }
-        });
-        
-        animator.start();
-    }
-
-    private void addDynamicGradientAnimation(View view) {
-        android.graphics.drawable.GradientDrawable gradient = new android.graphics.drawable.GradientDrawable(
-            android.graphics.drawable.GradientDrawable.Orientation.TL_BR,
-            new int[]{
-                0xFF4A90E2,  // Primary Blue
-                0xFF7B68EE,  // Purple
-                0xFF9370DB,  // Light Purple
-                0xFF4ECDC4   // Teal
-            }
-        );
-        gradient.setCornerRadius(dpToPx(16));
-        gradient.setGradientType(android.graphics.drawable.GradientDrawable.LINEAR_GRADIENT);
-        
-        view.setBackground(gradient);
-        
-        // Create multiple color transitions
-        android.animation.ValueAnimator animator = android.animation.ValueAnimator.ofFloat(0f, 1f);
-        animator.setDuration(6000);
-        animator.setRepeatCount(android.animation.ValueAnimator.INFINITE);
-        animator.setRepeatMode(android.animation.ValueAnimator.REVERSE);
-        
-        animator.addUpdateListener(new android.animation.ValueAnimator.AnimatorUpdateListener() {
-            @Override
-            public void onAnimationUpdate(android.animation.ValueAnimator animation) {
-                float value = (Float) animation.getAnimatedValue();
-                
-                // Create a rainbow-like effect
-                int color1 = android.graphics.Color.HSVToColor(new float[]{
-                    (240 + value * 60) % 360,  // Hue: Blue to Purple
-                    0.8f,                       // Saturation
-                    0.9f                        // Value
-                });
-                
-                int color2 = android.graphics.Color.HSVToColor(new float[]{
-                    (280 + value * 60) % 360,  // Hue: Purple to Pink
-                    0.7f,                       // Saturation
-                    0.8f                        // Value
-                });
-                
-                int color3 = android.graphics.Color.HSVToColor(new float[]{
-                    (320 + value * 60) % 360,  // Hue: Pink to Red
-                    0.6f,                       // Saturation
-                    0.7f                        // Value
-                });
-                
-                int color4 = android.graphics.Color.HSVToColor(new float[]{
-                    (0 + value * 60) % 360,    // Hue: Red to Orange
-                    0.5f,                       // Saturation
-                    0.6f                        // Value
-                });
-                
-                gradient.setColors(new int[]{color1, color2, color3, color4});
-            }
-        });
-        
-        animator.start();
     }
 }

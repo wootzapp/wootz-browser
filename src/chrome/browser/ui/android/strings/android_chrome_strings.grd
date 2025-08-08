@@ -3811,9 +3811,6 @@ To change this setting, <ph name="BEGIN_LINK">BEGIN_LINK</ph>delete the WootzApp
       <message name="IDS_MENU_TRANSLATE" desc="Menu item for triggering a page translation. The word 'Translate' should match the translation in TC ID 1613971242435858090. [CHAR_LIMIT=27]">
         Translate…
       </message>
-      <message name="IDS_MENU_AI_CHAT_WITH_SEARCH" desc="Menu item for triggering a page translation. The word 'Translate' should match the translation in TC ID 1613971242435858090. [CHAR_LIMIT=27]">
-        AI Chat with Search
-      </message>
 
       <message name="IDS_MENU_LISTEN_TO_THIS_PAGE" desc="Menu item for making the browser read out the page's text in spoken audio form. [CHAR_LIMIT=27]">
         Listen to this page

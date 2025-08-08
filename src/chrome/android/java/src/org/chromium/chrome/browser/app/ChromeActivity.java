@@ -36,11 +36,10 @@ import android.view.ViewStub;
 import android.widget.FrameLayout;
 import android.widget.ImageView;
 import android.widget.PopupMenu;
+import android.widget.PopupWindow;
 import android.widget.TextView;
 import android.view.ViewGroup.LayoutParams;
 import android.text.TextUtils;
-import android.view.MotionEvent;
-
 import androidx.activity.OnBackPressedCallback;
 import androidx.annotation.CallSuper;
 import androidx.annotation.NonNull;
@@ -54,6 +53,12 @@ import androidx.fragment.app.FragmentManager;
 import androidx.fragment.app.FragmentTransaction;
 import androidx.lifecycle.LiveData;
 import androidx.lifecycle.MutableLiveData;
+import android.widget.LinearLayout;
+import android.util.DisplayMetrics;
+import android.graphics.Color;
+import android.graphics.drawable.GradientDrawable;
+import android.view.LayoutInflater;
+import android.widget.ScrollView;
 
 import org.jni_zero.JNINamespace;
 import org.jni_zero.NativeMethods;
@@ -173,6 +178,7 @@ import org.chromium.chrome.browser.printing.TabPrinter;
 import org.chromium.chrome.browser.profiles.Profile;
 import org.chromium.chrome.browser.profiles.ProfileProvider;
 import org.chromium.chrome.browser.readaloud.ReadAloudController;
+import org.chromium.chrome.browser.search_engines.TemplateUrlServiceFactory;
 import org.chromium.chrome.browser.selection.SelectionPopupBackPressHandler;
 import org.chromium.chrome.browser.settings.SettingsLauncherImpl;
 import org.chromium.chrome.browser.share.ShareDelegate;
@@ -244,6 +250,7 @@ import org.chromium.components.policy.CombinedPolicyProvider;
 import org.chromium.components.policy.CombinedPolicyProvider.PolicyChangeListener;
 import org.chromium.components.prefs.PrefService;
 import org.chromium.components.profile_metrics.BrowserProfileType;
+import org.chromium.components.search_engines.TemplateUrlService;
 import org.chromium.components.sync.SyncService;
 import org.chromium.components.user_prefs.UserPrefs;
 import org.chromium.components.webapk.lib.client.WebApkValidator;
@@ -322,13 +329,16 @@ import org.chromium.chrome.browser.wootz_wallet.model.CryptoAccountTypeInfo;
 import org.chromium.chrome.browser.wootz_wallet.activities.AddAccountActivity;
 import com.google.android.material.dialog.MaterialAlertDialogBuilder;
 
+import org.chromium.chrome.browser.wootzapp_search.AiChatBottomSheetFragment;
 import org.chromium.chrome.browser.wootz_wallet.WootzWalletServiceFactory;
 import org.chromium.chrome.browser.wootz_wallet.BlockchainRegistryFactory;
 import org.chromium.chrome.browser.wootz_wallet.AssetRatioServiceFactory;
 import org.chromium.chrome.browser.wootz_wallet.SwapServiceFactory;
-import org.chromium.chrome.browser.wootzapp_search.AiChatBottomSheetFragment;
-import org.chromium.chrome.browser.ui.appmenu.AppMenuHandler;
-import org.chromium.chrome.browser.ui.appmenu.AppMenuCoordinator;
+
+import android.os.Handler;
+import android.os.Looper;
+import android.graphics.Bitmap;
+import android.graphics.drawable.BitmapDrawable;
 
 /**
  * A {@link AsyncInitializationActivity} that builds and manages a {@link CompositorViewHolder}
@@ -511,6 +521,12 @@ public abstract class ChromeActivity<C extends ChromeActivityComponent>
     // Handling the dismissal of tab modal dialog.
     private TabModalLifetimeHandler mTabModalLifetimeHandler;
     private ViewGroup mBaseChromeLayout;
+
+    private Handler mFabOpacityHandler = new Handler(Looper.getMainLooper());
+    private Runnable mFabOpacityRunnable;
+    private static final int FAB_OPACITY_DELAY_10S = 10000; // 10 seconds
+
+    private PopupWindow popupWindow;
 
     protected ChromeActivity() {
         mManualFillingComponentSupplier.set(ManualFillingComponentFactory.createComponent());
@@ -879,6 +895,9 @@ public abstract class ChromeActivity<C extends ChromeActivityComponent>
     private void setupAiChatFloatingActionButton() {
         View aiChatFab = findViewById(R.id.ai_chat_fab);
         if (aiChatFab != null) {
+            // Set initial opacity
+            aiChatFab.setAlpha(1.0f);
+            
             aiChatFab.post(() -> {
                 View parent = (View) aiChatFab.getParent();
                 if (parent != null) {
@@ -909,6 +928,9 @@ public abstract class ChromeActivity<C extends ChromeActivityComponent>
 
                 @Override
                 public boolean onTouch(View view, MotionEvent event) {
+                    // Reset opacity on touch
+                    resetFabOpacity();
+                    
                     switch (event.getAction()) {
                         case MotionEvent.ACTION_DOWN:
                             dX = view.getX() - event.getRawX();
@@ -945,12 +967,8 @@ public abstract class ChromeActivity<C extends ChromeActivityComponent>
 
                         case MotionEvent.ACTION_UP:
                             if (!isDragging) {
-                                // Handle click
-                                Log.d(TAG, "AI Chat FAB clicked");
-                                Tab currentTab = getActivityTab();
-                                if (currentTab != null) {
-                                    openAiChatWithSearch(currentTab);
-                                }
+                                showAiChatOptionsMenu(view);
+                                
                             }
                             isDragging = false;
                             return true;
@@ -958,35 +976,266 @@ public abstract class ChromeActivity<C extends ChromeActivityComponent>
                     return false;
                 }
             });
+            
+            // Start opacity timer
+            startFabOpacityTimer();
         }
     }
 
-    private void showExtensionFeaturesMenu(View anchorView) {
-        Map<String, String> featureToExtensionMap = getExtensionFeaturesMap();
+    /**
+     * Starts the FAB opacity timer to make it semi-transparent after 2s and fully transparent after 10s
+     */
+    private void startFabOpacityTimer() {
+        if (mFabOpacityRunnable != null) {
+            mFabOpacityHandler.removeCallbacks(mFabOpacityRunnable);
+        }
         
-        if (featureToExtensionMap.isEmpty()) {
-            Log.d(TAG, "No extensions with features found");
-            return;
+        mFabOpacityRunnable = new Runnable() {
+            @Override
+            public void run() {
+                View aiChatFab = findViewById(R.id.ai_chat_fab);
+                if (aiChatFab != null) {
+                    mFabOpacityHandler.postDelayed(() -> {
+                        if (aiChatFab != null) {
+                            aiChatFab.animate().alpha(0.5f).setDuration(500).start();
+                        }
+                    }, FAB_OPACITY_DELAY_10S);
+                }
+            }
+        };
+        
+        mFabOpacityHandler.postDelayed(mFabOpacityRunnable, 1000);
+    }
+
+    /**
+     * Resets the FAB opacity to full and restarts the timer
+     */
+    private void resetFabOpacity() {
+        View aiChatFab = findViewById(R.id.ai_chat_fab);
+        if (aiChatFab != null) {
+            aiChatFab.animate().alpha(1.0f).setDuration(200).start();
+        }
+        startFabOpacityTimer();
+    }
+
+    /**
+     * Determines if the FAB should be visible based on current page and extension features
+     */
+    private boolean shouldShowFab() {
+        Tab currentTab = getActivityTab();
+        if (currentTab == null) {
+            return false;
         }
 
-        PopupMenu popup = new PopupMenu(this, anchorView);
-        int menuItemId = 0;
-        for (Map.Entry<String, String> entry : featureToExtensionMap.entrySet()) {
-            String featureText = entry.getKey();
-            popup.getMenu().add(0, menuItemId, 0, featureText);
-            menuItemId++;
+        boolean isOnSearchPage = false;
+        if (currentTab.getUrl() != null) {
+            isOnSearchPage = isSearchPage(currentTab.getUrl().getSpec());
         }
 
-        popup.setOnMenuItemClickListener(item -> {
-            String selectedFeature = item.getTitle().toString();
-            String extensionId = featureToExtensionMap.get(selectedFeature);
-            String extensionName = getExtensionNameForFeature(selectedFeature, featureToExtensionMap);
-            WootzBridge.onDropdownButtonClicked(selectedFeature, extensionId, extensionName);
+        Map<String, String> extensionFeatures = getExtensionFeaturesMap();
+        boolean hasExtensionFeatures = !extensionFeatures.isEmpty();
 
-            return true;
-        });
+        return isOnSearchPage || hasExtensionFeatures;
+    }
 
-        popup.show();
+    /**
+     * Updates FAB visibility based on current conditions
+     */
+    public void updateFabVisibility() {
+        View aiChatFab = findViewById(R.id.ai_chat_fab);
+        if (aiChatFab != null) {
+            boolean shouldShow = shouldShowFab();
+            aiChatFab.setVisibility(shouldShow ? View.VISIBLE : View.GONE);
+            
+            if (shouldShow) {
+                resetFabOpacity();
+            }
+        }
+    }
+
+    private void showAiChatOptionsMenu(View anchorView) {
+        Log.e(TAG, "showAiChatOptionsMenu called");
+        
+        Tab tab = getActivityTab();
+        Map<String, String> extensionFeatures = getExtensionFeaturesMap();
+        List<String> menuItems = new ArrayList<>();
+        
+        if (tab != null && isSearchPage(tab.getUrl().getSpec())) {
+            menuItems.add("AI Chat");
+        }
+
+        menuItems.addAll(extensionFeatures.keySet());
+        
+        if (menuItems.isEmpty()) return;
+        
+        createCustomPopupMenu(anchorView, menuItems, extensionFeatures, tab);
+    }
+
+    private void createCustomPopupMenu(View anchorView, List<String> menuItems, 
+                                     Map<String, String> extensionFeatures, Tab tab) {
+        
+        int[] fabLocation = new int[2];
+        anchorView.getLocationInWindow(fabLocation);
+        int fabX = fabLocation[0];
+        int fabY = fabLocation[1];
+        int fabWidth = anchorView.getWidth();
+        int fabHeight = anchorView.getHeight();
+        
+        int screenWidth = getResources().getDisplayMetrics().widthPixels;
+        int maxMenuWidth = (int) (screenWidth * 0.4);
+        int minMenuWidth = dpToPx(200);
+        int menuWidth = Math.max(minMenuWidth, Math.min(maxMenuWidth, dpToPx(280)));
+        
+        LinearLayout menuContainer = new LinearLayout(this);
+        menuContainer.setOrientation(LinearLayout.VERTICAL);
+        menuContainer.setBackground(createMenuBackground());
+        menuContainer.setPadding(dpToPx(8), dpToPx(8), dpToPx(8), dpToPx(8));
+        
+        for (int i = 0; i < menuItems.size(); i++) {
+            String menuItem = menuItems.get(i);
+            View itemView = createCompactMenuItemView(menuItem, extensionFeatures, i);
+            
+            final int itemIndex = i;
+            itemView.setOnClickListener(v -> {
+                handleMenuItemClick(itemIndex, menuItems, extensionFeatures, tab);
+                if (popupWindow != null) {
+                    popupWindow.dismiss();
+                }
+            });
+            
+            menuContainer.addView(itemView);
+            
+            if (i < menuItems.size() - 1) {
+                View separator = new View(this);
+                separator.setLayoutParams(new LinearLayout.LayoutParams(
+                    LinearLayout.LayoutParams.MATCH_PARENT,
+                    1
+                ));
+                separator.setBackgroundColor(Color.parseColor("#E0E0E0"));
+                separator.setPadding(dpToPx(8), dpToPx(4), dpToPx(8), dpToPx(4));
+                menuContainer.addView(separator);
+            }
+        }
+        
+        ScrollView scrollView = new ScrollView(this);
+        scrollView.setLayoutParams(new ViewGroup.LayoutParams(
+            menuWidth,
+            ViewGroup.LayoutParams.WRAP_CONTENT
+        ));
+        scrollView.addView(menuContainer);
+        
+        popupWindow = new PopupWindow(
+            scrollView,
+            menuWidth,
+            ViewGroup.LayoutParams.WRAP_CONTENT
+        );
+        
+        int popupX = fabX + (fabWidth / 2) - (menuWidth / 2);
+        int popupY = fabY - dpToPx(10);
+        
+        if (popupX < dpToPx(16)) {
+            popupX = dpToPx(16);
+        } else if (popupX + menuWidth > screenWidth - dpToPx(16)) {
+            popupX = screenWidth - menuWidth - dpToPx(16);
+        }
+        
+        popupWindow.setAnimationStyle(android.R.style.Animation_Dialog);
+        popupWindow.setElevation(dpToPx(8));
+        popupWindow.setFocusable(true);
+        popupWindow.setOutsideTouchable(true);
+        
+        popupWindow.showAsDropDown(anchorView, popupX - fabX, -fabHeight - dpToPx(10));
+        
+        Log.d(TAG, "Compact menu created with width: " + menuWidth + "px");
+    }
+
+
+    private View createCompactMenuItemView(String menuItem, Map<String, String> extensionFeatures, int index) {
+        LinearLayout itemContainer = new LinearLayout(this);
+        itemContainer.setOrientation(LinearLayout.HORIZONTAL);
+        itemContainer.setLayoutParams(new LinearLayout.LayoutParams(
+            LinearLayout.LayoutParams.MATCH_PARENT,
+            dpToPx(48)
+        ));
+        itemContainer.setPadding(dpToPx(12), dpToPx(8), dpToPx(12), dpToPx(8));
+        itemContainer.setBackground(createCompactMenuItemBackground());
+        itemContainer.setGravity(android.view.Gravity.CENTER_VERTICAL);
+        
+        // Icon
+        ImageView iconView = new ImageView(this);
+        iconView.setLayoutParams(new LinearLayout.LayoutParams(
+            dpToPx(20),
+            dpToPx(20)
+        ));
+        iconView.setScaleType(ImageView.ScaleType.FIT_CENTER);
+        
+        if (menuItem.equals("AI Chat")) {
+            iconView.setImageResource(android.R.drawable.ic_menu_edit);
+            iconView.setColorFilter(Color.parseColor("#FF9800"));
+        } else {
+            iconView.setImageResource(android.R.drawable.ic_menu_manage);
+            iconView.setColorFilter(Color.parseColor("#2196F3"));
+        }
+        
+
+        TextView textView = new TextView(this);
+        textView.setLayoutParams(new LinearLayout.LayoutParams(
+            0,
+            LinearLayout.LayoutParams.WRAP_CONTENT,
+            1.0f
+        ));
+        textView.setText(menuItem);
+        textView.setTextSize(14); // Smaller text
+        textView.setTextColor(Color.parseColor("#333333"));
+        textView.setTypeface(null, android.graphics.Typeface.NORMAL);
+        textView.setPadding(dpToPx(12), 0, 0, 0);
+        
+        itemContainer.addView(iconView);
+        itemContainer.addView(textView);
+        
+        return itemContainer;
+    }
+
+    private GradientDrawable createCompactMenuItemBackground() {
+        GradientDrawable background = new GradientDrawable();
+        background.setShape(GradientDrawable.RECTANGLE);
+        background.setCornerRadius(dpToPx(8));
+        background.setColor(Color.parseColor("#FFFFFF"));
+        background.setStroke(dpToPx(1), Color.parseColor("#E0E0E0"));
+        return background;
+    }
+
+    private GradientDrawable createMenuBackground() {
+        GradientDrawable background = new GradientDrawable();
+        background.setShape(GradientDrawable.RECTANGLE);
+        background.setCornerRadius(dpToPx(16));
+        background.setColor(Color.WHITE);
+        background.setStroke(dpToPx(2), Color.parseColor("#FF6B35"));
+        
+        return background;
+    }
+
+    private void handleMenuItemClick(int itemIndex, List<String> menuItems, 
+                                   Map<String, String> extensionFeatures, Tab tab) {
+        String selectedItem = menuItems.get(itemIndex);
+        
+        if (selectedItem.equals("AI Chat")) {
+            // AI Chat option
+            Tab currentTab = getActivityTab();
+            if (currentTab != null) {
+                openAiChatWithSearch(currentTab);
+            }
+        } else {
+            // Extension feature option
+            String extensionId = extensionFeatures.get(selectedItem);
+            String extensionName = getExtensionNameForFeature(selectedItem, extensionFeatures);
+            WootzBridge.onDropdownButtonClicked(selectedItem, extensionId, extensionName);
+        }
+    }
+
+    private int dpToPx(int dp) {
+        float density = getResources().getDisplayMetrics().density;
+        return Math.round((float) dp * density);
     }
 
     private Map<String, String> getExtensionFeaturesMap() {
@@ -1027,6 +1276,28 @@ public abstract class ChromeActivity<C extends ChromeActivityComponent>
         }
         return "Unknown Extension";
     }
+
+    private boolean isSearchPage(String url) {
+        if (TextUtils.isEmpty(url)) {
+            return false;
+        }
+
+        GURL gurl = new GURL(url);
+        if (gurl.isEmpty()) {
+            return false;
+        }
+        Tab currentTab = getActivityTab();
+        if (currentTab == null || currentTab.getWebContents() == null) {
+            Log.e(TAG, "Current tab or WebContents is null");
+            return false;
+        }
+        Profile profile = Profile.fromWebContents(currentTab.getWebContents());
+
+        TemplateUrlService templateUrlService = TemplateUrlServiceFactory.getForProfile(profile);
+        boolean isSearchPage = templateUrlService.isSearchResultsPageFromDefaultSearchProvider(gurl);
+        return isSearchPage;
+    }
+
 
     @Override
     protected void initializeStartupMetrics() {
@@ -1184,17 +1455,30 @@ public abstract class ChromeActivity<C extends ChromeActivityComponent>
                     @Override
                     public void onLoadStopped(Tab tab, boolean toDifferentDocument) {
                         postDeferredStartupIfNeeded();
+                        updateFabVisibility();
                     }
 
                     @Override
                     public void onPageLoadFinished(Tab tab, GURL url) {
                         postDeferredStartupIfNeeded();
                         OfflinePageUtils.showOfflineSnackbarIfNecessary(tab);
+                        updateFabVisibility();
                     }
 
                     @Override
                     public void onCrash(Tab tab) {
                         postDeferredStartupIfNeeded();
+                        updateFabVisibility();
+                    }
+
+                    @Override
+                    public void onUrlUpdated(Tab tab) {
+                        updateFabVisibility();
+                    }
+
+                    @Override
+                    public void onUpdateUrl(Tab tab, GURL url) {
+                        updateFabVisibility();
                     }
                 };
     }
@@ -2180,6 +2464,11 @@ public abstract class ChromeActivity<C extends ChromeActivityComponent>
      * by the {@link WindowAndroid}.
      */
     protected void onDestroyInternal() {
+
+        if (mFabOpacityHandler != null && mFabOpacityRunnable != null) {
+            mFabOpacityHandler.removeCallbacks(mFabOpacityRunnable);
+        }
+
         cleanUpWalletNativeServices();
     }
 
@@ -3523,7 +3812,6 @@ public abstract class ChromeActivity<C extends ChromeActivityComponent>
                 NewTabPageUma.recordAction(NewTabPageUma.ACTION_OPENED_HISTORY_MANAGER);
             }
             RecordUserAction.record("MobileMenuHistory");
-            Log.e("ChromeActivity", "MAC_onMenuOrKeyboardAction APP_MENU_HISTORY: called in onMenuOrKeyboardAction at Line 3359 " + currentTab.getUrl());
             HistoryManagerUtils.showHistoryManager(
                     this, currentTab, getTabModelSelector().isIncognitoSelected());
             RecordHistogram.recordEnumeratedHistogram(
@@ -3611,12 +3899,6 @@ public abstract class ChromeActivity<C extends ChromeActivityComponent>
             Tracker tracker = TrackerFactory.getTrackerForProfile(currentTab.getProfile());
             tracker.notifyEvent(EventConstants.TRANSLATE_MENU_BUTTON_CLICKED);
             TranslateBridge.translateTabWhenReady(currentTab);
-            return true;
-        }
-
-        if (id == R.id.ai_chat_with_search_id) {
-            RecordUserAction.record("MobileMenuAiChatWithSearch");
-            openAiChatWithSearch(currentTab);
             return true;
         }
 
@@ -4142,71 +4424,25 @@ public abstract class ChromeActivity<C extends ChromeActivityComponent>
     }
 
     private void openAiChatWithSearch(Tab currentTab) {
-        Log.d(TAG, "openAiChatWithSearch called");
-        
-        // Extract search query from Google search results
-        String searchQuery = extractSearchQueryFromGoogle(currentTab);
+        String searchQuery = extractSearchQuery(currentTab);
         
         if (searchQuery != null && !searchQuery.isEmpty()) {
-            Log.d(TAG, "Extracted search query: " + searchQuery);
-            
-            // Create and show the AI chat bottom sheet
+            Log.e(TAG, "Extracted search query: " + searchQuery);
             AiChatBottomSheetFragment fragment = AiChatBottomSheetFragment.newInstance(searchQuery);
             fragment.show(getSupportFragmentManager(), "ai_chat_bottom_sheet");
         } else {
-            Log.d(TAG, "No search query found, showing empty AI chat");
-            // Show AI chat without initial query
             AiChatBottomSheetFragment fragment = AiChatBottomSheetFragment.newInstance("");
             fragment.show(getSupportFragmentManager(), "ai_chat_bottom_sheet");
         }
     }
 
-    private String extractSearchQueryFromGoogle(Tab currentTab) {
+    private String extractSearchQuery(Tab currentTab) {
         if (currentTab == null) return null;
-        
-        String url = currentTab.getUrl().getSpec();
-        Log.d(TAG, "Current URL: " + url);
-        
-        // Check if this is a Google search results page
-        if (url.contains("google.com/search") || url.contains("google.co.in/search")) {
-            // Extract the search query from the URL
-            String query = extractQueryFromGoogleUrl(url);
-            Log.d(TAG, "Extracted query from Google URL: " + query);
-            return query;
-        }
-        
-        // Check if this is a Google search results page with different patterns
-        if (url.contains("google.com") && url.contains("q=")) {
-            String query = extractQueryFromGoogleUrl(url);
-            Log.d(TAG, "Extracted query from Google URL: " + query);
-            return query;
-        }
-        
-        Log.d(TAG, "Not a Google search results page");
-        return null;
-    }
 
-    private String extractQueryFromGoogleUrl(String url) {
-        try {
-            // Look for the 'q=' parameter in the URL
-            int qIndex = url.indexOf("q=");
-            if (qIndex == -1) return null;
-            
-            // Find the end of the query parameter
-            int endIndex = url.indexOf("&", qIndex);
-            if (endIndex == -1) {
-                endIndex = url.length();
-            }
-            
-            // Extract the query and decode it
-            String encodedQuery = url.substring(qIndex + 2, endIndex);
-            String decodedQuery = java.net.URLDecoder.decode(encodedQuery, "UTF-8");
-            
-            Log.d(TAG, "Encoded query: " + encodedQuery + ", Decoded query: " + decodedQuery);
-            return decodedQuery;
-        } catch (Exception e) {
-            Log.e(TAG, "Error extracting query from URL: " + url, e);
-            return null;
-        }
+        GURL url = currentTab.getUrl();
+        Profile profile = Profile.fromWebContents(currentTab.getWebContents());
+        TemplateUrlService templateUrlService = TemplateUrlServiceFactory.getForProfile(profile);
+        String query = templateUrlService.getSearchQueryForUrl(url);
+        return query;
     }
 }

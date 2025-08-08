@@ -24,6 +24,7 @@ public class ExtensionsConfirmationDialog {
             .setPositiveButton("Install", (dialog, which) -> {
                 Log.d("exts", "install");
                 ExtensionsConfirmationDialogJni.get().onDialogResult(doneCallback, true);
+                Extensions.notifyExtensionChange();
             })
             .setNegativeButton("Cancel", (dialog, which) -> {
                 Log.d("exts", "cancel");

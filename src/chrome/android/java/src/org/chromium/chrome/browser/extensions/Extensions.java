@@ -13,6 +13,7 @@ import org.chromium.chrome.browser.ntp.NewTabPageLayout;
 
 import org.jni_zero.CalledByNative;
 import org.jni_zero.NativeMethods;
+import org.chromium.chrome.browser.app.ChromeActivity;
 
 public class Extensions {
     private static NewTabPageLayout newTabPageLayout;
@@ -65,10 +66,32 @@ public class Extensions {
     public static void uninstallExtension(String extensionId) {
         Log.d("Extensions", "Uninstalling extension: " + extensionId);
         ExtensionsJni.get().uninstallExtension(extensionId);
+        
+        // Notify ChromeActivity about extension change
+        notifyExtensionChange();
+        
         if (newTabPageLayout != null) {
             Log.d("Extensions", "Reloading new tab page!!");
             newTabPageLayout.reload();
             Log.d("Extensions", "Reloaded new tab page!!");
+        }
+    }
+
+    /**
+     * Notifies ChromeActivity about extension changes
+     */
+    public static void notifyExtensionChange() {
+        try {
+            // Get the current ChromeActivity instance
+            ChromeActivity activity = ChromeActivity.getChromeActivity();
+            if (activity != null) {
+                // Call the update method on the main thread
+                activity.runOnUiThread(() -> {
+                    activity.updateFabVisibility();
+                });
+            }
+        } catch (Exception e) {
+            Log.e("Extensions", "Error notifying ChromeActivity: " + e.getMessage());
         }
     }
 

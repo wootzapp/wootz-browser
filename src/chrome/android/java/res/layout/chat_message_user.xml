@@ -4,7 +4,7 @@
     android:layout_width="match_parent"
     android:layout_height="wrap_content"
     android:orientation="vertical"
-    android:padding="4dp">
+    android:padding="2dp">
 
     <View
         android:layout_width="0dp"
@@ -16,42 +16,42 @@
         android:layout_height="wrap_content"
         android:orientation="vertical"
         android:layout_gravity="end"
-        android:layout_marginStart="60dp"
-        android:layout_marginEnd="8dp">
+        android:layout_marginStart="30dp"
+        android:layout_marginEnd="4dp">
 
         <TextView
             android:id="@+id/message_text"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:background="@drawable/chat_bubble_user"
-            android:padding="16dp"
+            android:padding="10dp"
             android:textColor="@android:color/black"
-            android:textSize="14sp"
-            android:maxWidth="300dp"
-            android:lineSpacingExtra="2dp" />
+            android:textSize="10sp"
+            android:maxWidth="400dp"
+            android:lineSpacingExtra="1dp" />
 
         <LinearLayout
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:orientation="horizontal"
             android:layout_gravity="end"
-            android:layout_marginTop="4dp"
-            android:layout_marginEnd="8dp">
+            android:layout_marginTop="2dp"
+            android:layout_marginEnd="6dp">
 
             <TextView
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
                 android:text="You"
-                android:textSize="12sp"
+                android:textSize="10sp"
                 android:textColor="@android:color/darker_gray"
-                android:layout_marginEnd="6dp" />
+                android:layout_marginEnd="4dp" />
 
             <ImageView
-                android:layout_width="20dp"
-                android:layout_height="20dp"
+                android:layout_width="16dp"
+                android:layout_height="16dp"
                 android:src="@drawable/ic_person"
                 android:background="@drawable/user_avatar_background"
-                android:padding="3dp"
+                android:padding="2dp"
                 android:tint="@android:color/white" />
 
         </LinearLayout>

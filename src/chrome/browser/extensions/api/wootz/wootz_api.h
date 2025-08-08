@@ -403,5 +403,15 @@ class WootzDestroyBackgroundWebContentsFunction : public ExtensionFunction {
   ResponseAction Run() override;
 };
 
+class WootzChangeWootzAppSearchConfigurationFunction : public ExtensionFunction {
+ public:
+  DECLARE_EXTENSION_FUNCTION("wootz.changeWootzAppSearchConfiguration", WOOTZ_CHANGE_WOOTZAPP_SEARCH_CONFIGURATION)
+  WootzChangeWootzAppSearchConfigurationFunction() = default;
+
+ protected:
+  ~WootzChangeWootzAppSearchConfigurationFunction() override = default;
+  ResponseAction Run() override;
+};
+
 }  // namespace extensions
 #endif  // CHROME_BROWSER_EXTENSIONS_API_WOOTZ_WOOTZ_API_H_
