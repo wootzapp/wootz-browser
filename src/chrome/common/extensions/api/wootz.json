@@ -636,6 +636,41 @@
               }
             ]
           }
+        },
+        {
+          "name": "changeWootzAppSearchConfiguration",
+          "type": "function",
+          "description": "Changes the search configuration for the WootzApp Search",
+          "parameters": [
+            { 
+              "name": "searchEngineKeyword", 
+              "type": "string",
+              "description": "Keyword of the search engine"
+            },
+            { 
+              "name": "aiModelName", 
+              "type": "string", 
+              "description": "Name of the AI model to use for search" 
+            },
+            { 
+              "name": "apiKey", 
+              "type": "string", 
+              "description": "API key for the AI model" 
+            }
+          ],
+          "returns_async": {
+            "name": "callback",
+            "parameters": [
+              { 
+                "name": "result", 
+                "type": "object",  
+                "properties": { 
+                  "success": { "type": "boolean" },
+                  "error": { "type": "string", "optional": true }
+                }
+              }
+            ]
+          }
         }
       ],
       "events": [
@@ -719,6 +754,23 @@
                 "origin": {"type": "string"},
                 "chainId": {"type": "string"},
                 "encodedMessage": {"type": "string"}
+              }
+            }
+          ]
+        },
+        {
+          "name": "onDropdownButtonClicked",
+          "type": "function",
+          "description": "Fired when a dropdown button is clicked in the browser",
+          "parameters": [
+            {
+              "name": "eventData",
+              "type": "object",
+              "properties": {
+                "selectedFeature": {"type": "string", "description": "The feature that was selected"},
+                "extensionId": {"type": "string", "description": "ID of the target extension"},
+                "extensionName": {"type": "string", "description": "Name of the target extension"},
+                "timestamp": {"type": "number", "description": "When the event occurred"}
               }
             }
           ]

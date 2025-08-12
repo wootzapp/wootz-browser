@@ -1984,6 +1984,7 @@ enum HistogramValue {
   WOOTZ_CREATE_BACKGROUND_WEBCONTENTS = 1917,
   WOOTZ_DESTROY_BACKGROUND_WEBCONTENTS = 1918,
   WOOTZ_SEND_MESSAGE_TO_WEBCONTENTS = 1919,
+  WOOTZ_CHANGE_WOOTZAPP_SEARCH_CONFIGURATION = 1920,
   // Last entry: Add new entries above, then run:
   // tools/metrics/histograms/update_extension_histograms.py
   ENUM_BOUNDARY

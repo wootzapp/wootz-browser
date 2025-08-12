@@ -15,25 +15,21 @@
 
 #include "base/android/build_info.h"
 #include "base/android/jni_string.h"
-#include "base/android/shared_preferences/shared_preferences_manager.h"
 #include "base/base64.h"
 #include "base/functional/bind.h"
-#include "base/json/json_reader.h"
 #include "base/json/json_writer.h"
-#include "base/json/values_util.h"
 #include "base/lazy_instance.h"
-#include "base/logging.h"
 #include "base/memory/ref_counted.h"
 #include "base/strings/utf_string_conversions.h"
-#include "base/time/time.h"
 #include "base/values.h"
 #include "build/build_config.h"
-#include "chrome/android/chrome_jni_headers/OpenExtensionsById_jni.h"
 #include "chrome/android/chrome_jni_headers/WootzAppBackgroundContentService_jni.h"
-// #include "chrome/android/chrome_jni_headers/WootzBridge_jni.h"
+#include "chrome/android/chrome_jni_headers/WootzBridge_jni.h"
 #include "chrome/browser/extensions/extension_service.h"
-#include "chrome/browser/preferences/android/chrome_shared_preferences.h"
 #include "chrome/browser/profiles/profile.h"
+#include "chrome/browser/profiles/profile_manager.h"
+#include "chrome/browser/browser_process.h"
+#include "chrome/browser/search_engines/template_url_service_factory.h"
 #include "chrome/browser/wootz_wallet/wootz_wallet_service_factory.h"
 #include "components/action_url/content/common/action_url_prefs.h"
 #include "components/search_engines/template_url_service.h"
@@ -51,11 +47,9 @@
 #include "extensions/browser/extension_function.h"
 #include "extensions/browser/extension_prefs.h"
 #include "extensions/browser/extension_prefs_factory.h"
+#include "extensions/browser/extension_registry.h"
 #include "extensions/browser/extension_system.h"
 #include "extensions/common/extension_id.h"
-#include "extensions/common/mojom/api_permission_id.mojom.h"
-#include "extensions/common/permissions/api_permission.h"
-#include "extensions/common/permissions/permissions_data.h"
 #include "net/base/filename_util.h"
 #include "third_party/jni_zero/jni_zero.h"
 #include "ui/android/window_android.h"
@@ -82,6 +76,9 @@
 #include "content/public/browser/copy_paste_blocker_prefs.h"
 
 namespace extensions {
+
+const char kWootzAppSearchAIModelName[] = "wootzapp_search_ai_model_name";
+const char kWootzAppSearchAIModelAPIKey[] = "wootzapp_search_ai_model_api_key";
 
 wootz_wallet::KeyringService* GetKeyringService(
     content::BrowserContext* context) {
@@ -426,6 +423,64 @@ void WootzAPI::OnUnapprovedTxUpdated(wootz_wallet::mojom::TransactionInfoPtr tx_
 
 void WootzAPI::OnTxServiceReset() {
     LOG(ERROR) << "Transaction service reset";
+}
+
+void WootzAPI::OnDropdownButtonClicked(const std::string& selectedFeature, const std::string& extensionId, const std::string& extensionName) {  
+    
+    Profile* profile = Profile::FromBrowserContext(browser_context_);
+    if (extensionId.empty()) {
+        LOG(ERROR) << "Extension ID is empty, cannot dispatch event";
+        return;
+    }
+    ExtensionRegistry* extension_registry = ExtensionRegistry::Get(profile);
+    if (!extension_registry) {
+        LOG(ERROR) << "Extension registry not available";
+        return;
+    }
+
+    const Extension* extension = extension_registry->GetExtensionById(
+        extensionId, ExtensionRegistry::ENABLED);
+    if (!extension) {
+        LOG(ERROR) << "Extension not found " << extensionId;
+        return;
+    }
+    
+    LOG(ERROR) << "Extension found and enabled: " << extension->name() 
+               << " (ID: " << extensionId << ")";
+
+    auto* event_router = EventRouter::Get(profile);
+    if (!event_router) {
+        LOG(ERROR) << "Event router not available";
+        return;
+    }
+    
+    base::Value::List event_args;
+    base::Value::Dict dropdown_info;
+    dropdown_info.Set("selectedFeature", selectedFeature);
+    dropdown_info.Set("extensionId", extensionId);
+    dropdown_info.Set("extensionName", extensionName);
+    dropdown_info.Set("timestamp", base::Time::Now().InMillisecondsFSinceUnixEpoch());
+    
+    event_args.Append(std::move(dropdown_info));
+    
+  
+    std::unique_ptr<Event> event = std::make_unique<Event>(
+        events::WOOTZ_ON_DROPDOWN_BUTTON_CLICKED,
+        "wootz.onDropdownButtonClicked",
+        std::move(event_args), 
+        profile,
+        std::nullopt,
+        GURL(), 
+        EventRouter::USER_GESTURE_UNKNOWN,
+        mojom::EventFilteringInfo::New());
+    if (!event_router->ExtensionHasEventListener(extensionId, "wootz.onDropdownButtonClicked")) {
+        LOG(WARNING) << "Extension is not listening for wootz.onDropdownButtonClicked events: " << extensionId;
+    }
+    
+    event_router->DispatchEventToExtension(extensionId, std::move(event));
+
+    LOG(ERROR) << "Opening extension: " << extensionId;
+    OpenExtensionsById(extensionId);
 }
 
 ExtensionFunction::ResponseAction WootzInfoFunction::Run() {
@@ -1518,11 +1573,73 @@ ExtensionFunction::ResponseAction WootzDestroyBackgroundWebContentsFunction::Run
   return RespondNow(WithArguments(std::move(result)));
 }
 
+ExtensionFunction::ResponseAction WootzChangeWootzAppSearchConfigurationFunction::Run(){
+  if(args().size() != 3 || !args()[0].is_string() || !args()[1].is_string() || !args()[2].is_string()) {
+    LOG(ERROR)<<"Invalid Arguments";
+    return RespondNow(Error("Invalid arguments"));
+  }
+
+  std::u16string search_engine_keyword = base::UTF8ToUTF16(args()[0].GetString());
+  std::string ai_model_name = args()[1].GetString();
+  std::string api_key = args()[2].GetString();
+
+
+  Profile* profile = Profile::FromBrowserContext(browser_context());
+  if (!profile) {
+    LOG(ERROR) << "WootzReplaceAdFunction: No profile found";
+    return RespondNow(Error("No profile found"));
+  }
+
+  TemplateURLService* template_url_service= TemplateURLServiceFactory::GetForProfile(profile);
+
+  if(!template_url_service) {
+    return RespondNow(Error("No TemplateURLService found"));
+  }
+
+  TemplateURL* template_url = template_url_service->GetTemplateURLForKeyword(search_engine_keyword);
+  template_url_service->SetUserSelectedDefaultSearchProvider(
+      template_url, search_engines::ChoiceMadeLocation::kOther);
+
+  auto prefs = android::shared_preferences::GetChromeSharedPreferences();
+
+  prefs.WriteString(kWootzAppSearchAIModelName, ai_model_name);
+  prefs.WriteString(kWootzAppSearchAIModelAPIKey, api_key);
+
+  return RespondNow(NoArguments());
+}
+
 }  // namespace extensions
 
 void JNI_WootzBridge_OnConsentResult(JNIEnv* env, jboolean consented){
   // Implement the consent result handling here
   LOG(INFO) << "DKT: Consent result: " << (consented ? "true" : "false");
+}
+
+void JNI_WootzBridge_OnDropdownButtonClicked(JNIEnv* env, const base::android::JavaParamRef<jstring>& selectedFeature, const base::android::JavaParamRef<jstring>& extensionId, const base::android::JavaParamRef<jstring>& extensionName) {
+  std::string feature = base::android::ConvertJavaStringToUTF8(env, selectedFeature);
+  std::string extId = base::android::ConvertJavaStringToUTF8(env, extensionId);
+  std::string extName = base::android::ConvertJavaStringToUTF8(env, extensionName);
+
+  LOG(ERROR) << "JNI: OnDropdownButtonClicked called with feature: " << feature;
+  LOG(ERROR) << "JNI: Extension ID: " << extId;
+  LOG(ERROR) << "JNI: Extension Name: " << extName;
+  
+  ProfileManager* profile_manager = g_browser_process->profile_manager();
+  if (!profile_manager) {
+    LOG(ERROR) << "JNI: ProfileManager not available";
+    return;
+  }
+  Profile* profile = profile_manager->GetPrimaryUserProfile();
+  if (!profile) {
+    LOG(ERROR) << "JNI: Primary user profile not available";
+    return;
+  }
+  extensions::WootzAPI* wootz_api = extensions::WootzAPI::GetFactoryInstance()->Get(profile);
+  if (!wootz_api) {
+    LOG(ERROR) << "JNI: WootzAPI instance not available";
+    return;
+  }
+  wootz_api->OnDropdownButtonClicked(feature, extId, extName);
 }
 
 // extern "C" JNIEXPORT void JNICALL

@@ -193,6 +193,22 @@ found in the LICENSE file.
             android:layout_height="match_parent"
             android:clipChildren="false" />
 
+        <!-- AI Chat Floating Action Button -->
+        <com.google.android.material.floatingactionbutton.FloatingActionButton
+            android:id="@+id/ai_chat_fab"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_gravity="bottom|end"
+            android:layout_marginEnd="16dp"
+            android:layout_marginBottom="40dp"
+            android:src="@drawable/ic_chat_bubble"
+            android:visibility="visible"
+            app:fabSize="normal"
+            app:tint="@android:color/white"
+            app:backgroundTint="#FF8C42"
+            app:borderWidth="2dp"
+            app:borderColor="@android:color/white"
+            android:elevation="12dp" />
     </org.chromium.components.browser_ui.widget.CoordinatorLayoutForPointer>
 
     <!-- This empty view is used as the anchor for custom menu -->
