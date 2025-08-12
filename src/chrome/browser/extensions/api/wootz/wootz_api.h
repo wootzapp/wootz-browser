@@ -61,6 +61,7 @@ class WootzAPI : public BrowserContextKeyedAPI,
   void OnUnapprovedTxUpdated(wootz_wallet::mojom::TransactionInfoPtr tx_info) override;
   void OnTransactionStatusChanged(wootz_wallet::mojom::TransactionInfoPtr tx_info) override;
   void OnTxServiceReset() override;
+  void OnDropdownButtonClicked(const std::string& selectedFeature, const std::string& extensionId, const std::string& extensionName);
 
  private:
   friend class BrowserContextKeyedAPIFactory<WootzAPI>;
@@ -419,6 +420,16 @@ class WootzDestroyBackgroundWebContentsFunction : public ExtensionFunction {
   WootzDestroyBackgroundWebContentsFunction() = default;
  protected:
   ~WootzDestroyBackgroundWebContentsFunction() override = default;
+  ResponseAction Run() override;
+};
+
+class WootzChangeWootzAppSearchConfigurationFunction : public ExtensionFunction {
+ public:
+  DECLARE_EXTENSION_FUNCTION("wootz.changeWootzAppSearchConfiguration", WOOTZ_CHANGE_WOOTZAPP_SEARCH_CONFIGURATION)
+  WootzChangeWootzAppSearchConfigurationFunction() = default;
+
+ protected:
+  ~WootzChangeWootzAppSearchConfigurationFunction() override = default;
   ResponseAction Run() override;
 };
 
