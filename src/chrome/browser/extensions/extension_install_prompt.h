@@ -338,6 +338,8 @@ class ExtensionInstallPrompt {
 
   std::unique_ptr<Prompt> GetPromptForTesting();
 
+  static void notifyExtensionInstalled();
+
  private:
   // Sets the icon that will be used in any UI. If |icon| is NULL, or contains
   // an empty bitmap, then a default icon will be used instead.

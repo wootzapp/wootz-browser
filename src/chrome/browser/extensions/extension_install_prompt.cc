@@ -737,3 +737,8 @@ bool ExtensionInstallPrompt::AutoConfirmPromptIfEnabled() {
   NOTREACHED_IN_MIGRATION();
   return false;
 }
+
+void ExtensionInstallPrompt::notifyExtensionInstalled() {
+  JNIEnv* env = base::android::AttachCurrentThread();
+  Java_ExtensionsConfirmationDialog_notifyExtensionInstalled(env);
+}

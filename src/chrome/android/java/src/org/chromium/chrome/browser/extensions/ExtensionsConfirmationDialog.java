@@ -37,6 +37,13 @@ public class ExtensionsConfirmationDialog {
             .setCancelable(true)
             .show();
     }
+    
+    @CalledByNative
+    public static void notifyExtensionInstalled() {
+        Log.e("Extensions", "Extension installed, notifying listeners.");
+        // Notify any listeners or update UI as needed
+        Extensions.notifyExtensionChange();
+    }
 
     @NativeMethods
     interface Natives {

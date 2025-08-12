@@ -29,11 +29,14 @@ import android.util.TypedValue;
 import android.view.Display.Mode;
 import android.view.Gravity;
 import android.view.MenuItem;
+import android.view.MotionEvent;
 import android.view.View;
 import android.view.ViewGroup;
 import android.view.ViewStub;
 import android.widget.FrameLayout;
 import android.widget.ImageView;
+import android.widget.PopupMenu;
+import android.widget.PopupWindow;
 import android.widget.TextView;
 import android.view.ViewGroup.LayoutParams;
 import android.text.TextUtils;
@@ -50,6 +53,12 @@ import androidx.fragment.app.FragmentManager;
 import androidx.fragment.app.FragmentTransaction;
 import androidx.lifecycle.LiveData;
 import androidx.lifecycle.MutableLiveData;
+import android.widget.LinearLayout;
+import android.util.DisplayMetrics;
+import android.graphics.Color;
+import android.graphics.drawable.GradientDrawable;
+import android.view.LayoutInflater;
+import android.widget.ScrollView;
 
 import org.jni_zero.JNINamespace;
 import org.jni_zero.NativeMethods;
@@ -61,7 +70,8 @@ import org.chromium.base.Callback;
 import org.chromium.base.CommandLine;
 import org.chromium.base.ContextUtils;
 import org.chromium.base.InputHintChecker;
-import org.chromium.base.Log;
+// import org.chromium.base.Log;
+import android.util.Log;
 import org.chromium.base.PowerMonitor;
 import org.chromium.base.SysUtils;
 import org.chromium.base.TraceEvent;
@@ -80,6 +90,9 @@ import org.chromium.chrome.R;
 import org.chromium.chrome.browser.ApplicationLifetime;
 import org.chromium.chrome.browser.ActivityTabProvider;
 import org.chromium.chrome.browser.ActivityUtils;
+import org.chromium.chrome.browser.extensions.ExtensionInfo;
+import org.chromium.chrome.browser.extensions.Extensions;
+import org.chromium.chrome.browser.extensions.WootzBridge;
 import org.chromium.chrome.browser.AppHooks;
 import org.chromium.chrome.browser.ChromeActivitySessionTracker;
 import org.chromium.chrome.browser.ChromeApplicationImpl;
@@ -165,6 +178,7 @@ import org.chromium.chrome.browser.printing.TabPrinter;
 import org.chromium.chrome.browser.profiles.Profile;
 import org.chromium.chrome.browser.profiles.ProfileProvider;
 import org.chromium.chrome.browser.readaloud.ReadAloudController;
+import org.chromium.chrome.browser.search_engines.TemplateUrlServiceFactory;
 import org.chromium.chrome.browser.selection.SelectionPopupBackPressHandler;
 import org.chromium.chrome.browser.settings.SettingsLauncherImpl;
 import org.chromium.chrome.browser.share.ShareDelegate;
@@ -236,6 +250,7 @@ import org.chromium.components.policy.CombinedPolicyProvider;
 import org.chromium.components.policy.CombinedPolicyProvider.PolicyChangeListener;
 import org.chromium.components.prefs.PrefService;
 import org.chromium.components.profile_metrics.BrowserProfileType;
+import org.chromium.components.search_engines.TemplateUrlService;
 import org.chromium.components.sync.SyncService;
 import org.chromium.components.user_prefs.UserPrefs;
 import org.chromium.components.webapk.lib.client.WebApkValidator;
@@ -275,8 +290,10 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Calendar;
 import java.util.Date;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Locale;
 import java.util.Set;
 import java.util.concurrent.CopyOnWriteArrayList;
@@ -312,10 +329,16 @@ import org.chromium.chrome.browser.wootz_wallet.model.CryptoAccountTypeInfo;
 import org.chromium.chrome.browser.wootz_wallet.activities.AddAccountActivity;
 import com.google.android.material.dialog.MaterialAlertDialogBuilder;
 
+import org.chromium.chrome.browser.wootzapp_search.AiChatBottomSheetFragment;
 import org.chromium.chrome.browser.wootz_wallet.WootzWalletServiceFactory;
 import org.chromium.chrome.browser.wootz_wallet.BlockchainRegistryFactory;
 import org.chromium.chrome.browser.wootz_wallet.AssetRatioServiceFactory;
 import org.chromium.chrome.browser.wootz_wallet.SwapServiceFactory;
+
+import android.os.Handler;
+import android.os.Looper;
+import android.graphics.Bitmap;
+import android.graphics.drawable.BitmapDrawable;
 
 /**
  * A {@link AsyncInitializationActivity} that builds and manages a {@link CompositorViewHolder}
@@ -498,6 +521,12 @@ public abstract class ChromeActivity<C extends ChromeActivityComponent>
     // Handling the dismissal of tab modal dialog.
     private TabModalLifetimeHandler mTabModalLifetimeHandler;
     private ViewGroup mBaseChromeLayout;
+
+    private Handler mFabOpacityHandler = new Handler(Looper.getMainLooper());
+    private Runnable mFabOpacityRunnable;
+    private static final int FAB_OPACITY_DELAY_10S = 10000; // 10 seconds
+
+    private PopupWindow popupWindow;
 
     protected ChromeActivity() {
         mManualFillingComponentSupplier.set(ManualFillingComponentFactory.createComponent());
@@ -857,8 +886,442 @@ public abstract class ChromeActivity<C extends ChromeActivityComponent>
             if (mStarted) {
                 mCompositorViewHolderSupplier.get().onStart();
             }
+
+            // Setup AI Chat Floating Action Button
+            setupAiChatFloatingActionButton();
         }
     }
+
+    private void setupAiChatFloatingActionButton() {
+        View aiChatFab = findViewById(R.id.ai_chat_fab);
+        if (aiChatFab != null) {
+            // Set initial opacity
+            aiChatFab.setAlpha(1.0f);
+            
+            aiChatFab.post(() -> {
+                View parent = (View) aiChatFab.getParent();
+                if (parent != null) {
+                    int bottomMargin = (int) (40 * getResources().getDisplayMetrics().density);
+                    int rightMargin = (int) (16 * getResources().getDisplayMetrics().density);
+                    int extraUpMargin = (int) (40 * getResources().getDisplayMetrics().density);
+                    
+                    // Calculate initial position
+                    int parentWidth = parent.getWidth();
+                    int fabWidth = aiChatFab.getWidth();
+                    int initialX = parentWidth - fabWidth - rightMargin;
+                    int initialY = parent.getHeight() - fabWidth - bottomMargin - extraUpMargin;
+                    
+                    // Set initial position
+                    aiChatFab.setX(initialX);
+                    aiChatFab.setY(initialY);
+                }
+            });
+
+            // Make the FAB draggable
+            aiChatFab.setOnTouchListener(new View.OnTouchListener() {
+                private float dX;
+                private float dY;
+                private float lastX;
+                private float lastY;
+                private boolean isDragging = false;
+                private static final float TOUCH_SLOP = 10f;
+
+                @Override
+                public boolean onTouch(View view, MotionEvent event) {
+                    // Reset opacity on touch
+                    resetFabOpacity();
+                    
+                    switch (event.getAction()) {
+                        case MotionEvent.ACTION_DOWN:
+                            dX = view.getX() - event.getRawX();
+                            dY = view.getY() - event.getRawY();
+                            lastX = event.getRawX();
+                            lastY = event.getRawY();
+                            isDragging = false;
+                            return true;
+
+                        case MotionEvent.ACTION_MOVE:
+                            float deltaX = Math.abs(event.getRawX() - lastX);
+                            float deltaY = Math.abs(event.getRawY() - lastY);
+                            
+                            if (!isDragging && (deltaX > TOUCH_SLOP || deltaY > TOUCH_SLOP)) {
+                                isDragging = true;
+                            }
+                            
+                            if (isDragging) {
+                                float newX = event.getRawX() + dX;
+                                float newY = event.getRawY() + dY;
+                                
+                                // Constrain to screen bounds
+                                View parent = (View) view.getParent();
+                                int maxX = parent.getWidth() - view.getWidth();
+                                int maxY = parent.getHeight() - view.getHeight();
+                                
+                                newX = Math.max(0, Math.min(newX, maxX));
+                                newY = Math.max(0, Math.min(newY, maxY));
+                                
+                                view.setX(newX);
+                                view.setY(newY);
+                            }
+                            return true;
+
+                        case MotionEvent.ACTION_UP:
+                            if (!isDragging) {
+                                showAiChatOptionsMenu(view);
+                                
+                            }
+                            isDragging = false;
+                            return true;
+                    }
+                    return false;
+                }
+            });
+            
+            // Start opacity timer
+            startFabOpacityTimer();
+        }
+    }
+
+    /**
+     * Starts the FAB opacity timer to make it semi-transparent after 2s and fully transparent after 10s
+     */
+    private void startFabOpacityTimer() {
+        if (mFabOpacityRunnable != null) {
+            mFabOpacityHandler.removeCallbacks(mFabOpacityRunnable);
+        }
+        
+        mFabOpacityRunnable = new Runnable() {
+            @Override
+            public void run() {
+                View aiChatFab = findViewById(R.id.ai_chat_fab);
+                if (aiChatFab != null) {
+                    mFabOpacityHandler.postDelayed(() -> {
+                        if (aiChatFab != null) {
+                            aiChatFab.animate().alpha(0.5f).setDuration(500).start();
+                        }
+                    }, FAB_OPACITY_DELAY_10S);
+                }
+            }
+        };
+        
+        mFabOpacityHandler.postDelayed(mFabOpacityRunnable, 1000);
+    }
+
+    /**
+     * Resets the FAB opacity to full and restarts the timer
+     */
+    private void resetFabOpacity() {
+        View aiChatFab = findViewById(R.id.ai_chat_fab);
+        if (aiChatFab != null) {
+            aiChatFab.animate().alpha(1.0f).setDuration(200).start();
+        }
+        startFabOpacityTimer();
+    }
+
+    /**
+     * Determines if the FAB should be visible based on current page and extension features
+     */
+    private boolean shouldShowFab() {
+        Tab currentTab = getActivityTab();
+        if (currentTab == null) {
+            return false;
+        }
+
+        boolean isOnSearchPage = false;
+        if (currentTab.getUrl() != null) {
+            isOnSearchPage = isSearchPage(currentTab.getUrl().getSpec());
+        }
+
+        Map<String, String> extensionFeatures = getExtensionFeaturesMap();
+        boolean hasExtensionFeatures = !extensionFeatures.isEmpty();
+
+        return isOnSearchPage || hasExtensionFeatures;
+    }
+
+    public void updateFabVisibility() {
+        View aiChatFab = findViewById(R.id.ai_chat_fab);
+        if (aiChatFab != null) {
+            boolean shouldShow = shouldShowFab();
+            aiChatFab.setVisibility(shouldShow ? View.VISIBLE : View.GONE);
+            
+            if (shouldShow) {
+                resetFabOpacity();
+            }
+        }
+    }
+
+    private void showAiChatOptionsMenu(View anchorView) {
+        Log.e(TAG, "showAiChatOptionsMenu called");
+        
+        Tab tab = getActivityTab();
+        Map<String, String> extensionFeatures = getExtensionFeaturesMap();
+        List<String> menuItems = new ArrayList<>();
+        
+        if (tab != null && isSearchPage(tab.getUrl().getSpec())) {
+            menuItems.add("AI Chat");
+        }
+
+        menuItems.addAll(extensionFeatures.keySet());
+        
+        if (menuItems.isEmpty()) return;
+        
+        createCustomPopupMenu(anchorView, menuItems, extensionFeatures, tab);
+    }
+
+    private void createCustomPopupMenu(View anchorView, List<String> menuItems, 
+                                     Map<String, String> extensionFeatures, Tab tab) {
+        
+        int[] fabLocation = new int[2];
+        anchorView.getLocationInWindow(fabLocation);
+        int fabX = fabLocation[0];
+        int fabY = fabLocation[1];
+        int fabWidth = anchorView.getWidth();
+        int fabHeight = anchorView.getHeight();
+        
+        int screenWidth = getResources().getDisplayMetrics().widthPixels;
+        int screenHeight = getResources().getDisplayMetrics().heightPixels;
+        int maxMenuWidth = (int) (screenWidth * 0.4);
+        int minMenuWidth = dpToPx(200);
+        int menuWidth = Math.max(minMenuWidth, Math.min(maxMenuWidth, dpToPx(280)));
+        
+        LinearLayout menuContainer = new LinearLayout(this);
+        menuContainer.setOrientation(LinearLayout.VERTICAL);
+        menuContainer.setBackground(createMenuBackground());
+        menuContainer.setPadding(dpToPx(8), dpToPx(8), dpToPx(8), dpToPx(8));
+        
+        for (int i = 0; i < menuItems.size(); i++) {
+            String menuItem = menuItems.get(i);
+            View itemView = createCompactMenuItemView(menuItem, extensionFeatures, i);
+            
+            final int itemIndex = i;
+            itemView.setOnClickListener(v -> {
+                handleMenuItemClick(itemIndex, menuItems, extensionFeatures, tab);
+                if (popupWindow != null) {
+                    popupWindow.dismiss();
+                }
+            });
+            
+            menuContainer.addView(itemView);
+            
+            if (i < menuItems.size() - 1) {
+                View separator = new View(this);
+                separator.setLayoutParams(new LinearLayout.LayoutParams(
+                    LinearLayout.LayoutParams.MATCH_PARENT,
+                    1
+                ));
+                separator.setBackgroundColor(Color.parseColor("#E0E0E0"));
+                separator.setPadding(dpToPx(8), dpToPx(4), dpToPx(8), dpToPx(4));
+                menuContainer.addView(separator);
+            }
+        }
+        
+        ScrollView scrollView = new ScrollView(this);
+        scrollView.setLayoutParams(new ViewGroup.LayoutParams(
+            menuWidth,
+            ViewGroup.LayoutParams.WRAP_CONTENT
+        ));
+        scrollView.addView(menuContainer);
+        
+        // Calculate maximum height as 60% of screen height to keep menu manageable
+        int maxMenuHeight = (int) (screenHeight * 0.6);
+        
+        scrollView.measure(
+            View.MeasureSpec.makeMeasureSpec(menuWidth, View.MeasureSpec.EXACTLY),
+            View.MeasureSpec.makeMeasureSpec(0, View.MeasureSpec.UNSPECIFIED)
+        );
+        int menuHeight = Math.min(scrollView.getMeasuredHeight(), maxMenuHeight);
+        
+        popupWindow = new PopupWindow(
+            scrollView,
+            menuWidth,
+            menuHeight
+        );
+        
+        int popupX = fabX + (fabWidth / 2) - (menuWidth / 2);
+        
+        if (popupX < dpToPx(16)) {
+            popupX = dpToPx(16);
+        } else if (popupX + menuWidth > screenWidth - dpToPx(16)) {
+            popupX = screenWidth - menuWidth - dpToPx(16);
+        }
+
+        int spaceAboveFab = fabY;
+        int spaceBelowFab = screenHeight - (fabY + fabHeight);
+        int menuMargin = dpToPx(4); 
+        
+        boolean showAbove = spaceAboveFab >= (menuHeight + menuMargin);
+        
+        int offsetX = popupX - fabX;
+        int offsetY;
+        
+        if (showAbove) {
+            offsetY = -(menuHeight + fabHeight + menuMargin);
+        } else {
+            offsetY = menuMargin;
+        }
+        
+        popupWindow.setAnimationStyle(android.R.style.Animation_Dialog);
+        popupWindow.setElevation(dpToPx(8));
+        popupWindow.setFocusable(true);
+        popupWindow.setOutsideTouchable(true);
+        
+        popupWindow.showAsDropDown(anchorView, offsetX, offsetY);
+        
+        Log.d(TAG, "Menu positioned " + (showAbove ? "above" : "below") + " FAB with width: " + menuWidth + "px");
+    }
+
+
+    private View createCompactMenuItemView(String menuItem, Map<String, String> extensionFeatures, int index) {
+        LinearLayout itemContainer = new LinearLayout(this);
+        itemContainer.setOrientation(LinearLayout.HORIZONTAL);
+        itemContainer.setLayoutParams(new LinearLayout.LayoutParams(
+            LinearLayout.LayoutParams.MATCH_PARENT,
+            LinearLayout.LayoutParams.WRAP_CONTENT
+        ));
+        itemContainer.setPadding(dpToPx(12), dpToPx(12), dpToPx(12), dpToPx(12));
+        itemContainer.setBackground(createCompactMenuItemBackground());
+        itemContainer.setGravity(android.view.Gravity.CENTER_VERTICAL);
+        itemContainer.setMinimumHeight(dpToPx(48));
+        
+        // Icon
+        ImageView iconView = new ImageView(this);
+        iconView.setLayoutParams(new LinearLayout.LayoutParams(
+            dpToPx(20),
+            dpToPx(20)
+        ));
+        iconView.setScaleType(ImageView.ScaleType.FIT_CENTER);
+        
+        if (menuItem.equals("AI Chat")) {
+            iconView.setImageResource(android.R.drawable.ic_menu_edit);
+            iconView.setColorFilter(Color.parseColor("#FF9800"));
+        } else {
+            iconView.setImageResource(android.R.drawable.ic_menu_manage);
+            iconView.setColorFilter(Color.parseColor("#2196F3"));
+        }
+        
+
+        TextView textView = new TextView(this);
+        textView.setLayoutParams(new LinearLayout.LayoutParams(
+            0,
+            LinearLayout.LayoutParams.WRAP_CONTENT,
+            1.0f
+        ));
+        textView.setText(menuItem);
+        textView.setTextSize(14); // Smaller text
+        textView.setTextColor(Color.parseColor("#333333"));
+        textView.setTypeface(null, android.graphics.Typeface.NORMAL);
+        textView.setPadding(dpToPx(12), 0, 0, 0);
+        textView.setMaxLines(Integer.MAX_VALUE);
+        textView.setSingleLine(false);
+        
+        itemContainer.addView(iconView);
+        itemContainer.addView(textView);
+        
+        return itemContainer;
+    }
+
+    private GradientDrawable createCompactMenuItemBackground() {
+        GradientDrawable background = new GradientDrawable();
+        background.setShape(GradientDrawable.RECTANGLE);
+        background.setCornerRadius(dpToPx(8));
+        background.setColor(Color.parseColor("#FFFFFF"));
+        background.setStroke(dpToPx(1), Color.parseColor("#E0E0E0"));
+        return background;
+    }
+
+    private GradientDrawable createMenuBackground() {
+        GradientDrawable background = new GradientDrawable();
+        background.setShape(GradientDrawable.RECTANGLE);
+        background.setCornerRadius(dpToPx(16));
+        background.setColor(Color.WHITE);
+        background.setStroke(dpToPx(2), Color.parseColor("#FF6B35"));
+        
+        return background;
+    }
+
+    private void handleMenuItemClick(int itemIndex, List<String> menuItems, 
+                                   Map<String, String> extensionFeatures, Tab tab) {
+        String selectedItem = menuItems.get(itemIndex);
+        
+        if (selectedItem.equals("AI Chat")) {
+            // AI Chat option
+            Tab currentTab = getActivityTab();
+            if (currentTab != null) {
+                openAiChatWithSearch(currentTab);
+            }
+        } else {
+            // Extension feature option
+            String extensionId = extensionFeatures.get(selectedItem);
+            String extensionName = getExtensionNameForFeature(selectedItem, extensionFeatures);
+            WootzBridge.onDropdownButtonClicked(selectedItem, extensionId, extensionName);
+        }
+    }
+
+    private int dpToPx(int dp) {
+        float density = getResources().getDisplayMetrics().density;
+        return Math.round((float) dp * density);
+    }
+
+    private Map<String, String> getExtensionFeaturesMap() {
+        Map<String, String> featureToExtensionMap = new HashMap<>();
+        try {
+            ArrayList<ExtensionInfo> extensions = Extensions.getExtensionsInfo();
+            for (ExtensionInfo extension : extensions) {
+                List<String> features = extension.getFeatures();
+                if (features != null && !features.isEmpty()) {
+                    String extensionId = extension.getId();
+                    for (String feature : features) {
+                        featureToExtensionMap.put(feature, extensionId);
+                    }
+                }
+            }
+        } catch (Exception e) {
+            Log.e(TAG, "Error getting extension features", e);
+        }
+        
+        Log.d(TAG, "Total features available: " + featureToExtensionMap.size());
+        return featureToExtensionMap;
+    }
+
+    private String getExtensionNameForFeature(String selectedFeature, Map<String, String> featureToExtensionMap) {
+        try {
+            ArrayList<ExtensionInfo> extensions = Extensions.getExtensionsInfo();
+            String extensionId = featureToExtensionMap.get(selectedFeature);
+            
+            if (extensionId != null) {
+                for (ExtensionInfo extension : extensions) {
+                    if (extension.getId().equals(extensionId)) {
+                        return extension.getName();
+                    }
+                }
+            }
+        } catch (Exception e) {
+            Log.e(TAG, "Error getting extension name for feature: " + selectedFeature, e);
+        }
+        return "Unknown Extension";
+    }
+
+    private boolean isSearchPage(String url) {
+        if (TextUtils.isEmpty(url)) {
+            return false;
+        }
+
+        GURL gurl = new GURL(url);
+        if (gurl.isEmpty()) {
+            return false;
+        }
+        Tab currentTab = getActivityTab();
+        if (currentTab == null || currentTab.getWebContents() == null) {
+            Log.e(TAG, "Current tab or WebContents is null");
+            return false;
+        }
+        Profile profile = Profile.fromWebContents(currentTab.getWebContents());
+
+        TemplateUrlService templateUrlService = TemplateUrlServiceFactory.getForProfile(profile);
+        boolean isSearchPage = templateUrlService.isSearchResultsPageFromDefaultSearchProvider(gurl);
+        return isSearchPage;
+    }
+
 
     @Override
     protected void initializeStartupMetrics() {
@@ -1016,17 +1479,30 @@ public abstract class ChromeActivity<C extends ChromeActivityComponent>
                     @Override
                     public void onLoadStopped(Tab tab, boolean toDifferentDocument) {
                         postDeferredStartupIfNeeded();
+                        updateFabVisibility();
                     }
 
                     @Override
                     public void onPageLoadFinished(Tab tab, GURL url) {
                         postDeferredStartupIfNeeded();
                         OfflinePageUtils.showOfflineSnackbarIfNecessary(tab);
+                        updateFabVisibility();
                     }
 
                     @Override
                     public void onCrash(Tab tab) {
                         postDeferredStartupIfNeeded();
+                        updateFabVisibility();
+                    }
+
+                    @Override
+                    public void onUrlUpdated(Tab tab) {
+                        updateFabVisibility();
+                    }
+
+                    @Override
+                    public void onUpdateUrl(Tab tab, GURL url) {
+                        updateFabVisibility();
                     }
                 };
     }
@@ -2012,6 +2488,11 @@ public abstract class ChromeActivity<C extends ChromeActivityComponent>
      * by the {@link WindowAndroid}.
      */
     protected void onDestroyInternal() {
+
+        if (mFabOpacityHandler != null && mFabOpacityRunnable != null) {
+            mFabOpacityHandler.removeCallbacks(mFabOpacityRunnable);
+        }
+
         cleanUpWalletNativeServices();
     }
 
@@ -3343,7 +3824,6 @@ public abstract class ChromeActivity<C extends ChromeActivityComponent>
                     getTabModelSelector().getCurrentModel().getProfile());
             return true;
         }
-
         // if (id == R.id.wootz_wallet_id) {
         //     openWootzWallet(false, false, false);
         // } 
@@ -3965,5 +4445,28 @@ public abstract class ChromeActivity<C extends ChromeActivityComponent>
      */
     protected @Nullable View getBaseChromeLayout() {
         return mBaseChromeLayout;
+    }
+
+    private void openAiChatWithSearch(Tab currentTab) {
+        String searchQuery = extractSearchQuery(currentTab);
+        
+        if (searchQuery != null && !searchQuery.isEmpty()) {
+            Log.e(TAG, "Extracted search query: " + searchQuery);
+            AiChatBottomSheetFragment fragment = AiChatBottomSheetFragment.newInstance(searchQuery);
+            fragment.show(getSupportFragmentManager(), "ai_chat_bottom_sheet");
+        } else {
+            AiChatBottomSheetFragment fragment = AiChatBottomSheetFragment.newInstance("");
+            fragment.show(getSupportFragmentManager(), "ai_chat_bottom_sheet");
+        }
+    }
+
+    private String extractSearchQuery(Tab currentTab) {
+        if (currentTab == null) return null;
+
+        GURL url = currentTab.getUrl();
+        Profile profile = Profile.fromWebContents(currentTab.getWebContents());
+        TemplateUrlService templateUrlService = TemplateUrlServiceFactory.getForProfile(profile);
+        String query = templateUrlService.getSearchQueryForUrl(url);
+        return query;
     }
 }
