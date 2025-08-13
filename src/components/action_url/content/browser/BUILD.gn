@@ -8,6 +8,10 @@ static_library("browser") {
     "content_action_url_driver.h",
     "content_action_url_driver_factory.cc",
     "content_action_url_driver_factory.h",
+    "content_sensitive_masking_driver.cc",
+    "content_sensitive_masking_driver.h",
+    "content_sensitive_masking_driver_factory.cc",
+    "content_sensitive_masking_driver_factory.h",
   ]
 
   public_deps = [ "//components/action_url/content/common/mojom" ]

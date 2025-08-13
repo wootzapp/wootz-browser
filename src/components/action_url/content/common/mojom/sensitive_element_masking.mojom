@@ -1,0 +1,14 @@
+// Copyright 2025 The Wootzapp Authors
+// Use of this source code is governed by a BSD-style license that can be
+// found in the LICENSE file.
+
+module sensitive_masking.mojom;
+
+// Interface for sending masking commands from browser to renderer
+interface SensitiveElementMaskingDriver {
+  // Updates the list of selectors that should be masked (no callback - simplified)
+  UpdateMaskingSelectors(array<string> selectors);
+  
+  // Enables or disables masking
+  SetMaskingEnabled(bool enabled);
+}; 

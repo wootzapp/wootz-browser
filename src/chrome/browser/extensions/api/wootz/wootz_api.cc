@@ -44,6 +44,11 @@
 #include "content/public/browser/web_contents.h"
 #include "extensions/browser/event_router.h"
 #include "extensions/browser/extension_event_histogram_value.h"
+#include "chrome/browser/extensions/extension_tab_util.h"
+#include "chrome/browser/ui/android/tab_model/tab_model_list.h"
+#include "chrome/browser/ui/android/tab_model/tab_model.h"
+#include "components/action_url/content/browser/content_sensitive_masking_driver_factory.h"
+#include "components/action_url/content/browser/content_sensitive_masking_driver.h"
 #include "extensions/browser/extension_function.h"
 #include "extensions/browser/extension_prefs.h"
 #include "extensions/browser/extension_prefs_factory.h"
@@ -78,6 +83,11 @@
 #include "content/public/browser/domain_block_checker.h"
 #include "components/saml_verifier/saml_verifier.h"
 #include "content/public/browser/copy_paste_blocker_prefs.h"
+#include "content/public/browser/render_frame_host.h"
+#include "components/action_url/content/common/mojom/sensitive_element_masking.mojom.h"
+#include "mojo/public/cpp/bindings/associated_remote.h"
+#include "third_party/blink/public/common/associated_interfaces/associated_interface_provider.h"
+
 
 
 namespace extensions {
@@ -1752,6 +1762,109 @@ ExtensionFunction::ResponseAction WootzDestroyBackgroundWebContentsFunction::Run
   return RespondNow(WithArguments(std::move(result)));
 }
 
+// ===== WootzMaskSensitiveElementsFunction =====
+
+WootzMaskSensitiveElementsFunction::WootzMaskSensitiveElementsFunction() = default;
+WootzMaskSensitiveElementsFunction::~WootzMaskSensitiveElementsFunction() = default;
+
+ExtensionFunction::ResponseAction WootzMaskSensitiveElementsFunction::Run() {
+  LOG(INFO) << "[WootzAPI][Masking] maskSensitiveElements called";
+  
+  if (args().empty() || !args()[0].is_list()) {
+    LOG(ERROR) << "[WootzAPI][Masking] Invalid arguments - expected array of selectors";
+    return RespondNow(Error("Expected array of selectors"));
+  }
+
+  const base::Value::List& selectors_list = args()[0].GetList();
+  std::vector<std::string> selectors;
+  
+  for (const auto& selector_value : selectors_list) {
+    if (selector_value.is_string()) {
+      selectors.push_back(selector_value.GetString());
+    }
+  }
+  
+  // Extract optional tabId parameter
+  int tab_id = -1; // -1 means use active tab
+  if (args().size() > 1 && args()[1].is_int()) {
+    tab_id = args()[1].GetInt();
+    LOG(INFO) << "[WootzAPI][Masking] Using specified tab ID: " << tab_id;
+  }
+  
+  LOG(INFO) << "[WootzAPI][Masking] Got " << selectors.size() << " selectors to mask";
+  for (const auto& selector : selectors) {
+    LOG(INFO) << "[WootzAPI][Masking] Selector: " << selector;
+  }
+  
+  SendSelectorsToRenderer(selectors, tab_id);
+  
+  return RespondLater();
+}
+
+void WootzMaskSensitiveElementsFunction::OnMaskingComplete(int masked_count) {
+  LOG(INFO) << "[WootzAPI][Masking] Masking complete: " << masked_count << " elements masked";
+  
+  base::Value::Dict result;
+  result.Set("success", true);
+  result.Set("masked", masked_count);
+  
+  Respond(WithArguments(std::move(result)));
+}
+
+
+void WootzMaskSensitiveElementsFunction::SendSelectorsToRenderer(const std::vector<std::string>& selectors, int tab_id) {
+  LOG(INFO) << "[WootzAPI][Masking] Sending " << selectors.size() << " selectors to renderer via Mojo:";
+  for (const auto& selector : selectors) {
+    LOG(INFO) << "[WootzAPI][Masking] - " << selector;
+  }
+  
+  content::WebContents* web_contents = nullptr;
+  
+  if (tab_id != -1) {
+    // Get WebContents by specific tab ID
+    if (!ExtensionTabUtil::GetTabById(tab_id, browser_context(), 
+                                      include_incognito_information(), 
+                                      &web_contents)) {
+      LOG(ERROR) << "[WootzAPI][Masking] Failed to get WebContents for tab ID: " << tab_id;
+      OnMaskingComplete(0);
+      return;
+    }
+    LOG(INFO) << "[WootzAPI][Masking] Targeting specific tab ID: " << tab_id;
+  } else {
+    // Use the same approach as WootzReplaceElementFunction - get active tab directly
+    web_contents = TabModelList::GetCurrentTabModel()->GetActiveWebContents();
+    if (!web_contents) {
+      LOG(ERROR) << "[WootzAPI][Masking] Unable to get WebContents";
+      OnMaskingComplete(0);
+      return;
+    }
+    LOG(INFO) << "[WootzAPI][Masking] Targeting active tab (no tab ID provided)";
+  }
+  
+  LOG(INFO) << "[WootzAPI][Masking] Targeting tab with URL: " << web_contents->GetVisibleURL().spec();
+  
+  // Use factory pattern like WootzReplaceElementFunction
+  auto* factory = sensitive_masking::ContentSensitiveMaskingDriverFactory::FromWebContents(web_contents);
+  if (!factory) {
+    LOG(ERROR) << "[WootzAPI][Masking] ContentSensitiveMaskingDriverFactory not available";
+    OnMaskingComplete(0);
+    return;
+  }
+  
+  // Get driver for the main frame
+  auto* driver = factory->GetDriverForFrame(web_contents->GetPrimaryMainFrame());
+  if (!driver) {
+    LOG(ERROR) << "[WootzAPI][Masking] Failed to get masking driver for main frame";
+    OnMaskingComplete(0);
+    return;
+  }
+  
+  // Send selectors using the factory's driver
+  driver->UpdateMaskingSelectorsDirectly(selectors,
+    base::BindOnce(&WootzMaskSensitiveElementsFunction::OnMaskingComplete,
+                   weak_factory_.GetWeakPtr()));
+}
+  
 ExtensionFunction::ResponseAction WootzChangeWootzAppSearchConfigurationFunction::Run(){
   if(args().size() != 3 || !args()[0].is_string() || !args()[1].is_string() || !args()[2].is_string()) {
     LOG(ERROR)<<"Invalid Arguments";

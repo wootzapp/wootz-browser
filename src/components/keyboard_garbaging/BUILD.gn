@@ -1,0 +1,13 @@
+source_set("keyboard_garbaging") {
+  sources = [
+    "keyboard_garbaging_prefs.cc",
+    "keyboard_garbaging_prefs.h",
+  ]
+
+  deps = [
+    "//components/pref_registry",
+    "//components/prefs",
+    "//components/user_prefs",
+    "//base",
+  ]
+}

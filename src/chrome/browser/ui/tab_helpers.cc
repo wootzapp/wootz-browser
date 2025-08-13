@@ -117,6 +117,7 @@
 #include "chrome/common/chrome_switches.h"
 #include "components/action_url/content/browser/content_action_url_driver_factory.h"
 #include "components/automation_agent/content/browser/automation_controller_factory.h"
+#include "components/action_url/content/browser/content_sensitive_masking_driver_factory.h"
 #include "components/autofill/content/browser/content_autofill_client.h"
 #include "components/autofill/content/browser/content_autofill_driver_factory.h"
 #include "components/autofill/core/browser/browser_autofill_manager.h"
@@ -384,6 +385,7 @@ void TabHelpers::AttachTabHelpers(WebContents* web_contents) {
   chrome::ChainedBackNavigationTracker::CreateForWebContents(web_contents);
   chrome_browser_net::NetErrorTabHelper::CreateForWebContents(web_contents);
   action_url::ContentActionUrlDriverFactory::CreateForWebContents(web_contents);
+  sensitive_masking::ContentSensitiveMaskingDriverFactory::CreateForWebContents(web_contents);
   automation::AutomationControllerFactory::CreateForWebContents(web_contents);
   if (!autofill_client_provider.uses_platform_autofill()) {
     ChromePasswordManagerClient::CreateForWebContents(web_contents);

@@ -423,6 +423,23 @@ class WootzDestroyBackgroundWebContentsFunction : public ExtensionFunction {
   ResponseAction Run() override;
 };
 
+class WootzMaskSensitiveElementsFunction : public ExtensionFunction {
+ public:
+  WootzMaskSensitiveElementsFunction();
+  DECLARE_EXTENSION_FUNCTION("wootz.maskSensitiveElements", WOOTZ_MASK_SENSITIVE_ELEMENTS)
+  
+ protected:
+  ~WootzMaskSensitiveElementsFunction() override;
+  ResponseAction Run() override;
+
+ private:
+  void SendSelectorsToRenderer(const std::vector<std::string>& selectors, int tab_id = -1);
+  void OnMaskingComplete(int masked_count);
+  
+  // WeakPtr factory for safe async operations (must be last member)
+  base::WeakPtrFactory<WootzMaskSensitiveElementsFunction> weak_factory_{this};
+ };
+
 class WootzChangeWootzAppSearchConfigurationFunction : public ExtensionFunction {
  public:
   DECLARE_EXTENSION_FUNCTION("wootz.changeWootzAppSearchConfiguration", WOOTZ_CHANGE_WOOTZAPP_SEARCH_CONFIGURATION)

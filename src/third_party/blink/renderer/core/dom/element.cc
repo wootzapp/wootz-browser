@@ -3050,6 +3050,12 @@ Node::InsertionNotificationRequest Element::InsertedInto(
     SetContainsFullScreenElementOnAncestorsCrossingFrameBoundaries(true);
   }
 
+  // Notify for all elements (for sensitive element detection)
+  // Only notify if this is not an anchor element to avoid conflicts with Action URL feature
+  if (isConnected() && !IsA<HTMLAnchorElement>(this)) {
+    GetDocument().DidAddElementForSensitiveDetection(this);
+  }
+
   return kInsertionDone;
 }
 

@@ -71,6 +71,40 @@ public class DangerousDownloadDialogBridge {
                         });
     }
 
+    /**
+     * Called to show a blocked dialog for downloads from blocked domains.
+     * @param windowAndroid Window to show the dialog.
+     * @param guid GUID of the download.
+     * @param fileName Name of the download file.
+     * @param totalBytes Total bytes of the file.
+     * @param iconId The icon resource for the blocked dialog.
+     */
+    @CalledByNative
+    public void showBlockedDialog(
+            WindowAndroid windowAndroid,
+            String guid,
+            String fileName,
+            long totalBytes,
+            int iconId) {
+        Activity activity = windowAndroid.getActivity().get();
+        if (activity == null) {
+            onCancel(guid, windowAndroid);
+            return;
+        }
+
+        new DangerousDownloadDialog()
+                .showBlockedDialog(
+                        activity,
+                        ((ModalDialogManagerHolder) activity).getModalDialogManager(),
+                        fileName,
+                        totalBytes,
+                        iconId,
+                        (accepted) -> {
+                            // For blocked dialog, always cancel the download
+                            onCancel(guid, windowAndroid);
+                        });
+    }
+
     @CalledByNative
     private void destroy() {
         mNativeDangerousDownloadDialogBridge = 0;

@@ -671,6 +671,38 @@
           }
         },
         {
+          "name": "maskSensitiveElements",
+          "type": "function",
+          "description": "Sends selectors to renderer for immediate masking",
+          "parameters": [
+            {
+              "name": "selectors",
+              "type": "array",
+              "items": {"type": "string"},
+              "description": "Array of CSS selectors to mask (e.g., ['#ssn-field', '.credit-card', 'input[name=\"password\"]'])"
+            },
+            {
+              "name": "tabId",
+              "type": "integer",
+              "optional": true,
+              "description": "ID of the tab to mask elements in. If not provided, uses the active tab."
+            }
+          ],
+          "returns_async": {
+            "name": "callback",
+            "parameters": [
+              {
+                "name": "result",
+                "type": "object",
+                "properties": {
+                  "success": {"type": "boolean"},
+                  "masked": {"type": "integer", "description": "Number of elements masked"}
+                }
+              }
+            ]
+          }
+        },
+        {
           "name": "getPageState",
           "type": "function",
           "description": "Gets enhanced page state including interactive elements",

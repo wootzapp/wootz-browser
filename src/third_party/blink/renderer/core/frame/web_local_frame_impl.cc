@@ -3333,4 +3333,12 @@ bool WebLocalFrameImpl::AllowStorageAccessSyncAndNotify(
       ->AllowStorageAccessSyncAndNotify(storage_type);
 }
 
+void WebLocalFrameImpl::SetSensitiveElementClient(WebSensitiveElementClient* client) {
+  sensitive_element_client_ = client;
+}
+
+WebSensitiveElementClient* WebLocalFrameImpl::SensitiveElementClient() const {
+  return sensitive_element_client_;
+}
+
 }  // namespace blink

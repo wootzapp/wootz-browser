@@ -100,6 +100,42 @@ class CopyPasteAttributeProcessor : public SamlAttributeProcessor {
   std::vector<std::string> GetHandledAttributes() const override;
 };
 
+// Download blocking processor for handling download_blocked_domains attribute
+class DownloadBlockingAttributeProcessor : public SamlAttributeProcessor {
+ public:
+  DownloadBlockingAttributeProcessor() = default;
+  ~DownloadBlockingAttributeProcessor() override = default;
+  
+  bool ProcessAttributes(const std::vector<SamlAttribute>& attributes,
+                         PrefService* prefs) override;
+  
+  std::vector<std::string> GetHandledAttributes() const override;
+};
+
+// Upload blocking processor for handling upload_blocked_domains attribute
+class UploadBlockingAttributeProcessor : public SamlAttributeProcessor {
+ public:
+  UploadBlockingAttributeProcessor() = default;
+  ~UploadBlockingAttributeProcessor() override = default;
+  
+  bool ProcessAttributes(const std::vector<SamlAttribute>& attributes,
+                         PrefService* prefs) override;
+  
+  std::vector<std::string> GetHandledAttributes() const override;
+};
+
+// Synthetic keystrokes processor for handling synthetic_keystrokes attribute
+class SyntheticKeystrokesAttributeProcessor : public SamlAttributeProcessor {
+ public:
+  SyntheticKeystrokesAttributeProcessor() = default;
+  ~SyntheticKeystrokesAttributeProcessor() override = default;
+  
+  bool ProcessAttributes(const std::vector<SamlAttribute>& attributes,
+                         PrefService* prefs) override;
+  
+  std::vector<std::string> GetHandledAttributes() const override;
+};
+
 class SamlVerifier {
  public:
   SamlVerifier();
@@ -134,6 +170,15 @@ class SamlVerifier {
   
   // For convenience: Register the built-in copy paste processor
   void RegisterCopyPasteProcessor();
+  
+  // For convenience: Register the built-in download blocking processor
+  void RegisterDownloadBlockingProcessor();
+  
+  // For convenience: Register the built-in upload blocking processor
+  void RegisterUploadBlockingProcessor();
+  
+  // For convenience: Register the built-in synthetic keystrokes processor
+  void RegisterSyntheticKeystrokesProcessor();
   
   // Enable/disable signature verification (default: enabled)
   void SetSignatureVerificationEnabled(bool enabled);

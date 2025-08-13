@@ -6,6 +6,12 @@ static_library("renderer") {
   sources = [
     "action_url_agent.cc",
     "action_url_agent.h",
+    "css_selector_matcher.cc",
+    "css_selector_matcher.h",
+    "element_masking_utils.cc",
+    "element_masking_utils.h",
+    "sensitive_element_mask_agent.cc",
+    "sensitive_element_mask_agent.h",
   ]
 
   deps = [

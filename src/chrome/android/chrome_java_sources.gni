@@ -1385,4 +1385,5 @@ chrome_java_sources = [
   "java/src/org/chromium/chrome/browser/wootz_wallet/util/WalletDataFilesInstallerUtil.java",
   "java/src/org/chromium/chrome/browser/wootz_wallet/util/WalletNativeUtils.java",
   "java/src/org/chromium/chrome/browser/wootz_wallet/util/WalletUtils.java",
+  "java/src/org/chromium/chrome/browser/renderer_context_menu/CopyPasteBlockedSnackbar.java",
 ]

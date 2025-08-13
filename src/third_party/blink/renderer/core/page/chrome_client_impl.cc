@@ -1261,6 +1261,26 @@ void ChromeClientImpl::DidAddAnchorElementDynamically(
   }
 }
 
+void ChromeClientImpl::DidAddElementForSensitiveDetection(LocalFrame* frame, Element* element) {
+  if (!frame || !element) return;
+  
+  auto* web_frame = WebLocalFrameImpl::FromFrame(frame);
+  if (!web_frame) return;
+  
+  // Additional safety check - ensure element is valid
+  if (!element->isConnected() || element->GetDocument().IsDetached()) {
+    return;
+  }
+  
+  if (auto* client = web_frame->SensitiveElementClient()) {
+    // Create WebElement safely
+    blink::WebElement web_element(element);
+    if (!web_element.IsNull()) {
+      client->DidAddSensitiveElementDynamically(web_element);
+    }
+  }
+}
+
 void ChromeClientImpl::ShowVirtualKeyboardOnElementFocus(LocalFrame& frame) {
   WebLocalFrameImpl::FromFrame(frame)
       ->LocalRootFrameWidget()

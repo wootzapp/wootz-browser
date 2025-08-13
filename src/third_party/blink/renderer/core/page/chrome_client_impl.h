@@ -320,6 +320,8 @@ class CORE_EXPORT ChromeClientImpl final : public ChromeClient {
 
   float ZoomFactorForViewportLayout() override;
 
+  void DidAddElementForSensitiveDetection(LocalFrame*, Element*) override;
+
  private:
   bool IsChromeClientImpl() const override { return true; }
 

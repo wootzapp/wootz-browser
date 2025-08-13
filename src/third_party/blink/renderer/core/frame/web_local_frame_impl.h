@@ -66,6 +66,7 @@
 #include "third_party/blink/public/web/web_navigation_control.h"
 #include "third_party/blink/public/web/web_performance_metrics_for_nested_contexts.h"
 #include "third_party/blink/public/web/web_performance_metrics_for_reporting.h"
+#include "third_party/blink/public/web/web_sensitive_element_client.h"
 #include "third_party/blink/renderer/core/core_export.h"
 #include "third_party/blink/renderer/core/editing/forward.h"
 #include "third_party/blink/renderer/core/exported/web_input_method_controller_impl.h"
@@ -554,6 +555,9 @@ class CORE_EXPORT WebLocalFrameImpl final
       const ContextMenuData& data,
       const std::optional<gfx::Point>& host_context_menu_location);
 
+  void SetSensitiveElementClient(WebSensitiveElementClient*) override;
+  WebSensitiveElementClient* SensitiveElementClient() const override;
+
   virtual void Trace(Visitor*) const;
 
   // Functions to add and remove observers for this object.
@@ -703,6 +707,8 @@ class CORE_EXPORT WebLocalFrameImpl final
 
   // All the registered observers.
   base::ObserverList<WebLocalFrameObserver, true> observers_;
+
+  WebSensitiveElementClient* sensitive_element_client_ = nullptr;
 };
 
 template <>

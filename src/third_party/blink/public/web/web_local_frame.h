@@ -55,6 +55,7 @@
 #include "ui/base/ime/ime_text_span.h"
 #include "ui/gfx/range/range.h"
 #include "v8/include/v8-forward.h"
+#include "third_party/blink/public/web/web_sensitive_element_client.h"
 
 namespace base {
 class SingleThreadTaskRunner;
@@ -207,6 +208,10 @@ class BLINK_EXPORT WebLocalFrame : public WebFrame {
 
   virtual void SetContentCaptureClient(WebContentCaptureClient*) = 0;
   virtual WebContentCaptureClient* ContentCaptureClient() const = 0;
+
+  // Sensitive element client registration
+  virtual void SetSensitiveElementClient(WebSensitiveElementClient*) = 0;
+  virtual WebSensitiveElementClient* SensitiveElementClient() const = 0;
 
   // Basic properties ---------------------------------------------------
 

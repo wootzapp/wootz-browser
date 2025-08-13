@@ -15,6 +15,7 @@ namespace blink {
 
 class BLINK_COMMON_EXPORT WebKeyboardEvent : public WebInputEvent {
  public:
+  int GetModifiers() const { return modifiers_; }
   // Caps on string lengths so we can make them static arrays and keep
   // them PODs.
   static const size_t kTextLengthCap = 4;

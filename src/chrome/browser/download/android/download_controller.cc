@@ -66,6 +66,7 @@
 #include "content/public/browser/web_contents.h"
 #include "components/download/public/common/download_item.h"
 #include "content/public/browser/download_item_utils.h"
+#include "components/safe_browsing/core/common/safe_browsing_prefs.h"
 
 using base::android::ConvertUTF8ToJavaString;
 using base::android::JavaParamRef;
@@ -125,14 +126,7 @@ class DownloadManagerGetter : public DownloadManager::Observer {
   raw_ptr<DownloadManager> manager_;
 };
 
-void RemoveDownloadItem(std::unique_ptr<DownloadManagerGetter> getter,
-                        const std::string& guid) {
-  if (!getter->manager())
-    return;
-  DownloadItem* item = getter->manager()->GetDownloadByGuid(guid);
-  if (item)
-    item->Remove();
-}
+
 
 void OnRequestFileAccessResult(
     const content::WebContents::Getter& web_contents_getter,
@@ -329,7 +323,6 @@ void DownloadController::AcquireFileAccessPermission(
 void DownloadController::CreateAndroidDownload(
     const content::WebContents::Getter& wc_getter,
     const DownloadInfo& info) {
-  LOG(INFO) << "CreateAndroidDownload: " << info.url.spec();
   content::GetUIThreadTaskRunner({})->PostTask(
       FROM_HERE, base::BindOnce(&DownloadController::StartAndroidDownload,
                                 base::Unretained(this), wc_getter, info));
@@ -338,7 +331,6 @@ void DownloadController::CreateAndroidDownload(
 void DownloadController::StartAndroidDownload(
     const content::WebContents::Getter& wc_getter,
     const DownloadInfo& info) {
-  LOG(INFO) << "StartAndroidDownload: " << info.url.spec();
   DCHECK_CURRENTLY_ON(BrowserThread::UI);
 
   AcquireFileAccessPermission(
@@ -351,7 +343,6 @@ void DownloadController::StartAndroidDownloadInternal(
     const content::WebContents::Getter& wc_getter,
     const DownloadInfo& info,
     bool allowed) {
-  LOG(INFO) << "StartAndroidDownloadInternal: " << info.url.spec();
   DCHECK_CURRENTLY_ON(BrowserThread::UI);
   if (!allowed)
     return;
@@ -396,7 +387,6 @@ void DownloadController::OnDownloadStarted(DownloadItem* download_item) {
       PrefService* prefs = profile->GetPrefs();
       bool is_developer_mode_enabled = prefs->GetBoolean(
           extension_developer_mode_settings::kExtensionDeveloperModeEnabledPref);
-      LOG(INFO) << "  Developer mode enabled: " << is_developer_mode_enabled;
       std::string extension_file_name = download_item->GetFileNameToReportUser().value();
       prefs->SetString("extension_file_name", extension_file_name);
       // Check if file is a CRX
@@ -405,7 +395,6 @@ void DownloadController::OnDownloadStarted(DownloadItem* download_item) {
           !is_developer_mode_enabled && 
           page_url.spec() != "wootzapp://flow-store/" && 
           page_url.spec() != "wootzapp://startup-crx-install/") {
-        LOG(INFO) << "OnDownloadStarted: " << extension_file_name << " is a CRX file";
         
         // Cancel the download
         download_item->Cancel(/*user_cancel=*/false);
@@ -465,6 +454,58 @@ void DownloadController::OnDownloadStarted(DownloadItem* download_item) {
 }
 
 void DownloadController::OnDownloadUpdated(DownloadItem* item) {
+  // FIRST: Check if download is from a blocked domain (regardless of file type)
+  GURL download_url = item->GetURL();
+  std::string host = download_url.host();
+  std::string path = download_url.path();
+  
+  // Also check the referrer URL (the page that initiated the download)
+  WebContents* referrer_web_contents = content::DownloadItemUtils::GetWebContents(item);
+  std::string referrer_host = "";
+  if (referrer_web_contents) {
+    GURL referrer_url = referrer_web_contents->GetLastCommittedURL();
+    referrer_host = referrer_url.host();
+  }
+  
+  // Get blocked domains from preferences (always enabled by default)
+  Profile* profile = Profile::FromBrowserContext(
+      content::DownloadItemUtils::GetBrowserContext(item));
+  std::vector<std::string> blocked_domains_list = 
+      safe_browsing::GetDangerousDownloadBlockedDomains(*profile->GetPrefs());
+  
+  bool is_blocked_domain = false;
+  
+  // Check both download URL host and referrer host
+  std::vector<std::string> hosts_to_check = {host};
+  if (!referrer_host.empty()) {
+    hosts_to_check.push_back(referrer_host);
+  }
+  
+  for (const auto& host_to_check : hosts_to_check) {
+    for (const auto& blocked_domain : blocked_domains_list) {
+      if (host_to_check == blocked_domain) {
+        is_blocked_domain = true;
+        break;
+      }
+      // Also check if the host ends with the blocked domain (for subdomains)
+      if (host_to_check.length() > blocked_domain.length() && 
+          host_to_check.substr(host_to_check.length() - blocked_domain.length()) == blocked_domain &&
+          host_to_check[host_to_check.length() - blocked_domain.length() - 1] == '.') {
+        is_blocked_domain = true;
+        break;
+      }
+    }
+    if (is_blocked_domain) break;
+  }
+  
+  if (is_blocked_domain) {
+    // Prevent multiple dialogs by removing observer and showing dialog
+    item->RemoveObserver(this);
+    ShowDownloadBlockedDialog(item);
+    return;
+  }
+
+  // SECOND: Handle temporary/transient downloads (after domain blocking check)
   if (item->IsTemporary() || item->IsTransient()) {
     // Only allow inline pdf file to proceed.
     if (item->GetMimeType() != pdf::kPDFMimeType ||
@@ -473,10 +514,9 @@ void DownloadController::OnDownloadUpdated(DownloadItem* item) {
     }
   }
 
+  // SECOND: For non-blocked domains, check if file is dangerous
   if (item->IsDangerous() && (item->GetState() != DownloadItem::CANCELLED)) {
-    // Dont't show notification for a dangerous download, as user can resume
-    // the download after browser crash through notification.
-    OnDangerousDownload(item);
+    OnDangerousDownload(item); // This will show the normal "Download anyway" dialog
     return;
   }
 
@@ -504,26 +544,52 @@ void DownloadController::OnDownloadUpdated(DownloadItem* item) {
 void DownloadController::OnDangerousDownload(DownloadItem* item) {
   WebContents* web_contents = content::DownloadItemUtils::GetWebContents(item);
   if (!web_contents) {
-    auto download_manager_getter = std::make_unique<DownloadManagerGetter>(
-        content::DownloadItemUtils::GetBrowserContext(item)
-            ->GetDownloadManager());
-    content::GetUIThreadTaskRunner({})->PostTask(
-        FROM_HERE,
-        base::BindOnce(&RemoveDownloadItem, std::move(download_manager_getter),
-                       item->GetGuid()));
+    item->Cancel(true);
     item->RemoveObserver(this);
     return;
   }
 
-  ui::ViewAndroid* view_android =
-      web_contents ? web_contents->GetNativeView() : nullptr;
-  ui::WindowAndroid* window_android =
-      view_android ? view_android->GetWindowAndroid() : nullptr;
-  if (!dangerous_download_bridge_) {
-    dangerous_download_bridge_ =
-        std::make_unique<DangerousDownloadDialogBridge>();
+  ui::ViewAndroid* view_android = web_contents->GetNativeView();
+  ui::WindowAndroid* window_android = view_android ? view_android->GetWindowAndroid() : nullptr;
+  
+  if (!window_android) {
+    item->Cancel(true);
+    item->RemoveObserver(this);
+    return;
   }
+
+  if (!dangerous_download_bridge_) {
+    dangerous_download_bridge_ = std::make_unique<DangerousDownloadDialogBridge>();
+  }
+  
+  // Show the normal "Download anyway" dialog
   dangerous_download_bridge_->Show(item, window_android);
+}
+
+void DownloadController::ShowDownloadBlockedDialog(DownloadItem* item) {
+  WebContents* web_contents = content::DownloadItemUtils::GetWebContents(item);
+  if (!web_contents) {
+    // Cancel the download if no web contents
+    item->Cancel(true);
+    item->RemoveObserver(this);
+    return;
+  }
+
+  ui::ViewAndroid* view_android = web_contents->GetNativeView();
+  ui::WindowAndroid* window_android = view_android ? view_android->GetWindowAndroid() : nullptr;
+  
+  if (!window_android) {
+    item->Cancel(true);
+    item->RemoveObserver(this);
+    return;
+  }
+  
+  if (!dangerous_download_bridge_) {
+    dangerous_download_bridge_ = std::make_unique<DangerousDownloadDialogBridge>();
+  }
+  
+  // Pass true to indicate this is a blocking dialog
+  dangerous_download_bridge_->ShowBlockedDialog(item, window_android);
 }
 
 void DownloadController::StartContextMenuDownload(
