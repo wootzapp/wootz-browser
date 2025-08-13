@@ -154,6 +154,7 @@ static_library("renderer") {
     "//chrome/renderer/companion/visual_query",
     "//chrome/services/speech/buildflags",
     "//components/action_url/content/renderer",
+    "//components/automation_agent/content/renderer",
     "//components/autofill/content/renderer",
     "//components/autofill/core/common:features",
     "//components/base32",

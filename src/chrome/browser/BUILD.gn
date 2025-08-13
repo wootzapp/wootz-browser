@@ -2203,6 +2203,7 @@ static_library("browser") {  sources = [
     "//chrome/services/on_device_translation:on_device_translation_service",
     "//chrome/services/speech/buildflags",
     "//components/action_url/content/browser",
+    "//components/automation_agent/content/browser",
     "//components/assist_ranker",
     "//components/autofill/content/browser",
     "//components/autofill/content/common:features",

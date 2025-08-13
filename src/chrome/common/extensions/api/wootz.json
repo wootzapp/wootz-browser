@@ -47,6 +47,39 @@
               "description": "Height of the ad in pixels"
             }
           }
+        },
+        {
+          "id": "PageElement",
+          "type": "object",
+          "description": "Describes an interactive element on the page",
+          "properties": {
+            "index": { "type": "integer" },
+            "tagName": { "type": "string" },
+            "xpath": { "type": "string", "optional": true },
+            "selector": { "type": "string", "optional": true },
+            "category": { "type": "string", "optional": true },
+            "purpose": { "type": "string", "optional": true },
+            "text": { "type": "string", "optional": true },
+            "textContent": { "type": "string", "optional": true },
+            "type": { "type": "string", "optional": true },
+            "isVisible": { "type": "boolean", "optional": true },
+            "isInteractive": { "type": "boolean", "optional": true },
+            "attributes": { 
+              "type": "object", 
+              "optional": true,
+              "additionalProperties": { "type": "string" }
+            },
+            "bounds": {
+              "type": "object",
+              "optional": true,
+              "properties": {
+                "x": { "type": "number" },
+                "y": { "type": "number" },
+                "width": { "type": "number" },
+                "height": { "type": "number" }
+              }
+            }
+          }
         }
       ],
       "functions": [
@@ -632,6 +665,122 @@
                 "properties": { 
                   "success": { "type": "boolean" },
                   "error": { "type": "string", "optional": true }
+                }
+              }
+            ]
+          }
+        },
+        {
+          "name": "getPageState",
+          "type": "function",
+          "description": "Gets enhanced page state including interactive elements",
+          "parameters": [
+            {
+              "name": "options",
+              "type": "object",
+              "properties": {
+                "debugMode": {"type": "boolean", "optional": true},
+                "includeHidden": {"type": "boolean", "optional": true}, 
+                "isBackgroundWebContents": {"type": "boolean", "optional": true},
+                "backgroundWebContentsId": {"type": "integer", "optional": true}
+              }
+            }
+          ],
+          "returns_async": {
+            "name": "callback",
+            "parameters": [
+              {
+                "name": "result",
+                "type": "object",
+                "properties": {
+                  "success": {"type": "boolean"},
+                  "pageState": {
+                    "type": "object",
+                    "properties": {
+                      "url": {"type": "string"},
+                      "title": {"type": "string"},
+                      "pageContext": {
+                        "type": "object",
+                        "properties": {
+                          "pageType": {"type": "string"},
+                          "hasLoginForm": {"type": "boolean"},
+                          "hasUserMenu": {"type": "boolean"},
+                          "isLoggedIn": {"type": "boolean"}
+                        }
+                      },
+                      "viewport": {
+                        "type": "object",
+                        "properties": {
+                          "width": {"type": "integer"},
+                          "height": {"type": "integer"},
+                          "isMobileWidth": {"type": "boolean"},
+                          "isTabletWidth": {"type": "boolean"},
+                          "isPortrait": {"type": "boolean"},
+                          "deviceType": {"type": "string"},
+                          "aspectRatio": {"type": "number"}
+                        }
+                      },
+                      "elements": { "type": "array", "items": { "$ref": "PageElement" } },
+                      "elementCategories": {
+                        "type": "object",
+                        "properties": {
+                          "form": {"type": "integer"},
+                          "navigation": {"type": "integer"},
+                          "action": {"type": "integer"},
+                          "content": {"type": "integer"}
+                        }
+                      },
+                      "capabilities": {
+                        "type": "object",
+                        "properties": {
+                          "canLogin": {"type": "boolean"},
+                          "canSearch": {"type": "boolean"},
+                          "hasForms": {"type": "boolean"},
+                          "hasFileUpload": {"type": "boolean"},
+                          "hasMedia": {"type": "boolean"},
+                          "isInteractive": {"type": "boolean"}
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            ]
+          }
+        },
+        {
+          "name": "performAction",
+          "type": "function", 
+          "description": "Performs an action on the page",
+          "parameters": [
+            {
+              "name": "action",
+              "type": "string",
+              "description": "The action to perform: click, fill, scroll"
+            },
+            {
+              "name": "actionParams",
+              "type": "object",
+              "properties": {
+                "index": {"type": "integer", "optional": true, "description": "Element index for click/fill actions (takes precedence over selector)"},
+                "selector": {"type": "string", "optional": true, "description": "CSS selector for click/fill actions"},
+                "text": {"type": "string", "optional": true, "description": "Text content for fill actions"},
+                "direction": {"type": "string", "optional": true, "description": "Scroll direction: up, down, left, right (required for scroll action)"},
+                "amount": {"type": "string", "optional": true, "description": "Scroll amount in pixels (default: 300, only for scroll action)"}, 
+                "isBackgroundWebContents": {"type": "boolean", "optional": true},
+                "backgroundWebContentsId": {"type": "integer", "optional": true}
+              }
+            }
+          ],
+          "returns_async": {
+            "name": "callback", 
+            "parameters": [
+              {
+                "name": "result",
+                "type": "object",
+                "properties": {
+                  "success": {"type": "boolean"},
+                  "error": {"type": "string", "optional": true}
                 }
               }
             ]

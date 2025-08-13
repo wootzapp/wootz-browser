@@ -1,0 +1,16 @@
+static_library("browser") {
+  sources = [
+    "automation_controller.cc",
+    "automation_controller.h",
+    "automation_controller_factory.cc",
+    "automation_controller_factory.h",
+  ]
+
+  public_deps = [ "//components/automation_agent/content/common/mojom" ]
+
+  deps = [
+    "//base",
+    "//content/public/browser",
+    "//mojo/public/cpp/system"
+  ]
+}
