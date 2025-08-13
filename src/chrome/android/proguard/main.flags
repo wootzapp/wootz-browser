@@ -46,3 +46,5 @@
 -keep class org.chromium.chrome.browser.extensions.Extensions { *; }
 -keep class org.chromium.chrome.browser.extensions.ExtensionsConfirmationDialog { *; }
 -keep class org.chromium.chrome.browser.extensions.ExtensionInfo { *; }
+-keep class org.chromium.chrome.browser.renderer_context_menu.CopyPasteBlockedSnackbar { *; }
+-keep class org.chromium.chrome.browser.renderer_context_menu.** { *; }
