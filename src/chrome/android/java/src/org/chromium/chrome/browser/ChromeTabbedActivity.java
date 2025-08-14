@@ -4146,6 +4146,7 @@ public class ChromeTabbedActivity extends ChromeActivity<ChromeActivityComponent
                 }
                 // Mark first run as completed
                 SharedPreferences.Editor editor = prefs.edit();
+                editor.putString("utm_source_wootzapp", extUtmSource);
                 editor.putBoolean("is_first_run", false);
                 editor.apply();
             }
