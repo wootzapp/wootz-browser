@@ -12,10 +12,10 @@ found in the LICENSE file.
     <org.chromium.chrome.browser.sync.settings.SyncPromoPreference
         android:key="sync_promo"
         android:order="0"/>
-    <PreferenceCategory
+    <!-- <PreferenceCategory
         android:key="account_and_google_services_section"
         android:order="1"
-        android:title="@string/prefs_section_account_and_google_services"/>
+        android:title="@string/prefs_section_account_and_google_services"/> -->
     <org.chromium.chrome.browser.sync.settings.SignInPreference
         android:key="sign_in"
         android:order="2"
@@ -25,7 +25,7 @@ found in the LICENSE file.
         android:order="3"
         android:layout="@layout/account_management_account_row"
         android:title="@string/sync_category_title"/>
-    <org.chromium.components.browser_ui.settings.ChromeBasePreference
+    <!-- <org.chromium.components.browser_ui.settings.ChromeBasePreference
         android:key="google_services"
         android:order="4"
         android:layout="@layout/account_management_account_row"
@@ -36,7 +36,7 @@ found in the LICENSE file.
     <PreferenceCategory
         android:key="basics_section"
         android:order="5"
-        android:title="@string/prefs_section_basics"/>
+        android:title="@string/prefs_section_basics"/> -->
     <org.chromium.components.browser_ui.settings.ChromeBasePreference
         android:fragment="org.chromium.chrome.browser.search_engines.settings.SearchEngineSettings"
         android:key="search_engine"

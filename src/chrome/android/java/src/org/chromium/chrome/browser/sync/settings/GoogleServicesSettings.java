@@ -113,14 +113,17 @@ public class GoogleServicesSettings extends ChromeBaseSettingsFragment
 
         mAllowSignin = (ChromeSwitchPreference) findPreference(PREF_ALLOW_SIGNIN);
 
-        if (getProfile().isChild()) {
-            // Do not display option to allow / disallow sign-in for supervised accounts since
-            // these require the user to be signed-in and syncing.
-            mAllowSignin.setVisible(false);
-        } else {
-            mAllowSignin.setOnPreferenceChangeListener(this);
-            mAllowSignin.setManagedPreferenceDelegate(mManagedPreferenceDelegate);
-        }
+        // if (getProfile().isChild()) {
+        //     // Do not display option to allow / disallow sign-in for supervised accounts since
+        //     // these require the user to be signed-in and syncing.
+        //     mAllowSignin.setVisible(false);
+        // } else {
+        //     mAllowSignin.setOnPreferenceChangeListener(this);
+        //     mAllowSignin.setManagedPreferenceDelegate(mManagedPreferenceDelegate);
+        // }
+
+        mAllowSignin.setVisible(false);
+        
 
         mPasswordsAccountStorage =
                 (ChromeSwitchPreference) findPreference(PREF_PASSWORDS_ACCOUNT_STORAGE);

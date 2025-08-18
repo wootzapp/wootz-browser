@@ -11,6 +11,7 @@ import android.util.Log;
 import com.google.android.material.color.DynamicColors;
 
 import org.chromium.chrome.browser.firstrun.FirstRunActivity;
+import org.chromium.chrome.browser.firstrun.FirstRunStatus;
 import org.chromium.base.TraceEvent;
 import org.chromium.chrome.browser.LaunchIntentDispatcher;
 
@@ -25,6 +26,10 @@ public class ChromeLauncherActivity extends Activity {
         TraceEvent.begin("ChromeLauncherActivity.onCreate");
         super.onCreate(savedInstanceState);
         Log.e("ChromeLauncherActivity", "onCreate");
+
+        // Skip welcome page
+        FirstRunStatus.setSkipWelcomePage(true);
+
         // Handle Branch intents by redirecting to first run experience
         if (getIntent() != null && getIntent().getData() != null 
                 && "branch.wootz.app".equals(getIntent().getData().getHost())) {
