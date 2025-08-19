@@ -852,6 +852,26 @@
               }
             ]
           }
+        },
+        {
+          "name": "captureScreenshot",
+          "type": "function",
+          "description": "Captures a screenshot of the current visible tab/viewport",
+          "parameters": [],
+          "returns_async": {
+            "name": "callback",
+            "parameters": [
+              {
+                "name": "result",
+                "type": "object",
+                "properties": {
+                  "success": {"type": "boolean", "description": "Whether the screenshot was successful"},
+                  "dataUrl": {"type": "string", "optional": true, "description": "Base64-encoded PNG image as data URL"},
+                  "error": {"type": "string", "optional": true, "description": "Error message if screenshot failed"}
+                }
+              }
+            ]
+          }
         }
       ],
       "events": [

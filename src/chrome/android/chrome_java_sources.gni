@@ -634,6 +634,7 @@ chrome_java_sources = [
   "java/src/org/chromium/chrome/browser/extensions/OpenExtensionsById.java",
   "java/src/org/chromium/chrome/browser/extensions/ExtensionsConfirmationDialog.java",
   "java/src/org/chromium/chrome/browser/extensions/WootzBridge.java",
+  "java/src/org/chromium/chrome/browser/extensions/WootzScreenshotApi.java",
   "java/src/org/chromium/chrome/browser/extensions/BrowsingDataProvider.java",
   "java/src/org/chromium/chrome/browser/extensions/BrowsingDataService.java",
   "java/src/org/chromium/chrome/browser/extensions/BrowsingDataConsentDialog.java",
