@@ -172,9 +172,14 @@ void AutomationAgent::GetPageState(bool debug_mode,
 
     if (IsElementVisible(element)) {
       auto bounds = element.BoundsInWidget();
+      blink::WebLocalFrame* frame = render_frame()->GetWebFrame();
+      gfx::PointF scroll_offset(0, 0);
+      if (frame) {
+        scroll_offset = frame->GetScrollOffset();
+      }
       base::Value::Dict bounds_dict;
-      bounds_dict.Set("x", bounds.x());
-      bounds_dict.Set("y", bounds.y());
+      bounds_dict.Set("x", bounds.x() - static_cast<int>(scroll_offset.x()));
+      bounds_dict.Set("y", bounds.y() - static_cast<int>(scroll_offset.y()));
       bounds_dict.Set("width", bounds.width());
       bounds_dict.Set("height", bounds.height());
       element_info.Set("bounds", std::move(bounds_dict));
@@ -301,11 +306,14 @@ base::Value::Dict AutomationAgent::AnalyzeViewport(blink::WebLocalFrame* frame) 
   blink::WebView* web_view = frame->View();
   if (web_view) {
     gfx::SizeF viewport_size = web_view->VisualViewportSize();
+    gfx::PointF scroll_offset = frame->GetScrollOffset();
     
     // Handle background web contents which might have 0 dimensions
     float width = viewport_size.width();
     float height = viewport_size.height();
-    
+    LOG(INFO) << "Viewport Info, Width: " << width << ", Height: " << height;
+    LOG(INFO) << "Scroll Info, X: " << scroll_offset.x() << ", Y: " << scroll_offset.y();
+
     // For background web contents, use default dimensions if viewport is 0
     if (width <= 0 || height <= 0) {
       width = 360;  // Default mobile width (common Android phone width)
@@ -318,6 +326,8 @@ base::Value::Dict AutomationAgent::AnalyzeViewport(blink::WebLocalFrame* frame) 
     
     viewport.Set("width", static_cast<int>(width));
     viewport.Set("height", static_cast<int>(height));
+    viewport.Set("scrollX", static_cast<int>(scroll_offset.x()));
+    viewport.Set("scrollY", static_cast<int>(scroll_offset.y()));
     viewport.Set("isMobileWidth", is_mobile_width);
     viewport.Set("isTabletWidth", is_tablet_width);
     viewport.Set("isPortrait", is_portrait);
@@ -709,48 +719,30 @@ bool AutomationAgent::IsElementInViewport(const blink::WebElement& element) {
 
   // Get element bounds
   gfx::Rect element_bounds = element.BoundsInWidget();
-  
-  // Element has no size, skip it
-  if (element_bounds.width() <= 0 || element_bounds.height() <= 0) {
+  if (element_bounds.width() <= 0 || element_bounds.height() <= 0)
     return false;
-  }
 
   // Get viewport size using the correct method
   blink::WebLocalFrame* frame = render_frame()->GetWebFrame();
-  if (!frame) {
+  if (!frame)
     return false;
-  }
 
   blink::WebView* web_view = frame->View();
-  if (!web_view) {
+  if (!web_view)
     return false;
-  }
 
   gfx::SizeF viewport_size_f = web_view->VisualViewportSize();
   
   // For background web contents, if viewport is 0, consider all elements in viewport
-  if (viewport_size_f.width() <= 0 || viewport_size_f.height() <= 0) {
+  if (viewport_size_f.width() <= 0 || viewport_size_f.height() <= 0)
     return true;
-  }
-  
-  gfx::Size viewport_size(static_cast<int>(viewport_size_f.width()), 
-                         static_cast<int>(viewport_size_f.height()));
-  
-  // Get scroll position
-  gfx::PointF scroll_offset = frame->GetScrollOffset();
-  
-  // Calculate viewport bounds (what's currently visible)
-  gfx::Rect viewport_bounds(
-    static_cast<int>(scroll_offset.x()), 
-    static_cast<int>(scroll_offset.y()), 
-    viewport_size.width(), 
-    viewport_size.height()
-  );
 
-  // Check if element intersects with viewport
-  bool in_viewport = viewport_bounds.Intersects(element_bounds);
+  gfx::Rect viewport_bounds(0, 0,
+    static_cast<int>(viewport_size_f.width()),
+    static_cast<int>(viewport_size_f.height()));
 
-  return in_viewport;
+  // Now both are in widget coordinates, so intersection is correct
+  return viewport_bounds.Intersects(element_bounds);
 }
 
 mojom::AutomationDriver& AutomationAgent::GetAutomationDriver() {
