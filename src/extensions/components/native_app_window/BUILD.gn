@@ -5,7 +5,7 @@
 import("//build/config/ui.gni")
 import("//extensions/buildflags/buildflags.gni")
 
-assert(enable_extensions,
+assert(enable_extensions,  
        "Cannot depend on extensions because enable_extensions=false.")
 
 static_library("native_app_window") {

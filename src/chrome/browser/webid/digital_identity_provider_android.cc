@@ -18,6 +18,10 @@ using base::android::ConvertJavaStringToUTF8;
 using base::android::ConvertUTF8ToJavaString;
 using base::android::ScopedJavaLocalRef;
 
+
+using RequestStatusForMetrics =
+    content::DigitalIdentityProvider::RequestStatusForMetrics;
+
 DigitalIdentityProviderAndroid::DigitalIdentityProviderAndroid() {
   JNIEnv* env = AttachCurrentThread();
   j_digital_identity_provider_android_.Reset(
@@ -54,13 +58,18 @@ void DigitalIdentityProviderAndroid::Request(content::WebContents* web_contents,
 
 void DigitalIdentityProviderAndroid::OnReceive(JNIEnv* env,
                                                jstring j_digital_identity,
-                                               jint status_for_metrics) {
+                                               jint j_status_for_metrics) {
   if (callback_) {
     std::string digital_identity =
         ConvertJavaStringToUTF8(env, j_digital_identity);
-    std::move(callback_).Run(
-        digital_identity,
-        static_cast<DigitalIdentityProvider::RequestStatusForMetrics>(
-            status_for_metrics));
+
+    auto status_for_metrics =
+      static_cast<RequestStatusForMetrics>(j_status_for_metrics);
+
+    if (status_for_metrics == RequestStatusForMetrics::kSuccess) {
+      std::move(callback_).Run(base::ok(digital_identity));
+    } else {
+      std::move(callback_).Run(base::unexpected(status_for_metrics));
+    }
   }
 }

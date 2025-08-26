@@ -146,7 +146,7 @@ run_jsbundler("copied_files") {
 
 source_set("browser_tests") {
   testonly = true
-  assert(enable_extensions)
+  assert(enable_extensions) 
 
   deps = [ ":accessibility_tests" ]
 

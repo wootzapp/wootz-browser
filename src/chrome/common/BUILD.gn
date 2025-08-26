@@ -355,7 +355,7 @@ static_library("common_lib") {
   }
 
   if (is_mac) {
-    assert(enable_extensions)
+    assert(enable_extensions) 
     sources += [
       "extensions/image_writer/image_writer_util_mac.cc",
       "extensions/image_writer/image_writer_util_mac.h",
@@ -364,7 +364,7 @@ static_library("common_lib") {
   }
 
   if (is_chromeos) {
-    assert(enable_extensions)
+    assert(enable_extensions) 
     sources += [
       "extensions/api/file_system_provider_capabilities/file_system_provider_capabilities_handler.cc",
       "extensions/api/file_system_provider_capabilities/file_system_provider_capabilities_handler.h",
@@ -373,7 +373,7 @@ static_library("common_lib") {
     deps += [ "//chrome/common/chromeos/extensions" ]
   }
   if (is_chromeos_ash) {
-    assert(enable_extensions)
+    assert(enable_extensions) 
     public_deps += [ "//ash/keyboard/ui" ]
     deps += [ "//ash/constants" ]
   } else if (is_chromeos_lacros) {

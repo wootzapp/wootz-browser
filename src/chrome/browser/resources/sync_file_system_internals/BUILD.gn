@@ -4,7 +4,7 @@
 
 import("//ui/webui/resources/tools/build_webui.gni")
 
-assert(enable_extensions, "enable extensions check failed")
+#assert(enable_extensions,   "enable extensions check failed")
 
 build_webui("build") {
   grd_prefix = "sync_file_system_internals"

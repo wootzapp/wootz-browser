@@ -72,7 +72,7 @@ class VIEWS_EXPORT FlexLayoutView : public View {
  protected:
   gfx::Size CalculatePreferredSize(
       const SizeBounds& available_size) const override;
-
+  int GetHeightForWidth(int w) const override;
  private:
   raw_ptr<FlexLayout> layout_;
   LayoutOrientation orientation_;

@@ -2333,7 +2333,7 @@ static_library("ui") {
   }
 
   if (is_chromeos_ash) {
-    assert(enable_extensions)
+    assert(enable_extensions) 
     assert(enable_supervised_users)
     assert(toolkit_views)
     sources += [

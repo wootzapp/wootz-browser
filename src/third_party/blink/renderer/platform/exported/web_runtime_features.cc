@@ -68,4 +68,8 @@ void WebRuntimeFeatures::EnableFluentScrollbars(bool enable) {
 void WebRuntimeFeatures::EnableFluentOverlayScrollbars(bool enable) {
   RuntimeEnabledFeatures::SetFluentOverlayScrollbarsEnabled(enable);
 }
+
+void WebRuntimeFeatures::EnableFledgeRealTimeReporting(bool enable) {
+  RuntimeEnabledFeatures::SetFledgeRealTimeReportingEnabled(enable);
+}
 }  // namespace blink

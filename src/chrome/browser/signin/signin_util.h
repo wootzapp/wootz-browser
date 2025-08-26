@@ -13,6 +13,7 @@
 #include "base/functional/callback.h"
 #include "base/supports_user_data.h"
 #include "build/build_config.h"
+#include "build/buildflag.h"
 #include "build/chromeos_buildflags.h"
 #include "components/policy/core/browser/signin/profile_separation_policies.h"
 #include "components/signin/public/base/signin_metrics.h"
@@ -21,6 +22,10 @@
 #include "net/cookies/canonical_cookie.h"
 
 class Profile;
+
+namespace signin {
+class IdentityManager;
+}
 
 namespace signin_util {
 
@@ -145,7 +150,10 @@ PrimaryAccountError SetPrimaryAccountWithInvalidToken(
     bool is_under_advanced_protection,
     signin_metrics::AccessPoint access_point,
     signin_metrics::SourceForRefreshTokenOperation source);
-
+    // Returns true if the Chrome is signed into with an account that is in
+    // persistent error state. Always return false for Syncing users, even if in
+    // error state.
+    bool IsSigninPaused(signin::IdentityManager* identity_manager);
 }  // namespace signin_util
 
 #endif  // CHROME_BROWSER_SIGNIN_SIGNIN_UTIL_H_

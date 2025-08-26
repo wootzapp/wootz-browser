@@ -6,7 +6,7 @@ import("//chrome/common/controlled_frame/api/api_sources.gni")
 import("//extensions/buildflags/buildflags.gni")
 import("//tools/json_schema_compiler/json_schema_api.gni")
 
-assert(enable_extensions,
+assert(enable_extensions,  
        "Cannot depend on controlled frame because enable_extensions=false.")
 
 function_registration("api_registration") {

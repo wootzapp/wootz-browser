@@ -195,6 +195,18 @@ class CONTENT_EXPORT NavigationControllerImpl : public NavigationController {
                               RenderFrameHostImpl* initiator_rfh,
                               std::optional<blink::scheduler::TaskAttributionId>
                                   soft_navigation_heuristics_task_id);
+    
+  // A variation of `NavigationController::GoToIndex()`. If the navigation
+  // occurs in the primary main frame, the valid `NavigationRequest` is
+  // returned. If the navigation occurs in subframes or the navigation does not
+  // create a `NavigationRequest`, the return value is null.
+  //
+  // TODO(http://crbug.com/41490714): Consider returning a `std::optional` and
+  // nullopt in the case that no such request was created, or returning a vector
+  // including subframe NavigationRequests if future use cases need access to
+  // those.
+  base::WeakPtr<NavigationRequest> GoToIndexAndReturnPrimaryMainFrameRequest(
+      int index);
 
 #if BUILDFLAG(IS_ANDROID)
   // The difference between (Can)GoToOffsetWithSkipping and
@@ -592,11 +604,12 @@ class CONTENT_EXPORT NavigationControllerImpl : public NavigationController {
   // If this navigation originated from the navigation API, |navigation_api_key|
   // will be set and indicate the navigation api key that |initiator_rfh|
   // asked to be navigated to.
-  void GoToIndex(int index,
-                 RenderFrameHostImpl* initiator_rfh,
-                 std::optional<blink::scheduler::TaskAttributionId>
-                     soft_navigation_heuristics_task_id,
-                 const std::string* navigation_api_key);
+  base::WeakPtr<NavigationRequest> GoToIndex(
+      int index,
+      RenderFrameHostImpl* initiator_rfh,
+      std::optional<blink::scheduler::TaskAttributionId>
+          soft_navigation_heuristics_task_id,
+      const std::string* navigation_api_key);
 
   // Starts a navigation to an already existing pending NavigationEntry.
   // |initiator_rfh| is nullptr for browser-initiated navigations.
@@ -605,7 +618,7 @@ class CONTENT_EXPORT NavigationControllerImpl : public NavigationController {
   // asked to be navigated to.
   // |soft_navigation_heuristics_task_id|: The task in the renderer that
   // initiated this call (if any).
-  void NavigateToExistingPendingEntry(
+  base::WeakPtr<NavigationRequest> NavigateToExistingPendingEntry(
       ReloadType reload_type,
       RenderFrameHostImpl* initiator_rfh,
       std::optional<blink::scheduler::TaskAttributionId>

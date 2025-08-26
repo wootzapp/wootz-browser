@@ -9,7 +9,7 @@ import("//ppapi/buildflags/buildflags.gni")
 import("//printing/buildflags/buildflags.gni")
 import("//third_party/protobuf/proto_library.gni")
 
-assert(enable_extensions)
+assert(enable_extensions) 
 assert(is_chromeos)
 assert(use_ozone)
 

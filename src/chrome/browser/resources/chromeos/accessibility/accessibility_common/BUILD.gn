@@ -184,7 +184,7 @@ copy("copy_ash_common_files") {
 
 source_set("browser_tests") {
   testonly = true
-  assert(enable_extensions)
+  assert(enable_extensions) 
 
   deps = [
     ":accessibility_common_extjs_tests",

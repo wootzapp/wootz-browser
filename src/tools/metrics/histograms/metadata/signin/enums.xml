@@ -867,6 +867,11 @@ chromium-metrics-reviews@google.com.
   <int value="2" label="Button clicked"/>
 </enum>
 
+<enum name="SigninPendingResolution">
+  <int value="0" label="Sign in (reauth)"/>
+  <int value="1" label="Sign out"/>
+</enum>
+
 <enum name="SyncFirstSetupCompleteSource">
   <summary>Possible flows where the FirstSetupComplete bit was set.</summary>
   <int value="0" label="Basic Flow"/>

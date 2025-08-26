@@ -6,7 +6,7 @@ import("//build/config/chromeos/ui_mode.gni")
 import("//build/config/features.gni")
 import("//chrome/common/features.gni")
 
-assert(enable_extensions)
+assert(enable_extensions) 
 
 schema_sources_ = [
   "diagnostics.idl",

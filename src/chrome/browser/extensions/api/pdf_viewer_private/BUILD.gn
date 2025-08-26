@@ -6,7 +6,7 @@ import("//extensions/buildflags/buildflags.gni")
 import("//pdf/features.gni")
 import("//services/screen_ai/buildflags/features.gni")
 
-assert(enable_extensions,
+assert(enable_extensions,  
        "Cannot depend on extensions because enable_extensions=false.")
 assert(enable_pdf)
 

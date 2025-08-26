@@ -8,9 +8,11 @@
 #include "base/memory/raw_ref.h"
 #include "base/scoped_observation.h"
 #include "components/keyed_service/core/keyed_service.h"
+#include "components/signin/public/base/signin_metrics.h"
 #include "components/signin/public/identity_manager/identity_manager.h"
 
 class PrefService;
+class PrefRegistrySimple;
 
 // This class should be used to records metrics related to sign in events.
 // Some metrics might not be session bound, needing some information to be
@@ -23,6 +25,8 @@ class SigninMetricsService : public KeyedService,
                                 PrefService& pref_service);
   ~SigninMetricsService() override;
 
+  static void RegisterProfilePrefs(PrefRegistrySimple* registry);
+
   // signin::IdentityManager::Observer:
   void OnPrimaryAccountChanged(
       const signin::PrimaryAccountChangeEvent& event_details) override;
@@ -31,9 +35,13 @@ class SigninMetricsService : public KeyedService,
       const GoogleServiceAuthError& error,
       signin_metrics::SourceForRefreshTokenOperation token_operation_source)
       override;
+  void OnAccountsInCookieUpdated(
+      const signin::AccountsInCookieJarInfo& accounts_in_cookie_jar_info,
+      const GoogleServiceAuthError& error) override;
 
  private:
-  const raw_ref<PrefService> pref_serivce_;
+  raw_ref<signin::IdentityManager> identity_manager_;
+  const raw_ref<PrefService> pref_service_;
 
   base::ScopedObservation<signin::IdentityManager,
                           signin::IdentityManager::Observer>

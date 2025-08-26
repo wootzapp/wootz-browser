@@ -341,6 +341,8 @@ class CONTENT_EXPORT FencedFrameConfig {
   // mode to exist as a concept going forward.
   DeprecatedFencedFrameMode mode_ = DeprecatedFencedFrameMode::kDefault;
 
+  bool allows_information_inflow_ = false;
+
   // Whether this is a configuration for an ad component fenced frame. Note
   // there is no corresponding field in `RedactedFencedFrameConfig`. This field
   // is only used during the construction of `FencedFrameProperties`, where it
@@ -510,6 +512,8 @@ class CONTENT_EXPORT FencedFrameProperties {
 
   const DeprecatedFencedFrameMode& mode() const { return mode_; }
 
+  bool allows_information_inflow() const { return allows_information_inflow_; }
+
   bool is_ad_component() const { return is_ad_component_; }
 
   const std::vector<blink::mojom::PermissionsPolicyFeature>&
@@ -626,6 +630,8 @@ class CONTENT_EXPORT FencedFrameProperties {
   std::optional<FencedFrameProperty<base::UnguessableToken>> partition_nonce_;
 
   DeprecatedFencedFrameMode mode_ = DeprecatedFencedFrameMode::kDefault;
+
+  bool allows_information_inflow_ = false;
 
   // Stores data registered by one of the documents in a FencedFrame using
   // the `Fence.setReportEventDataForAutomaticBeacons` API. Maps an event type

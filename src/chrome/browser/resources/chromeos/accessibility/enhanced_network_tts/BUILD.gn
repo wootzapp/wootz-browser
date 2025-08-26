@@ -94,7 +94,7 @@ copy("stage_ts_build") {
 
 source_set("browser_tests") {
   testonly = true
-  assert(enable_extensions)
+  assert(enable_extensions) 
 
   deps = [ ":enhanced_network_tts_extjs_tests" ]
 

@@ -8,7 +8,7 @@ import("//extensions/buildflags/buildflags.gni")
 import("//pdf/features.gni")
 import("//tools/json_schema_compiler/json_schema_api.gni")
 
-assert(enable_extensions,
+assert(enable_extensions,  
        "Cannot depend on extensions because enable_extensions=false.")
 
 # This should be:

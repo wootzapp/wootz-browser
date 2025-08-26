@@ -6,7 +6,7 @@ import("//build/config/chromeos/ui_mode.gni")
 import("//chrome/common/chromeos/extensions/api/api_sources.gni")
 import("//extensions/buildflags/buildflags.gni")
 
-assert(enable_extensions,
+assert(enable_extensions,  
        "Cannot depend on extensions because enable_extensions=false.")
 
 source_set("events") {

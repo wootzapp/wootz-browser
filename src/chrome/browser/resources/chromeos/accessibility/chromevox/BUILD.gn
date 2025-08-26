@@ -376,7 +376,7 @@ compress_js("chromevox_panel_script") {
 if (is_chromeos_ash) {
   source_set("browser_tests") {
     testonly = true
-    assert(enable_extensions)
+    assert(enable_extensions) 
 
     deps = [ ":chromevox_extension_js_tests" ]
 

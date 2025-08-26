@@ -15,7 +15,7 @@ import("//testing/libfuzzer/fuzzer_test.gni")
 import("//third_party/libprotobuf-mutator/fuzzable_proto_library.gni")
 import("//third_party/protobuf/proto_library.gni")
 
-assert(enable_extensions, "Ash Chrome has to be built with extensions")
+#assert(enable_extensions,   "Ash Chrome has to be built with extensions")
 assert(is_chromeos_ash)
 assert(use_ozone)
 

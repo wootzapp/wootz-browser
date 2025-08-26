@@ -5,7 +5,7 @@
 import("//build/config/chromeos/ui_mode.gni")
 import("//extensions/buildflags/buildflags.gni")
 
-assert(enable_extensions)
+assert(enable_extensions) 
 
 # TODO(crbug.com/40124309): Delete web_applications/extensions/ directory.
 source_set("extensions") {

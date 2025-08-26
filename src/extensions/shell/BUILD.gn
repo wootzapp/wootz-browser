@@ -18,7 +18,7 @@ if (is_linux || is_chromeos) {
   import("//build/linux/extract_symbols.gni")
 }
 
-# assert(enable_extensions)
+# assert(enable_extensions) 
 
 grit("resources") {
   source = "app_shell_resources.grd"

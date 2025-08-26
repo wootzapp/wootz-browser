@@ -10897,7 +10897,7 @@ if (!is_android) {
   }
 
   if (is_chromeos_ash) {
-    assert(enable_extensions)
+    assert(enable_extensions) 
 
     # These tests are only meant to run on an FYI bot because they
     # test against live sites, as a way to catch potential regressions.
