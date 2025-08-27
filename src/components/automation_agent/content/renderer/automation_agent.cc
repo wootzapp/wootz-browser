@@ -569,7 +569,7 @@ bool AutomationAgent::IsElementInteractive(const blink::WebElement& element) {
   // Define interactive element sets
   static const std::set<std::string> interactive_tags = {
     "a", "button", "input", "select", "textarea", "details", "summary", 
-    "label", "option", "optgroup", "fieldset", "legend"
+    "label", "option", "optgroup", "fieldset", "legend", "main", "article", "section", "nav", "header", "footer"
   };
 
   // Check basic interactive tags
@@ -582,11 +582,8 @@ bool AutomationAgent::IsElementInteractive(const blink::WebElement& element) {
   blink::WebString cursor_style = mutable_element.GetComputedValue(blink::WebString::FromUTF8("cursor"));
   std::string cursor = cursor_style.Utf8();
 
-  // Check for interactive cursor styles
   static const std::set<std::string> interactive_cursors = {
-    "pointer", "move", "text", "grab", "grabbing", "cell", "copy", "alias", 
-    "all-scroll", "col-resize", "context-menu", "crosshair", "help", 
-    "zoom-in", "zoom-out"
+    "pointer","move","text","grab","grabbing","cell","copy","alias","all-scroll","col-resize","context-menu","crosshair","e-resize","ew-resize","help","n-resize","ne-resize","nesw-resize","ns-resize","nw-resize","nwse-resize","row-resize","s-resize","se-resize","sw-resize","vertical-text","w-resize","zoom-in","zoom-out"
   };
   
   if (interactive_cursors.count(cursor)) {
@@ -598,7 +595,7 @@ bool AutomationAgent::IsElementInteractive(const blink::WebElement& element) {
   if (!role_attr.IsEmpty()) {
     std::string role = role_attr.Utf8();
     static const std::set<std::string> interactive_roles = {
-      "button", "link", "menuitem", "menuitemradio", "menuitemcheckbox",
+      "button", "link", "menu", "menubar","menuitem", "menuitemradio", "menuitemcheckbox",
       "radio", "checkbox", "tab", "switch", "slider", "spinbutton",
       "combobox", "searchbox", "textbox", "listbox", "option", "scrollbar"
     };
