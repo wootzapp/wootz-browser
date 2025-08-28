@@ -591,6 +591,13 @@ void SamlVerifier::ProcessSamlResponse(const std::string& saml_xml,
         "SAML signature verification failed - rejecting response";
     LOG(ERROR) << "SAML signature verification failed - SECURITY: Rejecting "
                   "SAML response";
+    
+    // Reset header injection state for WootzApp integration
+    saml_authenticated_ = false;
+    authenticated_user_id_.clear();
+    authenticated_user_email_.clear();
+    LOG(INFO) << "[WootzApp] SAML authentication failed - Header injection disabled";
+    
     std::move(callback).Run(result);
     return;
   }
@@ -608,6 +615,32 @@ void SamlVerifier::ProcessSamlResponse(const std::string& saml_xml,
   // Process attributes since signature verification succeeded
   ProcessAttributesWithProcessors(result.attributes, prefs);
   result.success = true;
+  
+  // Update header injection state for WootzApp integration
+  saml_authenticated_ = true;
+  
+  // Extract user information from SAML attributes for header injection
+  for (const auto& attr : result.attributes) {
+    if (attr.name == "user_id" || attr.name == "uid" || attr.name == "nameID") {
+      if (!attr.values.empty()) {
+        authenticated_user_id_ = attr.values[0];
+        LOG(INFO) << "[WootzApp] Extracted User ID from SAML: " << authenticated_user_id_;
+      }
+    } else if (attr.name == "email" || attr.name == "mail") {
+      if (!attr.values.empty()) {
+        authenticated_user_email_ = attr.values[0];
+        LOG(INFO) << "[WootzApp] Extracted User Email from SAML: " << authenticated_user_email_;
+      }
+    }
+  }
+  
+  LOG(INFO) << "[WootzApp] ✅ SAML authentication successful - Header injection ENABLED";
+  LOG(INFO) << "[WootzApp] 📋 Authentication Summary:";
+  LOG(INFO) << "[WootzApp]    - User ID: " << authenticated_user_id_;
+  LOG(INFO) << "[WootzApp]    - User Email: " << authenticated_user_email_;
+  LOG(INFO) << "[WootzApp]    - SAML Authenticated: " << (saml_authenticated_ ? "YES" : "NO");
+  LOG(INFO) << "[WootzApp]    - Header Injection Enabled: " << (header_injection_enabled_ ? "YES" : "NO");
+  LOG(INFO) << "[WootzApp] 🚀 Ready to inject headers for internal domains";
 
   std::move(callback).Run(result);
 }
@@ -2462,6 +2495,129 @@ bool SamlVerifier::CheckReplayAttack(const std::string& saml_xml) {
   }
 
   return true;
+}
+
+// ======================
+// HEADER INJECTION IMPLEMENTATION
+// ======================
+
+// Static member definitions
+bool SamlVerifier::header_injection_enabled_ = true;
+std::vector<std::string> SamlVerifier::internal_domains_ = {
+  "internal.aashish.icu",
+  "app.internal.aashish.icu", 
+  "admin.internal.aashish.icu",
+  "api.internal.aashish.icu",
+  "dashboard.internal.aashish.icu",
+  "test.aashish.icu"
+};
+std::string SamlVerifier::authenticated_user_id_;
+std::string SamlVerifier::authenticated_user_email_;
+bool SamlVerifier::saml_authenticated_ = false;
+
+void SamlVerifier::EnableHeaderInjection(bool enabled) {
+  header_injection_enabled_ = enabled;
+  LOG(INFO) << "[WootzApp] Header injection " 
+            << (enabled ? "enabled" : "disabled");
+}
+
+bool SamlVerifier::IsHeaderInjectionEnabled() {
+  return header_injection_enabled_;
+}
+
+void SamlVerifier::SetInternalDomains(const std::vector<std::string>& domains) {
+  internal_domains_ = domains;
+  LOG(INFO) << "[WootzApp] Internal domains updated: " << domains.size() 
+            << " domains";
+}
+
+std::vector<std::string> SamlVerifier::GetInternalDomains() {
+  return internal_domains_;
+}
+
+// Helper function to check if a URL is an internal domain
+bool SamlVerifier::ShouldInjectWootzAppHeaders(const std::string& hostname) {
+  for (const std::string& domain : internal_domains_) {
+    if (hostname == domain || 
+        (hostname.length() > domain.length() + 1 && 
+         hostname.substr(hostname.length() - domain.length() - 1) == "." + domain)) {
+      return true;
+    }
+  }
+  return false;
+}
+
+// Function to inject WootzApp headers into HTTP requests
+// This should be called from a NetworkDelegate or URLRequestInterceptor
+std::map<std::string, std::string> SamlVerifier::GetWootzAppHeaders(const std::string& hostname) {
+  std::map<std::string, std::string> headers;
+  
+  LOG(INFO) << "[WootzApp] 🔧 Generating headers for hostname: " << hostname;
+  
+  if (!header_injection_enabled_) {
+    LOG(INFO) << "[WootzApp] ❌ Header injection is disabled - returning empty headers";
+    return headers;
+  }
+  
+  if (!ShouldInjectWootzAppHeaders(hostname)) {
+    LOG(INFO) << "[WootzApp] ❌ Not an internal domain - returning empty headers";
+    return headers;
+  }
+  
+  LOG(INFO) << "[WootzApp] ✅ Internal domain confirmed - generating WootzApp headers";
+  
+  // Always inject WootzApp identification headers
+  headers["X-WootzApp-Client"] = "true";
+  headers["X-Request-Source"] = "wootzapp-browser";
+  headers["X-WootzApp-Browser"] = "true";
+  headers["X-WootzApp-Version"] = "2.0";
+  
+  LOG(INFO) << "[WootzApp] 📋 Base headers added:";
+  LOG(INFO) << "[WootzApp]    - X-WootzApp-Client: true";
+  LOG(INFO) << "[WootzApp]    - X-Request-Source: wootzapp-browser";
+  LOG(INFO) << "[WootzApp]    - X-WootzApp-Browser: true";
+  LOG(INFO) << "[WootzApp]    - X-WootzApp-Version: 2.0";
+  
+  // Inject SAML authentication headers if authenticated
+  if (saml_authenticated_) {
+    LOG(INFO) << "[WootzApp] 🔐 SAML AUTHENTICATED - Adding authentication headers";
+    
+    headers["X-SAML-Auth-Status"] = "true";
+    headers["X-SAML-Auth-Timestamp"] = base::NumberToString(base::Time::Now().InSecondsFSinceUnixEpoch());
+    
+    if (!authenticated_user_id_.empty()) {
+      headers["X-SAML-Auth-User-ID"] = authenticated_user_id_;
+      LOG(INFO) << "[WootzApp]    - X-SAML-Auth-User-ID: " << authenticated_user_id_;
+    }
+    
+    if (!authenticated_user_email_.empty()) {
+      headers["X-SAML-Auth-User-Email"] = authenticated_user_email_;
+      LOG(INFO) << "[WootzApp]    - X-SAML-Auth-User-Email: " << authenticated_user_email_;
+    }
+    
+    LOG(INFO) << "[WootzApp]    - X-SAML-Auth-Status: true";
+    LOG(INFO) << "[WootzApp]    - X-SAML-Auth-Timestamp: " << headers["X-SAML-Auth-Timestamp"];
+    LOG(INFO) << "[WootzApp] ✅ SAML authentication headers added for user: " << authenticated_user_id_;
+  } else {
+    LOG(INFO) << "[WootzApp] ⚠️  NOT SAML AUTHENTICATED - Adding auth-required headers";
+    
+    // Add headers indicating certificate auth is required
+    headers["X-SAML-Auth-Status"] = "false";
+    headers["X-SAML-Auth-Timestamp"] = "";
+    headers["X-SAML-Auth-User-ID"] = "";
+    headers["X-SAML-Auth-User-Email"] = "";
+    
+    LOG(INFO) << "[WootzApp]    - X-SAML-Auth-Status: false";
+    LOG(INFO) << "[WootzApp]    - X-SAML-Auth-Timestamp: (empty)";
+    LOG(INFO) << "[WootzApp]    - X-SAML-Auth-User-ID: (empty)";
+    LOG(INFO) << "[WootzApp]    - X-SAML-Auth-User-Email: (empty)";
+    LOG(INFO) << "[WootzApp] ⚠️  Headers indicate SAML authentication required";
+  }
+  
+  LOG(INFO) << "[WootzApp] 📦 Total headers generated: " << headers.size();
+  LOG(INFO) << "[WootzApp] 🎯 Header generation complete for: " << hostname;
+  
+  return headers;
 }
 
 }  // namespace saml_verifier

@@ -198,6 +198,21 @@ class SamlVerifier {
   // Static convenience method: Create, configure, and process SAML automatically
   // This is the main entry point for external code
   static void ProcessNewSamlResponse(PrefService* prefs);
+  
+  // Header injection methods for WootzApp integration
+  static void EnableHeaderInjection(bool enabled);
+  static bool IsHeaderInjectionEnabled();
+  static void SetInternalDomains(const std::vector<std::string>& domains);
+  static std::vector<std::string> GetInternalDomains();
+  
+  // Header injection utility functions
+  static std::map<std::string, std::string> GetWootzAppHeaders(const std::string& hostname);
+  static bool ShouldInjectWootzAppHeaders(const std::string& hostname);
+  
+  // Public accessor methods for header injection
+  static bool IsSamlAuthenticated() { return saml_authenticated_; }
+  static std::string GetAuthenticatedUserId() { return authenticated_user_id_; }
+  static std::string GetAuthenticatedUserEmail() { return authenticated_user_email_; }
 
  private:
   // Extract issuer URL from SAML response for metadata fetching
@@ -311,6 +326,13 @@ class SamlVerifier {
   std::set<std::string> processed_response_ids_;  // For replay attack prevention
   base::TimeDelta max_response_age_ = base::Minutes(5);  // Maximum age for SAML response
   bool development_mode_ = false;  // Allow less strict validation for development/trial
+  
+  // Header injection settings for WootzApp integration
+  static bool header_injection_enabled_;
+  static std::vector<std::string> internal_domains_;
+  static std::string authenticated_user_id_;
+  static std::string authenticated_user_email_;
+  static bool saml_authenticated_;
 };
 
 }  // namespace saml_verifier

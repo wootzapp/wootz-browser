@@ -29,6 +29,7 @@
 #include "services/network/public/cpp/features.h"
 #include "services/network/url_loader.h"
 #include "url/gurl.h"
+#include "components/saml_verifier/saml_verifier.h"
 
 #if BUILDFLAG(ENABLE_WEBSOCKETS)
 #include "services/network/websocket.h"
@@ -107,6 +108,41 @@ int NetworkServiceNetworkDelegate::OnBeforeStartTransaction(
     net::URLRequest* request,
     const net::HttpRequestHeaders& headers,
     OnBeforeStartTransactionCallback callback) {
+  
+  // Inject WootzApp headers if needed
+  std::string hostname = request->url().host();
+  std::string full_url = request->url().spec();
+  LOG(INFO) << "[WootzApp] 🌐 Processing request for: " << hostname;
+  LOG(INFO) << "[WootzApp] 🔗 Full URL: " << full_url;
+  
+  bool injection_enabled = saml_verifier::SamlVerifier::IsHeaderInjectionEnabled();
+  bool saml_authenticated = saml_verifier::SamlVerifier::IsSamlAuthenticated();
+  std::string user_id = saml_verifier::SamlVerifier::GetAuthenticatedUserId();
+  std::string user_email = saml_verifier::SamlVerifier::GetAuthenticatedUserEmail();
+  
+  LOG(INFO) << "[WootzApp] ⚙️  Header injection enabled: " << injection_enabled;
+  LOG(INFO) << "[WootzApp] 🔐 SAML authenticated: " << saml_authenticated;
+  LOG(INFO) << "[WootzApp] 👤 User ID: " << user_id;
+  LOG(INFO) << "[WootzApp] 📧 User Email: " << user_email;
+  
+  if (saml_verifier::SamlVerifier::ShouldInjectWootzAppHeaders(hostname)) {
+    LOG(INFO) << "[WootzApp] ✅ INTERNAL DOMAIN DETECTED - Injecting headers for: " << hostname;
+    
+    auto wootzapp_headers = saml_verifier::SamlVerifier::GetWootzAppHeaders(hostname);
+    LOG(INFO) << "[WootzApp] 📦 Got " << wootzapp_headers.size() << " headers to inject";
+    
+    LOG(INFO) << "[WootzApp] 🚀 SENDING HEADERS TO INTERNAL URL:";
+    for (const auto& [name, value] : wootzapp_headers) {
+      request->SetExtraRequestHeaderByName(name, value, true);
+      LOG(INFO) << "[WootzApp]    📤 " << name << " = " << value;
+    }
+    
+    LOG(INFO) << "[WootzApp] ✅ Header injection COMPLETE for: " << hostname;
+    LOG(INFO) << "[WootzApp] 🎯 Request ready to send to internal domain with WootzApp headers";
+  } else {
+    LOG(INFO) << "[WootzApp] ❌ Not an internal domain - skipping header injection for: " << hostname;
+  }
+  
   URLLoader* url_loader = URLLoader::ForRequest(*request);
   if (url_loader)
     return url_loader->OnBeforeStartTransaction(headers, std::move(callback));
