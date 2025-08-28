@@ -8,6 +8,7 @@ component("saml_verifier") {
   sources = [
     "saml_verifier.cc",
     "saml_verifier.h",
+    "wootzapp_header_injector.cc",
   ]
 
   deps = [
