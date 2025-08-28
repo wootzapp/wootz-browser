@@ -1,5 +1,0 @@
-include_rules = [
-  "+chromeos/ash/components/dbus/dlcservice",
-  "+chromeos/ash/components/mojo_service_manager",
-  "+media/capture/video/chromeos/mojom",
-]
