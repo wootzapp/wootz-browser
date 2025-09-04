@@ -46,7 +46,7 @@ __pycache__/
 !src/chrome/android/features/tab_ui/java/res/layout/tab_grid_card_item_layout.xml
 !src/chrome/android/features/tab_ui/java/res/layout/tab_group_ui_toolbar.xml
 !src/chrome/android/features/tab_ui/java/res/values/dimens.xml
-!src/    chrome/android/features/tab_ui/java/src/org/chromium/chrome/browser/tasks/tab_management/IncognitoReauthPromoViewModel.java
+!src/chrome/android/features/tab_ui/java/src/org/chromium/chrome/browser/tasks/tab_management/IncognitoReauthPromoViewModel.java
 !src/chrome/android/features/tab_ui/java/src/org/chromium/chrome/browser/tasks/tab_management/TabGridViewBinder.java
 !src/chrome/android/features/tab_ui/java/src/org/chromium/chrome/browser/tasks/tab_management/TabGroupUiCoordinator.java
 !src/chrome/android/features/tab_ui/java/src/org/chromium/chrome/browser/tasks/tab_management/TabGroupUiMediator.java
@@ -617,14 +617,6 @@ __pycache__/
 !src/chrome/renderer/chrome_content_renderer_client.h
 !src/chrome/renderer/extensions/resource_request_policy.cc
 !src/chrome/utility/BUILD.gn
-!src/chromecast/cast_core/runtime/browser/grpc_resource_data_source_unittest.cc  ## not included in build
-!src/chromecast/metrics/cast_metrics_service_client.cc  
-!src/chromeos/ash/components/report/device_metrics/actives/one_day_impl.cc   
-!src/chromeos/ash/components/report/device_metrics/actives/twenty_eight_day_impl.cc  
-!src/chromeos/ash/components/report/device_metrics/churn/cohort_impl.cc  
-!src/chromeos/ash/components/report/device_metrics/churn/observation_impl.cc   
-!src/chromeos/ash/components/report/device_metrics/use_case/use_case.h   
-!src/chromeos/ash/components/report/report_controller.cc   
 !src/components/BUILD.gn
 !src/components/android_autofill/browser/android_autofill_manager.h 
 !src/components/autofill/content/browser/content_autofill_driver.cc
@@ -849,21 +841,7 @@ __pycache__/
 !src/extensions/shell/common/api/BUILD.gn
 !src/extensions/strings/BUILD.gn
 !src/infra/config/generated/testing/variants.pyl
-!src/infra/config/targets/lacros-version-skew-variants.json
-!src/ios/chrome/content_widget_extension/appex/BUILD.gn   
-!src/ios/chrome/content_widget_extension/appex/Info.plist   
-!src/ios/chrome/credential_provider_extension/appex/BUILD.gn   
-!src/ios/chrome/credential_provider_extension/appex/Info.plist   
-!src/ios/chrome/open_extension/appex/BUILD.gn   
-!src/ios/chrome/open_extension/appex/Info.plist    
-!src/ios/chrome/push_notification_service_extension/appex/BUILD.gn   
-!src/ios/chrome/push_notification_service_extension/appex/Info.plist   
-!src/ios/chrome/search_widget_extension/appex/BUILD.gn   
-!src/ios/chrome/search_widget_extension/appex/Info.plist   
-!src/ios/chrome/share_extension/appex/BUILD.gn   
-!src/ios/chrome/share_extension/appex/Info.plist   
-!src/ios/chrome/test/eg_open_extension/BUILD.gn   
-!src/ios/chrome/test/eg_open_extension/Info.plist    
+!src/infra/config/targets/lacros-version-skew-variants.jso
 !src/media/BUILD.gn
 !src/media/filters/BUILD.gn
 !src/mojo/public/tools/mojom/mojom_parser.py
