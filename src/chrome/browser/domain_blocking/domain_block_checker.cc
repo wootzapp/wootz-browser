@@ -2,17 +2,13 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-#include "content/public/browser/domain_block_checker.h"
+#include "chrome/browser/domain_blocking/domain_block_checker.h"
 
 #include "base/logging.h"
-#include "chrome/browser/profiles/profile.h"
 #include "components/prefs/pref_service.h"
 #include "content/public/browser/blocked_domains_prefs.h"
-#include "content/public/browser/navigation_handle.h"
-#include "content/public/browser/web_contents.h"
-#include "url/gurl.h"
 
-namespace content {
+namespace chrome {
 
 // static
 DomainBlockChecker& DomainBlockChecker::GetInstance() {
@@ -44,27 +40,6 @@ bool DomainBlockChecker::IsDomainBlocked(const std::string& host, PrefService* p
   return IsSubdomainBlocked(host);
 }
 
-bool DomainBlockChecker::IsUrlBlocked(const GURL& url, NavigationHandle* handle) {
-  if (!url.is_valid() || url.host().empty()) {
-    return false;
-  }
-  
-
-  // Streamlined null checks
-  WebContents* web_contents = handle->GetWebContents();
-  if (!web_contents) return false;
-  
-  auto* browser_context = web_contents->GetBrowserContext();
-  if (!browser_context) return false;
-  
-  Profile* profile = Profile::FromBrowserContext(browser_context);
-  if (!profile) return false;
-  
-  auto* prefs = profile->GetPrefs();
-  if (!prefs) return false;
-
-  return IsDomainBlocked(url.host(), prefs);
-}
 
 // static
 bool DomainBlockChecker::IsValidDomain(const std::string& domain) {
@@ -247,4 +222,4 @@ size_t DomainBlockChecker::CalculateListHash(const base::Value::List& blocked_li
   return hash;
 }
 
-}  // namespace content
+}  // namespace chrome

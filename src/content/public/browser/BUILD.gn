@@ -61,10 +61,6 @@ source_set("browser_sources") {
     "background_tracing_config.h",
     "background_tracing_manager.h",
     "blob_handle.h",
-    "blocked_domains_prefs.cc",
-    "blocked_domains_prefs.h",
-    "saml_prefs.cc",
-    "saml_prefs.h",
     "bluetooth_chooser.cc",
     "bluetooth_chooser.h",
     "bluetooth_delegate.h",
@@ -133,8 +129,6 @@ source_set("browser_sources") {
     "cookie_store_factory.h",
     "cors_origin_pattern_setter.cc",
     "cors_origin_pattern_setter.h",
-    "content_privacy_prefs.h",
-    "content_privacy_prefs.cc",
     "copy_paste_blocker_prefs.cc",
     "copy_paste_blocker_prefs.h",
     "dedicated_worker_creator.h",
@@ -173,8 +167,6 @@ source_set("browser_sources") {
     "document_user_data.cc",
     "document_user_data.h",
     "dom_storage_context.h",
-    "domain_block_checker.cc",
-    "domain_block_checker.h",
     "download_item_utils.h",
     "download_manager.cc",
     "download_manager.h",
@@ -574,8 +566,10 @@ source_set("browser_sources") {
   deps = [
     "//build:chromeos_buildflags",
     "//cc",
+    "//chrome/browser/domain_blocking:domain_blocking",
     "//components/prefs",
     "//components/pref_registry",
+    ":blocked_domains_prefs",
     "//components/services/storage/public/cpp",
     "//components/variations:variations",
     "//components/viz/host",
@@ -758,6 +752,40 @@ if (is_android) {
   java_cpp_enum("digital_identity_enum") {
     sources = [ "digital_identity_provider.h" ]
   }
+}
+
+# Separate targets for prefs to ensure proper linking
+source_set("blocked_domains_prefs") {
+  sources = [
+    "blocked_domains_prefs.cc",
+    "blocked_domains_prefs.h",
+  ]
+  deps = [
+    "//components/pref_registry",
+    "//components/prefs",
+  ]
+}
+
+source_set("saml_prefs") {
+  sources = [
+    "saml_prefs.cc",
+    "saml_prefs.h",
+  ]
+  deps = [
+    "//components/pref_registry",
+    "//components/prefs",
+  ]
+}
+
+source_set("content_privacy_prefs") {
+  sources = [
+    "content_privacy_prefs.cc",
+    "content_privacy_prefs.h",
+  ]
+  deps = [
+    "//components/pref_registry",
+    "//components/prefs",
+  ]
 }
 
 proto_library("proto") {

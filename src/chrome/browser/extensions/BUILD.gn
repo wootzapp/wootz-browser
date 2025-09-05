@@ -822,6 +822,9 @@ static_library("extensions") {
     "//chrome/browser:theme_properties",
     "//chrome/browser/apps:user_type_filter",
     "//chrome/browser/apps/app_service:constants",
+    "//content/public/browser:blocked_domains_prefs",
+    "//content/public/browser:saml_prefs",
+    "//components/saml_verifier",
 
     # Only for allow_circular_includes_from
     # "//chrome/browser/apps/app_service/app_icon",
@@ -829,6 +832,7 @@ static_library("extensions") {
     "//chrome/browser/bitmap_fetcher",
     "//chrome/browser/browsing_data:constants",
     "//chrome/browser/devtools",
+    "//chrome/browser/domain_blocking:domain_blocking",
     "//chrome/browser/extensions:cws_item_service_proto",
     "//chrome/browser/favicon",
     "//chrome/browser/google",
@@ -1019,6 +1023,7 @@ static_library("extensions") {
     "//ui/shell_dialogs",
     "//ui/strings",
     "//url",
+    "//components/saml_verifier",
   ]
 
   if (is_linux || is_mac || is_win) {

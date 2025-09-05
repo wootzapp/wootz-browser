@@ -77,7 +77,6 @@
 #include "components/prefs/pref_service.h"
 #include "content/public/browser/blocked_domains_prefs.h"
 #include "content/public/browser/saml_prefs.h"
-#include "content/public/browser/domain_block_checker.h"
 #include "components/saml_verifier/saml_verifier.h"
 #include "content/public/browser/copy_paste_blocker_prefs.h"
 

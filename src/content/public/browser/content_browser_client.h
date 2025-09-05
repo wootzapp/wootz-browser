@@ -2393,6 +2393,18 @@ class CONTENT_EXPORT ContentBrowserClient {
                                            BrowserContext* context,
                                            RenderFrameHost* render_frame_host);
 
+  // Returns whether a copy-paste operation should be blocked for the given URL
+  // and operation type. This allows the embedder to implement copy-paste blocking
+  // policies based on domain, user preferences, etc.
+  virtual bool ShouldBlockCopyPasteOperation(BrowserContext* browser_context,
+                                             const GURL& url,
+                                             const std::string& operation_type);
+
+  // Returns whether a URL navigation should be blocked based on domain blocking
+  // policies. This allows the embedder to implement domain blocking policies.
+  virtual bool ShouldBlockUrlNavigation(BrowserContext* browser_context,
+                                        const GURL& url);
+
 #if BUILDFLAG(IS_ANDROID)
   // Defines the heuristics we can use to enable wide color gamut (WCG).
   enum class WideColorGamutHeuristic {

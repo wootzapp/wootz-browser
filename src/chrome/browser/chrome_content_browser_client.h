@@ -803,6 +803,15 @@ class ChromeContentBrowserClient : public content::ContentBrowserClient {
       content::BrowserContext* context,
       content::RenderFrameHost* render_frame_host) override;
 
+  bool ShouldBlockCopyPasteOperation(
+      content::BrowserContext* browser_context,
+      const GURL& url,
+      const std::string& operation_type) override;
+
+  bool ShouldBlockUrlNavigation(
+      content::BrowserContext* browser_context,
+      const GURL& url) override;
+
 #if BUILDFLAG(IS_ANDROID)
   ContentBrowserClient::WideColorGamutHeuristic GetWideColorGamutHeuristic()
       override;
