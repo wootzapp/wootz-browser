@@ -24,7 +24,7 @@
 #include "base/values.h"
 #include "build/build_config.h"
 #include "chrome/android/chrome_jni_headers/WootzAppBackgroundContentService_jni.h"
-//#include "chrome/android/chrome_jni_headers/WootzBridge_jni.h"
+#include "chrome/android/chrome_jni_headers/WootzBridge_jni.h"
 #include "chrome/browser/extensions/extension_service.h"
 #include "chrome/browser/profiles/profile.h"
 #include "chrome/browser/profiles/profile_manager.h"
