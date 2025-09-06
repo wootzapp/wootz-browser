@@ -4,7 +4,7 @@
 
 import("//build/config/features.gni")
 
-component("saml_verifier") {
+static_library("saml_verifier") {
   sources = [
     "saml_verifier.cc",
     "saml_verifier.h",
@@ -12,6 +12,7 @@ component("saml_verifier") {
 
   deps = [
     "//base",
+    "//chrome/browser/domain_blocking:domain_blocking",
     "//components/prefs",
     "//content/public/browser",
     "//third_party/libxml:xml_reader",    # Chromium's safe XML reader

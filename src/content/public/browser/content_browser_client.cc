@@ -1349,6 +1349,19 @@ bool ContentBrowserClient::ShouldBlockRendererDebugURL(
   return false;
 }
 
+bool ContentBrowserClient::ShouldBlockCopyPasteOperation(
+    BrowserContext* browser_context,
+    const GURL& url,
+    const std::string& operation_type) {
+  return false;
+}
+
+bool ContentBrowserClient::ShouldBlockUrlNavigation(
+    BrowserContext* browser_context,
+    const GURL& url) {
+  return false;
+}
+
 std::optional<base::TimeDelta>
 ContentBrowserClient::GetSpareRendererDelayForSiteURL(const GURL& site_url) {
   return std::nullopt;
