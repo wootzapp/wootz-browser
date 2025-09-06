@@ -318,7 +318,7 @@
 #include "content/public/browser/browser_main_parts.h"
 #include "chrome/browser/prefs/blocked_domains_prefs.h"
 #include "content/public/browser/copy_paste_blocker_prefs.h"
-#include "content/browser/upload/upload_blocking_service.h"
+#include "content/public/browser/upload_blocking_prefs.h"
 #include "content/public/browser/browser_ppapi_host.h"
 #include "content/public/browser/browser_task_traits.h"
 #include "content/public/browser/browser_thread.h"
@@ -7637,8 +7637,23 @@ bool ChromeContentBrowserClient::ShouldBlockFileUpload(
     return false;
   }
 
-  // Use UploadBlockingService to check if upload should be blocked
-  return content::UploadBlockingService::GetInstance()->ShouldBlockUpload(domain, prefs);
+  // Check blocked upload domains from preferences
+  const auto& blocked_domains = prefs->GetList(content::upload_blocking_prefs::kBlockedUploadDomains);
+  
+  // Normalize domain (remove www. prefix if present)
+  std::string normalized_domain = domain;
+  if (domain.length() > 4 && domain.substr(0, 4) == "www.") {
+    normalized_domain = domain.substr(4);
+  }
+
+  // Check if domain is in the blocked list
+  for (const auto& domain_value : blocked_domains) {
+    if (domain_value.is_string() && domain_value.GetString() == normalized_domain) {
+      return true;  // Block the upload
+    }
+  }
+  
+  return false;  // Allow the upload
 }
 
 #if BUILDFLAG(IS_ANDROID)
