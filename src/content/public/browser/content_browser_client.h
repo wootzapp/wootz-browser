@@ -2405,6 +2405,12 @@ class CONTENT_EXPORT ContentBrowserClient {
   virtual bool ShouldBlockUrlNavigation(BrowserContext* browser_context,
                                         const GURL& url);
 
+  virtual std::string GetBlockedDomainErrorPage();
+
+  virtual bool ShouldBlockFileUpload(
+        content::BrowserContext* browser_context,
+        const std::string& domain);
+
 #if BUILDFLAG(IS_ANDROID)
   // Defines the heuristics we can use to enable wide color gamut (WCG).
   enum class WideColorGamutHeuristic {
