@@ -143,6 +143,7 @@ source_set("browser") {
     "//content/browser/resources/media:resources",
     "//content/browser/tracing/trace_report:mojo_bindings",
     "//content/browser/upload:upload_blocking",
+    "//content/browser/copy_paste_blocker:copy_paste_blocker",
     "//content/browser/webrtc/resources",
     "//content/common",
     "//content/common:buildflags",

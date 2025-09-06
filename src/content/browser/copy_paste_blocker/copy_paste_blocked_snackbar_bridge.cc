@@ -1,4 +1,4 @@
-#include "chrome/browser/renderer_context_menu/copy_paste_blocked_snackbar_bridge.h"
+#include "content/browser/copy_paste_blocker/copy_paste_blocked_snackbar_bridge.h"
 
 #include <string>
 
