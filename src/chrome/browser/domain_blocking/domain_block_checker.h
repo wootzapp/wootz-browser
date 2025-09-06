@@ -2,33 +2,28 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-#ifndef CONTENT_PUBLIC_BROWSER_DOMAIN_BLOCK_CHECKER_H_
-#define CONTENT_PUBLIC_BROWSER_DOMAIN_BLOCK_CHECKER_H_
+#ifndef CHROME_BROWSER_DOMAIN_BLOCKING_DOMAIN_BLOCK_CHECKER_H_
+#define CHROME_BROWSER_DOMAIN_BLOCKING_DOMAIN_BLOCK_CHECKER_H_
 
 #include <string>
 #include <unordered_set>
 
 #include "base/no_destructor.h"
 #include "base/values.h"
-#include "content/common/content_export.h"
 
 class PrefService;
 class GURL;
 
-namespace content {
-
-class NavigationHandle;
+namespace chrome {
 
 // High-performance domain blocker with caching and hash-based lookups
-class CONTENT_EXPORT DomainBlockChecker {
+class DomainBlockChecker {
  public:
   static DomainBlockChecker& GetInstance();
 
   // Check if a domain is blocked based on preferences
   bool IsDomainBlocked(const std::string& host, PrefService* prefs);
 
-  // Convenience method for checking URLs through navigation handles
-  bool IsUrlBlocked(const GURL& url, NavigationHandle* handle);
 
   // Static utility function for domain validation with enhanced security
   static bool IsValidDomain(const std::string& domain);
@@ -58,6 +53,6 @@ class CONTENT_EXPORT DomainBlockChecker {
   size_t cached_hash_ = 0;
 };
 
-}  // namespace content
+}  // namespace chrome
 
-#endif  // CONTENT_PUBLIC_BROWSER_DOMAIN_BLOCK_CHECKER_H_
+#endif  // CHROME_BROWSER_DOMAIN_BLOCKING_DOMAIN_BLOCK_CHECKER_H_

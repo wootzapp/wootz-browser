@@ -5,7 +5,7 @@
 #include "base/android/jni_android.h"
 #include "chrome/browser/profiles/profile.h"
 #include "chrome/browser/profiles/profile_manager.h"
-#include "content/public/browser/content_privacy_prefs.h"
+#include "chrome/browser/prefs/content_privacy_prefs.h"
 #include "components/prefs/pref_service.h"
 
 // Must come after all headers that specialize FromJniType() / ToJniType().

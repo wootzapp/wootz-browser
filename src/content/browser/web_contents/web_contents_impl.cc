@@ -50,7 +50,6 @@
 #include "base/trace_event/trace_event.h"
 #include "build/build_config.h"
 #include "build/chromeos_buildflags.h"
-#include "chrome/browser/profiles/profile.h"
 #include "chrome/browser/renderer_context_menu/copy_paste_blocked_snackbar_bridge.h"
 #include "components/attribution_reporting/features.h"
 #include "components/download/public/common/download_stats.h"
@@ -5737,113 +5736,23 @@ void WebContentsImpl::HideToast() {
 }
 
 bool WebContentsImpl::ShouldBlockCopyPaste(const std::string& operation_type) {
-  LOG(INFO)
-      << "[RamPrasad][WebContents] Checking if copy-paste should be blocked";
-
-  Profile* profile = Profile::FromBrowserContext(GetBrowserContext());
-  if (!profile) {
-    LOG(INFO) << "[RamPrasad][WebContents] No profile found, not blocking";
+  // Use ContentBrowserClient to check if copy-paste should be blocked
+  // This allows the Chrome layer to implement the actual blocking logic
+  ContentBrowserClient* client = GetContentClient()->browser();
+  if (!client) {
+    LOG(WARNING) << "[CopyPasteBlocker] No content browser client available";
     return false;
   }
 
-  PrefService* prefs = profile->GetPrefs();
-  if (!prefs) {
-    LOG(INFO) << "[RamPrasad][WebContents] No prefs found, not blocking";
+  // Get the current URL
+  GURL current_url = GetLastCommittedURL();
+  if (!current_url.is_valid()) {
     return false;
   }
 
-  // Check if blocking is enabled globally
-  bool enabled =
-      prefs->GetBoolean(copy_paste_blocker::prefs::kCopyPasteBlockingEnabled);
-  LOG(INFO) << "[RamPrasad][WebContents] Copy-paste blocking enabled: "
-            << enabled;
-  if (!enabled) {
-    LOG(INFO) << "[RamPrasad][WebContents] Blocking disabled globally";
-    return false;
-  }
-
-  // // Check if this specific operation type is blocked
-  // const base::Value::Dict& block_types =
-  // prefs->GetDict(copy_paste_blocker::prefs::kCopyPasteBlockingTypes); bool
-  // block_operation = block_types.FindBool(operation_type).value_or(true); if
-  // (!block_operation) {
-  //   LOG(INFO) << "[RamPrasad][WebContents] Operation " << operation_type << "
-  //   not blocked by type"; return false;
-  // }
-
-  // // Get blocking mode
-  // std::string mode =
-  // prefs->GetString(copy_paste_blocker::prefs::kCopyPasteBlockingMode);
-  // LOG(INFO) << "[RamPrasad][WebContents] Blocking mode: " << mode;
-
-  // // If global mode, block everywhere
-  // if (mode == "global") {
-  //   LOG(INFO) << "[RamPrasad][WebContents] Global mode: blocking everywhere";
-  //   return true;
-  // }
-
-  // Get current URL's domain
-  GURL url = GetLastCommittedURL();
-  std::string current_domain = url.host();
-
-  // Get domain list
-  const base::Value::List& domains =
-      prefs->GetList(copy_paste_blocker::prefs::kCopyPasteBlockingDomains);
-
-  // Check if domain is in list
-  bool domain_in_list = false;
-  for (const auto& domain : domains) {
-    if (domain.is_string() && domain.GetString() == current_domain) {
-      domain_in_list = true;
-      break;
-    }
-  }
-
-  // If no exact match, check subdomains
-  if (!domain_in_list) {
-    std::string domain_to_check = current_domain;
-    size_t dot_pos = domain_to_check.find('.');
-
-    while (dot_pos != std::string::npos) {
-      std::string parent_domain = domain_to_check.substr(dot_pos + 1);
-
-      // Check if this parent domain is in the blocked list
-      for (const auto& domain : domains) {
-        if (domain.is_string() && domain.GetString() == parent_domain) {
-          domain_in_list = true;
-          break;
-        }
-      }
-
-      if (domain_in_list) {
-        break;
-      }
-
-      // Move to the next level up in the domain hierarchy
-      domain_to_check = parent_domain;
-      dot_pos = domain_to_check.find('.');
-    }
-  }
-
-  // // Apply whitelist/blacklist logic
-  // if (mode == "whitelist") {
-  //   // In whitelist mode, block if domain is NOT in list
-  //   LOG(INFO) << "[RamPrasad][WebContents] Whitelist mode: blocking = " <<
-  //   !domain_in_list; return !domain_in_list;
-  // } else if (mode == "blacklist") {
-  //   // In blacklist mode, block if domain IS in list
-  //   LOG(INFO) << "[RamPrasad][WebContents] Blacklist mode: blocking = " <<
-  //   domain_in_list; return domain_in_list;
-  // }
-
-  // LOG(INFO) << "[RamPrasad][WebContents] Global mode: blocking everywhere";
-  // return true;
-
-  if (domain_in_list) {
-    return true;  // Block if domain is in the list
-  }
-  LOG(INFO) << "[RamPrasad][WebContents] Domain is NOT in the list";
-  return false;  // Allow if domain is not in the list
+  // Ask the browser client (Chrome layer) to check if this operation should be blocked
+  // This maintains the architectural separation while allowing functionality
+  return client->ShouldBlockCopyPasteOperation(GetBrowserContext(), current_url, operation_type);
 }
 
 void WebContentsImpl::Copy() {
@@ -8409,24 +8318,12 @@ void WebContentsImpl::RunFileChooser(
 
   // AADI UPLOAD BLOCKING: Check if upload should be blocked
   std::string domain = GetLastCommittedURL().host();
-
-  // Get PrefService to check blocked domains/URLs from preferences
-  Profile* profile = Profile::FromBrowserContext(GetBrowserContext());
   bool should_block = false;
 
-  if (profile) {
-    PrefService* prefs = profile->GetPrefs();
-    if (prefs) {
-      // Use UploadBlockingService to check if upload should be blocked based on
-      // preferences
-      should_block = UploadBlockingService::GetInstance()->ShouldBlockUpload(
-          domain, prefs);
-    } else {
-      LOG(INFO) << "AADI UPLOAD BLOCKING: No prefs service available, allowing "
-                   "upload";
-    }
-  } else {
-    LOG(INFO) << "AADI UPLOAD BLOCKING: No profile found, allowing upload";
+  // Use ContentBrowserClient interface to check upload blocking
+  content::ContentBrowserClient* client = GetContentClient()->browser();
+  if (client) {
+    should_block = client->ShouldBlockFileUpload(GetBrowserContext(), domain);
   }
 
   if (should_block) {
