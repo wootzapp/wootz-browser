@@ -185,6 +185,7 @@ __pycache__/
 !src/chrome/browser/controlled_frame/BUILD.gn
 !src/chrome/browser/controlled_frame/controlled_frame_menu_icon_loader.cc
 !src/chrome/browser/controlled_frame/controlled_frame_menu_icon_loader.h
+!src/chrome/browser/domain_blocking/
 !src/chrome/browser/download/android/dangerous_download_dialog_bridge.cc
 !src/chrome/browser/download/android/dangerous_download_dialog_bridge.h
 !src/chrome/browser/download/android/download_controller.cc
@@ -340,7 +341,7 @@ __pycache__/
 !src/chrome/browser/predictors/lcp_critical_path_predictor/lcp_critical_path_predictor_util.cc
 !src/chrome/browser/preferences/android/java/src/org/chromium/chrome/browser/preferences/ChromePreferenceKeys.java
 !src/chrome/browser/prefetch/android/java/src/org/chromium/chrome/browser/prefetch/settings/PreloadPagesSettingsFragment.java
-!src/chrome/browser/prefs/browser_prefs.cc
+!src/chrome/browser/prefs/
 !src/chrome/browser/preloading/prefetch/no_state_prefetch/no_state_prefetch_manager_factory.cc
 !src/chrome/browser/privacy_sandbox/android/java/res/layout/privacy_sandbox_consent_eea.xml
 !src/chrome/browser/privacy_sandbox/android/java/res/layout/privacy_sandbox_notice_eea.xml
@@ -742,6 +743,7 @@ __pycache__/
 !src/components/url_formatter/spoof_checks/common_words/data/common_words.gperf
 !src/components/url_formatter/url_fixer.cc
 !src/components/web_modal/BUILD.gn
+!src/content/browser/copy_paste_blocker/
 !src/content/browser/BUILD.gn
 !src/content/browser/gpu/gpu_data_manager_impl_private.cc
 !src/content/browser/permissions/permission_controller_impl.cc
@@ -1260,8 +1262,6 @@ __pycache__/
 !src/chrome/browser/profiles/wootz_renderer_updater.h
 !src/chrome/browser/profiles/wootz_renderer_updater_factory.cc
 !src/chrome/browser/profiles/wootz_renderer_updater_factory.h
-!src/chrome/browser/renderer_context_menu/copy_paste_blocked_snackbar_bridge.cc
-!src/chrome/browser/renderer_context_menu/copy_paste_blocked_snackbar_bridge.h
 !src/chrome/browser/resources/extension_store/
 !src/chrome/browser/resources/hello_world/
 !src/chrome/browser/resources/settings/wootz_wallet_page/
@@ -1413,14 +1413,10 @@ __pycache__/
 !src/content/public/android/java/src/org/chromium/content/browser/upload/
 !src/content/public/browser/blocked_domains_prefs.cc
 !src/content/public/browser/blocked_domains_prefs.h
-!src/content/public/browser/content_privacy_prefs.cc
-!src/content/public/browser/content_privacy_prefs.h
+!src/content/public/browser/content_browser_client.cc
+!src/content/public/browser/content_browser_client.h
 !src/content/public/browser/copy_paste_blocker_prefs.cc
 !src/content/public/browser/copy_paste_blocker_prefs.h
-!src/content/public/browser/domain_block_checker.cc
-!src/content/public/browser/domain_block_checker.h
-!src/content/public/browser/saml_prefs.cc
-!src/content/public/browser/saml_prefs.h
 !src/content/public/browser/upload_blocking_delegate.h
 !src/content/public/browser/upload_blocking_prefs.cc
 !src/content/public/browser/upload_blocking_prefs.h
