@@ -36,8 +36,6 @@ public class WootzScreenshotApi {
      */
     @CalledByNative
     public static void captureScreenshot(long nativePtr) {
-        Log.i(TAG, "captureScreenshot called with nativePtr: " + nativePtr);
-
         try {
             Activity activity = ApplicationStatus.getLastTrackedFocusedActivity();
             if (activity == null) {
@@ -53,11 +51,6 @@ public class WootzScreenshotApi {
                 return;
             }
 
-            Log.i(TAG, "Got activity: " + activity.getClass().getSimpleName());
-
-            // Use ScreenshotTask with COMPOSITOR mode to get the actual web content
-            Log.i(TAG, "Using ScreenshotTask with COMPOSITOR mode for web content");
-
             // Create a ScreenshotTask with COMPOSITOR mode to get the actual web content
             ScreenshotTask screenshotTask = new ScreenshotTask(activity, 1); // COMPOSITOR mode = 1
 
@@ -66,7 +59,6 @@ public class WootzScreenshotApi {
                 @Override
                 public void run() {
                     try {
-                        Log.i(TAG, "ScreenshotTask callback executed");
 
                         if (!screenshotTask.isReady()) {
                             Log.e(TAG, "ScreenshotTask not ready");
@@ -76,29 +68,18 @@ public class WootzScreenshotApi {
 
                         Bitmap bitmap = screenshotTask.getScreenshot();
                         if (bitmap != null) {
-                            Log.i(TAG, "ScreenshotTask captured bitmap: " + bitmap.getWidth() + "x" + bitmap.getHeight());
-
-                            // Log some pixel data to verify it's not black
                             int[] pixels = new int[Math.min(bitmap.getWidth(), 10) * Math.min(bitmap.getHeight(), 10)];
                             bitmap.getPixels(pixels, 0, Math.min(bitmap.getWidth(), 10), 0, 0, 
                                            Math.min(bitmap.getWidth(), 10), Math.min(bitmap.getHeight(), 10));
-                            Log.i(TAG, "First few pixels: " + java.util.Arrays.toString(java.util.Arrays.copyOf(pixels, Math.min(pixels.length, 5))));
 
                             // Scale down if too large to reduce memory usage
                             Bitmap scaledBitmap = scaleBitmapIfNeeded(bitmap);
                             if (scaledBitmap != bitmap) {
-                                // Do not recycle the original; ScreenshotTask may still reference it
-                                // bitmap.recycle(); // Removed to avoid use-after-free
                                 bitmap = scaledBitmap;
-                                Log.i(TAG, "Scaled ScreenshotTask bitmap to: " + bitmap.getWidth() + "x" + bitmap.getHeight());
                             }
 
                             // Convert to base64 with compression
                             String base64Data = convertBitmapToBase64Compressed(bitmap);
-                            Log.i(TAG, "ScreenshotTask converted to base64, length: " + base64Data.length());
-
-                            // Send base64 data directly through JNI
-                            Log.i(TAG, "Sending base64 data directly through JNI");
                             onScreenshotComplete(nativePtr, base64Data);
                             return;
                         } else {
@@ -138,8 +119,6 @@ public class WootzScreenshotApi {
         int newWidth = Math.round(width * scale);
         int newHeight = Math.round(height * scale);
 
-        Log.i(TAG, "Scaling bitmap from " + width + "x" + height + " to " + newWidth + "x" + newHeight);
-
         return Bitmap.createScaledBitmap(original, newWidth, newHeight, true);
     }
 
@@ -149,8 +128,6 @@ public class WootzScreenshotApi {
      * @return Base64-encoded JPEG string with data URL prefix
      */
     private static String convertBitmapToBase64Compressed(Bitmap bitmap) {
-        Log.i(TAG, "Starting bitmap to base64 conversion with compression");
-
         try {
             ByteArrayOutputStream byteArrayOutputStream = new ByteArrayOutputStream();
 
@@ -161,13 +138,10 @@ public class WootzScreenshotApi {
                 Log.e(TAG, "Failed to compress bitmap");
                 throw new RuntimeException("Failed to compress bitmap");
             }
-
             byte[] byteArray = byteArrayOutputStream.toByteArray();
-            Log.i(TAG, "Compressed bitmap size: " + byteArray.length + " bytes");
 
             String base64 = Base64.encodeToString(byteArray, Base64.NO_WRAP);
-            Log.i(TAG, "Base64 encoding completed, length: " + base64.length());
-
+            
             return "data:image/jpeg;base64," + base64;
         } catch (Exception e) {
             Log.e(TAG, "Error in convertBitmapToBase64Compressed", e);

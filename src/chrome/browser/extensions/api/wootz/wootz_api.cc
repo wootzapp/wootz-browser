@@ -1906,8 +1906,6 @@ ExtensionFunction::ResponseAction WootzChangeWootzAppSearchConfigurationFunction
 }
 
 ExtensionFunction::ResponseAction WootzCaptureScreenshotFunction::Run() {
-  LOG(INFO) << " Capture screenshot requested - object address: " << this;
-
   // Validate arguments (no arguments needed for basic screenshot)
   if (!args().empty()) {
     LOG(WARNING) << " Unexpected arguments provided";
@@ -1915,30 +1913,17 @@ ExtensionFunction::ResponseAction WootzCaptureScreenshotFunction::Run() {
 
   // Add a reference to ensure this object stays alive during the async callback
   AddRef();
-  LOG(INFO) << " Added reference, ref_count: " << ref_count_;
 
   // Trigger screenshot capture via JNI
   // This will call back to OnScreenshotComplete or OnScreenshotError
   JNIEnv* env = base::android::AttachCurrentThread();
-  LOG(INFO) << " Calling Java captureScreenshot with nativePtr: " << reinterpret_cast<jlong>(this);
-
   chrome::android::Java_WootzScreenshotApi_captureScreenshot(env, reinterpret_cast<jlong>(this));
-
-  LOG(INFO) << " Java captureScreenshot called successfully";
 
   return RespondLater();
 }
 
 void WootzCaptureScreenshotFunction::OnScreenshotComplete(const std::string& base64_data) {
-  LOG(INFO) << " OnScreenshotComplete called - object address: " << this;
   LOG(INFO) << " Base64 data length: " << base64_data.length();
-
-  // Log a small preview of the base64 data
-  if (base64_data.length() > 100) {
-    LOG(INFO) << " Base64 preview: " << base64_data.substr(0, 100) << "...";
-  } else {
-    LOG(INFO) << " Base64 data: " << base64_data;
-  }
 
   base::Value::Dict result;
   result.Set("success", true);
@@ -1949,15 +1934,11 @@ void WootzCaptureScreenshotFunction::OnScreenshotComplete(const std::string& bas
 
   LOG(INFO) << " Responding with success";
   Respond(ArgumentList(std::move(args)));
-  LOG(INFO) << " Response sent successfully";
 
-  // Release the reference we added in Run()
-  LOG(INFO) << " Releasing reference, ref_count before: " << ref_count_;
   Release();
 }
 
 void WootzCaptureScreenshotFunction::OnScreenshotError(const std::string& error) {
-  LOG(ERROR) << " OnScreenshotError called - object address: " << this;
   LOG(ERROR) << " Error: " << error;
 
   base::Value::Dict result;
@@ -1969,10 +1950,7 @@ void WootzCaptureScreenshotFunction::OnScreenshotError(const std::string& error)
 
   LOG(INFO) << " Responding with error";
   Respond(ArgumentList(std::move(args)));
-  LOG(INFO) << " Error response sent successfully";
 
-  // Release the reference we added in Run()
-  LOG(INFO) << " Releasing reference, ref_count before: " << ref_count_;
   Release();
 }
 
@@ -2015,8 +1993,6 @@ void JNI_WootzBridge_OnDropdownButtonClicked(JNIEnv* env, const base::android::J
 extern "C" JNIEXPORT void JNICALL
 Java_org_chromium_chrome_browser_extensions_WootzScreenshotApi_onScreenshotComplete(
     JNIEnv* env, jclass clazz, jlong native_ptr, jstring base64_data) {
-  LOG(INFO) << "onScreenshotComplete called with native_ptr: " << native_ptr;
-
   if (native_ptr == 0) {
     LOG(ERROR) << "native_ptr is null";
     return;
@@ -2028,14 +2004,10 @@ Java_org_chromium_chrome_browser_extensions_WootzScreenshotApi_onScreenshotCompl
     return;
   }
 
-  LOG(INFO) << "Successfully got function pointer: " << function;
-
   std::string base64_string = base::android::ConvertJavaStringToUTF8(env, base64_data);
-  LOG(INFO) << "Converted Java string, length: " << base64_string.length();
 
   // Add a reference to ensure the object stays alive during the callback
   function->AddRef();
-  LOG(INFO) << "Added reference for callback, ref_count: " << function->ref_count_;
 
   // Create a scoped_refptr to properly manage the refcounted object
   scoped_refptr<extensions::WootzCaptureScreenshotFunction> function_ref(function);
@@ -2051,14 +2023,11 @@ Java_org_chromium_chrome_browser_extensions_WootzScreenshotApi_onScreenshotCompl
           }
         },
         std::move(function_ref), std::move(base64_string)));
-
-  LOG(INFO) << "Posted task to UI thread";
 }
 
 extern "C" JNIEXPORT void JNICALL
 Java_org_chromium_chrome_browser_extensions_WootzScreenshotApi_onScreenshotError(
     JNIEnv* env, jclass clazz, jlong native_ptr, jstring error) {
-  LOG(INFO) << "onScreenshotError called with native_ptr: " << native_ptr;
 
   if (native_ptr == 0) {
     LOG(ERROR) << "native_ptr is null";
@@ -2071,14 +2040,10 @@ Java_org_chromium_chrome_browser_extensions_WootzScreenshotApi_onScreenshotError
     return;
   }
 
-  LOG(INFO) << "Successfully got function pointer: " << function;
-
   std::string error_string = base::android::ConvertJavaStringToUTF8(env, error);
-  LOG(INFO) << "Converted Java error string: " << error_string;
 
   // Add a reference to ensure the object stays alive during the callback
   function->AddRef();
-  LOG(INFO) << "Added reference for error callback, ref_count: " << function->ref_count_;
 
   // Create a scoped_refptr to properly manage the refcounted object
   scoped_refptr<extensions::WootzCaptureScreenshotFunction> function_ref(function);
@@ -2094,8 +2059,6 @@ Java_org_chromium_chrome_browser_extensions_WootzScreenshotApi_onScreenshotError
           }
         },
         std::move(function_ref), std::move(error_string)));
-
-  LOG(INFO) << "Posted error task to UI thread";
 }
 
 // extern "C" JNIEXPORT void JNICALL

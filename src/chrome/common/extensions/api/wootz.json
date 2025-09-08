@@ -866,7 +866,7 @@
                 "type": "object",
                 "properties": {
                   "success": {"type": "boolean", "description": "Whether the screenshot was successful"},
-                  "dataUrl": {"type": "string", "optional": true, "description": "Base64-encoded PNG image as data URL"},
+                  "dataUrl": {"type": "string", "optional": true, "description": "Base64-encoded Jpeg image as data URL"},
                   "error": {"type": "string", "optional": true, "description": "Error message if screenshot failed"}
                 }
               }
