@@ -316,6 +316,9 @@
 #include "content/public/browser/browser_child_process_host.h"
 #include "content/public/browser/browser_context.h"
 #include "content/public/browser/browser_main_parts.h"
+#include "chrome/browser/prefs/blocked_domains_prefs.h"
+#include "content/public/browser/copy_paste_blocker_prefs.h"
+#include "content/public/browser/upload_blocking_prefs.h"
 #include "content/public/browser/browser_ppapi_host.h"
 #include "content/public/browser/browser_task_traits.h"
 #include "content/public/browser/browser_thread.h"
@@ -5543,6 +5546,9 @@ ChromeContentBrowserClient::CreateThrottlesForNavigation(
           handle),
       &throttles);
 
+      // Domain blocking is now handled directly in ChromeContentBrowserClient
+  // to avoid dependency cycles
+
   return throttles;
 }
 
@@ -7474,6 +7480,180 @@ bool ChromeContentBrowserClient::ShouldBlockRendererDebugURL(
   using URLBlocklistState = policy::URLBlocklist::URLBlocklistState;
   URLBlocklistState blocklist_state = service->GetURLBlocklistState(url);
   return blocklist_state == URLBlocklistState::URL_IN_BLOCKLIST;
+}
+bool ChromeContentBrowserClient::ShouldBlockCopyPasteOperation(
+  content::BrowserContext* browser_context,
+  const GURL& url,
+  const std::string& operation_type) {
+// Get the profile from browser context
+Profile* profile = Profile::FromBrowserContext(browser_context);
+if (!profile) {
+  return false;
+}
+
+PrefService* prefs = profile->GetPrefs();
+if (!prefs) {
+  return false;
+}
+
+// Check if copy-paste blocking is enabled
+if (!prefs->GetBoolean(copy_paste_blocker::prefs::kCopyPasteBlockingEnabled)) {
+  return false;
+}
+
+// Check if this specific operation type is blocked
+const base::Value::Dict& block_types = 
+    prefs->GetDict(copy_paste_blocker::prefs::kCopyPasteBlockingTypes);
+
+bool is_blocked = block_types.FindBool(operation_type).value_or(false);
+if (!is_blocked) {
+  return false;
+}
+
+// Get the domain from URL
+std::string domain = url.host();
+if (domain.empty()) {
+  return false;
+}
+
+// Get the blocking mode and domains list
+std::string mode = prefs->GetString(copy_paste_blocker::prefs::kCopyPasteBlockingMode);
+const base::Value::List& domains_list = 
+    prefs->GetList(copy_paste_blocker::prefs::kCopyPasteBlockingDomains);
+
+// Check if domain is in the list
+bool domain_in_list = false;
+for (const auto& domain_value : domains_list) {
+  if (domain_value.is_string() && domain_value.GetString() == domain) {
+    domain_in_list = true;
+    break;
+  }
+}
+
+// Apply blocking logic based on mode
+bool should_block = false;
+if (mode == "blacklist") {
+  should_block = domain_in_list;
+} else if (mode == "whitelist") {
+  should_block = !domain_in_list;
+}
+
+if (should_block) {
+  LOG(INFO) << "[CopyPasteBlocker] Blocking " << operation_type 
+            << " for domain: " << domain << " (mode: " << mode << ")";
+}
+
+return should_block;
+}
+
+bool ChromeContentBrowserClient::ShouldBlockUrlNavigation(
+  content::BrowserContext* browser_context,
+  const GURL& url) {
+// Safety checks
+if (!browser_context) {
+  LOG(WARNING) << "[DomainBlocker] BrowserContext is null";
+  return false;
+}
+
+if (!url.is_valid()) {
+  LOG(WARNING) << "[DomainBlocker] Invalid URL provided";
+  return false;
+}
+
+// Get the profile from browser context
+Profile* profile = Profile::FromBrowserContext(browser_context);
+if (!profile) {
+  LOG(WARNING) << "[DomainBlocker] Profile is null";
+  return false;
+}
+
+PrefService* prefs = profile->GetPrefs();
+if (!prefs) {
+  LOG(WARNING) << "[DomainBlocker] PrefService is null";
+  return false;
+}
+
+// Get the blocked domains list
+const base::Value::List& blocked_list = 
+    prefs->GetList(blocked_domains::prefs::kBlockedDomains);
+
+if (blocked_list.empty()) {
+  return false;
+}
+
+std::string host = url.host();
+if (host.empty()) {
+  return false;
+}
+
+// Check if the host is in the blocked list
+for (const auto& domain_value : blocked_list) {
+  if (domain_value.is_string()) {
+    const std::string& blocked_domain = domain_value.GetString();
+    
+    // Safety check for empty domain
+    if (blocked_domain.empty()) {
+      continue;
+    }
+    
+    // Check exact match
+    if (host == blocked_domain) {
+      LOG(INFO) << "[DomainBlocker] Blocking navigation to: " << host;
+      return true;
+    }
+    
+    // Check subdomain match (e.g., if "example.com" is blocked, 
+    // "sub.example.com" should also be blocked)
+    if (host.length() > blocked_domain.length() + 1 &&
+        host.substr(host.length() - blocked_domain.length() - 1) == 
+        "." + blocked_domain) {
+      LOG(INFO) << "[DomainBlocker] Blocking navigation to subdomain: " << host;
+      return true;
+    }
+  }
+}
+
+return false;
+}
+
+std::string ChromeContentBrowserClient::GetBlockedDomainErrorPage() {
+  return blocked_domains::prefs::GetBlockedDomainErrorPage();
+}
+
+bool ChromeContentBrowserClient::ShouldBlockFileUpload(
+    content::BrowserContext* browser_context,
+    const std::string& domain) {
+  if (!browser_context) {
+    return false;
+  }
+
+  Profile* profile = Profile::FromBrowserContext(browser_context);
+  if (!profile) {
+    return false;
+  }
+
+  PrefService* prefs = profile->GetPrefs();
+  if (!prefs) {
+    return false;
+  }
+
+  // Check blocked upload domains from preferences
+  const auto& blocked_domains = prefs->GetList(content::upload_blocking_prefs::kBlockedUploadDomains);
+  
+  // Normalize domain (remove www. prefix if present)
+  std::string normalized_domain = domain;
+  if (domain.length() > 4 && domain.substr(0, 4) == "www.") {
+    normalized_domain = domain.substr(4);
+  }
+
+  // Check if domain is in the blocked list
+  for (const auto& domain_value : blocked_domains) {
+    if (domain_value.is_string() && domain_value.GetString() == normalized_domain) {
+      return true;  // Block the upload
+    }
+  }
+  
+  return false;  // Allow the upload
 }
 
 #if BUILDFLAG(IS_ANDROID)
