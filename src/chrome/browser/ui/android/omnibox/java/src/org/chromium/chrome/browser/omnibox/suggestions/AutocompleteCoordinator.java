@@ -29,6 +29,7 @@ import org.chromium.chrome.browser.omnibox.UrlFocusChangeListener;
 import org.chromium.chrome.browser.omnibox.suggestions.AutocompleteController.OnSuggestionsReceivedListener;
 import org.chromium.chrome.browser.omnibox.suggestions.SuggestionListViewBinder.SuggestionListViewHolder;
 import org.chromium.chrome.browser.omnibox.suggestions.answer.AnswerSuggestionViewBinder;
+import org.chromium.chrome.browser.omnibox.suggestions.ai.AiSuggestionViewBinder;
 import org.chromium.chrome.browser.omnibox.suggestions.base.BaseSuggestionView;
 import org.chromium.chrome.browser.omnibox.suggestions.base.BaseSuggestionViewBinder;
 import org.chromium.chrome.browser.omnibox.suggestions.basic.BasicSuggestionProcessor.BookmarkState;
@@ -302,6 +303,14 @@ public class AutocompleteCoordinator
                         new BaseSuggestionView<View>(
                                 parent.getContext(), R.layout.omnibox_answer_suggestion),
                 new BaseSuggestionViewBinder<View>(AnswerSuggestionViewBinder::bind));
+                
+        adapter.registerType(
+                OmniboxSuggestionUiType.AI_SUGGESTION,
+                parent ->
+                        new BaseSuggestionView<View>(
+                                parent.getContext(), R.layout.omnibox_ai_suggestion),
+                new BaseSuggestionViewBinder<View>(AiSuggestionViewBinder::bind));
+
 
         adapter.registerType(
                 OmniboxSuggestionUiType.ENTITY_SUGGESTION,

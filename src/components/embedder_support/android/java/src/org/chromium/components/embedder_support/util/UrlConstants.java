@@ -53,6 +53,9 @@ public class UrlConstants {
     public static final String NTP_NON_NATIVE_URL = "wootzapp://newtab/";
     public static final String NTP_ABOUT_URL = "about:newtab";
 
+    public static final String AI_CHAT_HOST = "chat";
+    public static final String AI_CHAT_URL = "wootzapp://chat/";        
+
     public static final String BOOKMARKS_HOST = "bookmarks";
     public static final String BOOKMARKS_URL = "chrome-native://bookmarks/";
     public static final String BOOKMARKS_FOLDER_URL = "chrome-native://bookmarks/folder/";

@@ -565,6 +565,11 @@ CHAR_LIMIT guidelines:
       In the next step you’ll see a 12-word recovery phrase, which you can use to recover your primary crypto accounts. Save it someplace safe. Your recovery phrase is the only way to regain account access in case of forgotten password, lost or stolen device, or you want to switch wallets.
     </message>
 
+    <!-- AI Chat -->
+    <message name="IDS_CHAT_TITLE" desc="Chat title">
+      AI Chat
+    </message>
+
     <message name="IDS_CHAT_INPUT_HINT" desc="Chat input hint">Type a message...</message>
     <message name="IDS_SEND_MESSAGE" desc="Send message">Send message</message>
 

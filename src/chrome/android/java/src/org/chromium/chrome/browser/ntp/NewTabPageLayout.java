@@ -89,6 +89,8 @@ import org.chromium.chrome.browser.content.WebContentsFactory;
 // import org.chromium.chrome.browser.ui.appmenu.AppMenuCoordinator;
 // import org.chromium.chrome.browser.ui.appmenu.AppMenu;
 // import org.chromium.base.activity.ActivityUtils;
+import org.chromium.chrome.browser.wootzapp_search.AiSearchPage;
+
 /**
  * Layout for the new tab page. This positions the page elements in the correct vertical positions.
  * There are no separate phone and tablet UIs; this layout adapts based on the available space.
@@ -390,6 +392,11 @@ public class NewTabPageLayout extends LinearLayout {
     private void initializeSearchBoxTextView() {
         TraceEvent.begin(TAG + ".initializeSearchBoxTextView()");
 
+        // mSearchBoxCoordinator.setSearchBoxClickListener(v -> {
+        //     String chatUrl = "wootzapp://chat/";
+        //     mManager.getNativePageHost().loadUrl(new LoadUrlParams(chatUrl), false);
+        // });
+        
         mSearchBoxCoordinator.setSearchBoxClickListener(v -> mManager.focusSearchBox(false, null));
 
         // @TODO(crbug.com/41492572): Add test case for search box OnDragListener.
@@ -419,6 +426,10 @@ public class NewTabPageLayout extends LinearLayout {
                     @Override
                     public void afterTextChanged(Editable s) {
                         if (s.length() == 0) return;
+                        
+                        String query = s.toString();
+                        String chatUrl = "wootzapp://chat/?q=" + java.net.URLEncoder.encode(query, java.nio.charset.StandardCharsets.UTF_8);
+                        mManager.getNativePageHost().loadUrl(new LoadUrlParams(chatUrl), false);
                         mManager.focusSearchBox(false, s.toString());
                         mSearchBoxCoordinator.setSearchText("");
                     }
