@@ -1,9 +1,9 @@
 # <img src="https://github.com/user-attachments/assets/8bab3a01-ddbd-4218-922d-0233f53cce65" alt="Logo" width="200" height="150">
 
 
-## WootzApp (wootzapp.com or wootz.app)
+## WootzApp
 
-Check out the official website: https://www.wootzapp.com/
+
 
 Please join our [discord](https://discord.gg/n9dqrRzJ8V)
 
