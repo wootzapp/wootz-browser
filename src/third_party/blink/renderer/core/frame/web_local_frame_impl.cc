@@ -98,6 +98,7 @@
 #include "base/numerics/safe_conversions.h"
 #include "base/task/single_thread_task_runner.h"
 #include "build/build_config.h"
+#include "cc/base/features.h"
 #include "mojo/public/cpp/bindings/pending_associated_receiver.h"
 #include "mojo/public/cpp/bindings/pending_associated_remote.h"
 #include "services/metrics/public/cpp/ukm_source_id.h"
@@ -534,7 +535,7 @@ class ChromePluginPrintContext final : public ChromePrintContext {
 class PaintPreviewContext : public PrintContext {
  public:
   explicit PaintPreviewContext(LocalFrame* frame) : PrintContext(frame) {
-    use_printing_layout_ = false;
+    use_paginated_layout_ = false;
   }
   PaintPreviewContext(const PaintPreviewContext&) = delete;
   PaintPreviewContext& operator=(const PaintPreviewContext&) = delete;
@@ -836,10 +837,6 @@ bool WebLocalFrameImpl::DispatchedPagehideAndStillHidden() const {
     return false;
   // We might have dispatched pagehide without unloading the document.
   return ViewImpl()->GetPage()->DispatchedPagehideAndStillHidden();
-}
-
-bool WebLocalFrameImpl::UsePrintingLayout() const {
-  return print_context_ ? print_context_->use_printing_layout() : false;
 }
 
 void WebLocalFrameImpl::CopyToFindPboard() {
@@ -2531,6 +2528,21 @@ void WebLocalFrameImpl::DidFailLoad(const ResourceError& error,
 void WebLocalFrameImpl::DidFinish() {
   if (!Client())
     return;
+
+  if (base::FeatureList::IsEnabled(::features::kWarmUpCompositor)) {
+    // If the page is under prerendering, the page requests warm-up compositor
+    // to minimize its activation time. Please see crbug.com/41496019 for more
+    // details.
+    bool is_prerendering =
+        GetFrame()->GetPage() && GetFrame()->GetPage()->IsPrerendering();
+    // TODO(crbug.com/41496019): Seek the best point (instead of
+    // `WebLocalFrameImpl::DidFinish`) to start warm-up.
+    // TODO(crbug.com/41496019): Limit the use of this warm-up to prerender
+    // trigger types that are most affected by this.
+    if (frame_widget_ && is_prerendering) {
+      frame_widget_->WarmUpCompositor();
+    }
+  }
 
   if (WebPluginContainerImpl* plugin = GetFrame()->GetWebPluginContainer())
     plugin->DidFinishLoading();

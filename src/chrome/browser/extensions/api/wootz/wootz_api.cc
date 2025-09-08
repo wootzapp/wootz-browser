@@ -1089,7 +1089,7 @@ ExtensionFunction::ResponseAction WootzSetJobFunction::Run() {
   
   std::string jobs_json = prefs.ReadString(kWootzJobsListKey, "[]");
   LOG(ERROR) << "WOOTZ JOBS: " << jobs_json;
-  absl::optional<base::Value> parsed = base::JSONReader::Read(jobs_json);
+  std::optional<base::Value> parsed = base::JSONReader::Read(jobs_json);
   base::Value::List* jobs = parsed->GetIfList();
   if (!jobs) {
     jobs = new base::Value::List();

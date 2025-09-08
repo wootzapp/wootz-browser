@@ -63,7 +63,6 @@ import org.chromium.chrome.browser.tab.Tab;
 import org.chromium.chrome.browser.tabmodel.TabModelSelector;
 import org.chromium.chrome.browser.toolbar.ToolbarManager;
 import org.chromium.chrome.browser.translate.TranslateUtils;
-// import org.chromium.chrome.browser.ui.appmenu.AppMenu;
 import org.chromium.chrome.browser.ui.appmenu.AppMenuHandler;
 import org.chromium.chrome.browser.ui.appmenu.AppMenuHandler.AppMenuItemType;
 import org.chromium.chrome.browser.ui.appmenu.AppMenuItemProperties;
@@ -374,6 +373,7 @@ public class AppMenuPropertiesDelegateImpl implements AppMenuPropertiesDelegate 
             propertyModel.set(AppMenuItemProperties.SUPPORT_ENTER_ANIMATION, true);
             propertyModel.set(AppMenuItemProperties.MENU_ICON_AT_START, isMenuIconAtStart());
             propertyModel.set(AppMenuItemProperties.TITLE_CONDENSED, getContentDescription(item));
+            propertyModel.set(AppMenuItemProperties.MANAGED, isMenuItemManaged(item));
             if (item.hasSubMenu()) {
                 // Only support top level menu items have SUBMENU, and a SUBMENU item cannot have a
                 // SUBMENU.
@@ -1099,6 +1099,15 @@ public class AppMenuPropertiesDelegateImpl implements AppMenuPropertiesDelegate 
         }
     }
 
+    /** Return whether the given {@link MenuItem} is managed by policy. */
+    protected boolean isMenuItemManaged(MenuItem item) {
+        if (item.getItemId() == R.id.new_incognito_tab_menu_id) {
+            return IncognitoUtils.isIncognitoModeManaged(
+                    mTabModelSelector.getCurrentModel().getProfile());
+        }
+        return false;
+    }
+
     /** Returns true if a badge (i.e. a red-dot) should be shown on the menu item icon. */
     protected boolean shouldShowBadgeOnMenuItemIcon(MenuItem item) {
         if (item.getItemId() == R.id.preferences_id) {
@@ -1407,7 +1416,8 @@ public class AppMenuPropertiesDelegateImpl implements AppMenuPropertiesDelegate 
 
     @VisibleForTesting(otherwise = VisibleForTesting.PACKAGE_PRIVATE)
     public boolean isIncognitoEnabled() {
-        return IncognitoUtils.isIncognitoModeEnabled();
+        return IncognitoUtils.isIncognitoModeEnabled(
+                mTabModelSelector.getCurrentModel().getProfile());
     }
 
     static void setPageBookmarkedForTesting(Boolean bookmarked) {

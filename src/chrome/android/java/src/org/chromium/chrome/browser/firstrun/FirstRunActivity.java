@@ -414,7 +414,7 @@ public class FirstRunActivity extends FirstRunActivityBase implements FirstRunPa
     public void onStart() {
         super.onStart();
         
-        // // // Get the latest Branch deep link data in onStart
+        // Get the latest Branch deep link data in onStart
         Branch.sessionBuilder(this)
             .withCallback(new Branch.BranchReferralInitListener() {
                 @Override

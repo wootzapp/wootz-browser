@@ -191,11 +191,6 @@ bool ContentAutofillDriver::IsInAnyMainFrame() const {
   return render_frame_host_->GetMainFrame() == render_frame_host();
 }
 
-bool ContentAutofillDriver::IsPrerendering() const {
-  return render_frame_host_->IsInLifecycleState(
-      content::RenderFrameHost::LifecycleState::kPrerendering);
-}
-
 bool ContentAutofillDriver::HasSharedAutofillPermission() const {
   return render_frame_host_->IsFeatureEnabled(
       blink::mojom::PermissionsPolicyFeature::kSharedAutofill);
@@ -439,6 +434,26 @@ void ContentAutofillDriver::FormSubmitted(
       });
 }
 
+void ContentAutofillDriver::CaretMovedInFormField(
+    const FormData& raw_form,
+    const FormFieldData& raw_field,
+    const gfx::Rect& caret_bounds) {
+  if (!bad_message::CheckFrameNotPrerendering(render_frame_host())) {
+    return;
+  }
+  FormData form = raw_form;
+  FormFieldData field = raw_field;
+  SetFrameAndFormMetaData(form, field);
+  router().CaretMovedInFormField(
+      *this, std::move(form), field,
+      TransformBoundingBoxToViewportCoordinates(caret_bounds),
+      [](autofill::AutofillDriver& target, const FormData& form,
+         const FormFieldData& field, const gfx::Rect& caret_bounds) {
+        target.GetAutofillManager().OnCaretMovedInFormField(
+            WithNewVersion(form), field, caret_bounds);
+      });
+}
+
 void ContentAutofillDriver::TextFieldDidChange(const FormData& raw_form,
                                                const FormFieldData& raw_field,
                                                base::TimeTicks timestamp) {
@@ -519,8 +534,6 @@ void ContentAutofillDriver::HidePopup() {
     return;
   }
   router().HidePopup(*this, [](autofill::AutofillDriver& target) {
-    DCHECK(!target.IsPrerendering())
-        << "We should never affect UI while prerendering";
     target.GetAutofillManager().OnHidePopup();
   });
 }
@@ -682,7 +695,6 @@ std::optional<FormData> ContentAutofillDriver::GetFormWithFrameAndFormMetaData(
 }
 
 AutofillDriverRouter& ContentAutofillDriver::router() {
-  DCHECK(!IsPrerendering());
   return owner_->router();
 }
 

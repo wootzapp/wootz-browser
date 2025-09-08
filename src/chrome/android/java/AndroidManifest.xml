@@ -1546,4 +1546,3 @@ by a child template that "extends" this file.
     {% block extra_root_definitions %}
     {% endblock %}
 </manifest>
-

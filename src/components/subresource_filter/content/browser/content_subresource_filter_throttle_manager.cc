@@ -58,6 +58,7 @@
 
 
 namespace subresource_filter {
+
 namespace {
 
 bool ShouldInheritOpenerActivation(content::NavigationHandle* navigation_handle,
@@ -149,7 +150,6 @@ ContentSubresourceFilterThrottleManager::FromNavigationHandle(
   return ContentSubresourceFilterWebContentsHelper::GetThrottleManager(
       navigation_handle);
 }
-
 
 ContentSubresourceFilterThrottleManager::
     ContentSubresourceFilterThrottleManager(
@@ -722,7 +722,7 @@ std::unique_ptr<ActivationStateComputingNavigationThrottle>
 ContentSubresourceFilterThrottleManager::
     MaybeCreateActivationStateComputingThrottle(
         content::NavigationHandle* navigation_handle) {
-  // Subresource filter roots: create unconditionally.(navigation_handle);
+  // Subresource filter roots: create unconditionally.
   if (IsInSubresourceFilterRoot(navigation_handle)) {
     auto throttle = ActivationStateComputingNavigationThrottle::CreateForRoot(
         navigation_handle);

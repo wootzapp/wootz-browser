@@ -83,11 +83,12 @@ public class AutocompleteCoordinator
     private @Nullable OmniboxSuggestionsDropdown mDropdown;
     private @NonNull ObserverList<OmniboxSuggestionsDropdownScrollListener> mScrollListenerList =
             new ObserverList<>();
+
     private final @NonNull OmniboxSuggestionsDropdownEmbedder mDropdownEmbedder;
     /** An observer watching for changes to the visual state of the omnibox suggestions. */
     public interface OmniboxSuggestionsVisualStateObserver {
-        /** Called when the visibility of the omnibox suggestions changes. */
-        void onOmniboxSuggestionsVisibilityChanged(boolean visible);
+        /** Called when the Omnibox session state changes. */
+        void onOmniboxSessionStateChange(boolean isActive);
 
         /** Called when the background color of the omnibox suggestions changes. */
         void onOmniboxSuggestionsBackgroundColorChanged(@ColorInt int color);
@@ -115,15 +116,16 @@ public class AutocompleteCoordinator
         mModalDialogManagerSupplier = modalDialogManagerSupplier;
         Context context = parent.getContext();
 
-        PropertyModel listModel = new PropertyModel(SuggestionListProperties.ALL_KEYS);
         ModelList listItems = new ModelList();
+        PropertyModel listModel =
+                new PropertyModel.Builder(SuggestionListProperties.ALL_KEYS)
+                        .with(SuggestionListProperties.EMBEDDER, dropdownEmbedder)
+                        .with(SuggestionListProperties.OMNIBOX_SESSION_ACTIVE, false)
+                        .with(SuggestionListProperties.DRAW_OVER_ANCHOR, false)
+                        .with(SuggestionListProperties.SUGGESTION_MODELS, listItems)
+                        .build();
+
         mDropdownEmbedder = dropdownEmbedder;
-
-        listModel.set(SuggestionListProperties.EMBEDDER, dropdownEmbedder);
-        listModel.set(SuggestionListProperties.VISIBLE, false);
-        listModel.set(SuggestionListProperties.DRAW_OVER_ANCHOR, false);
-        listModel.set(SuggestionListProperties.SUGGESTION_MODELS, listItems);
-
         mMediator =
                 new AutocompleteMediator(
                         context,
@@ -165,7 +167,7 @@ public class AutocompleteCoordinator
                 });
         LazyConstructionPropertyMcp.create(
                 listModel,
-                SuggestionListProperties.VISIBLE,
+                SuggestionListProperties.OMNIBOX_SESSION_ACTIVE,
                 viewProvider,
                 SuggestionListViewBinder::bind);
 
@@ -236,7 +238,7 @@ public class AutocompleteCoordinator
                 ViewGroup.MarginLayoutParams layoutParams = (ViewGroup.MarginLayoutParams) dropdown.getLayoutParams();
                 layoutParams.setMargins(0, 0, 0, bottomMargin); // Set desired margins (left, top, right, bottom)
                 dropdown.setLayoutParams(layoutParams);
-                                
+
                 dropdown.forcePhoneStyleOmnibox(forcePhoneStyleOmnibox);
                 dropdown.setAdapter(mAdapter);
                 if (true) {

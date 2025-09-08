@@ -143,7 +143,8 @@ source_set("main_extra_parts") {
 
 # Use a static library here because many test binaries depend on this but don't
 # require many files from it. This makes linking more efficient.
-static_library("browser") {  sources = [
+static_library("browser") {
+  sources = [
     "about_flags.cc",
     "about_flags.h",
     "accessibility/accessibility_labels_service.cc",
@@ -513,6 +514,10 @@ static_library("browser") {  sources = [
     "enterprise/connectors/interstitials/enterprise_warn_controller_client.h",
     "enterprise/connectors/interstitials/enterprise_warn_page.cc",
     "enterprise/connectors/interstitials/enterprise_warn_page.h",
+    "enterprise/identifiers/profile_id_delegate_impl.cc",
+    "enterprise/identifiers/profile_id_delegate_impl.h",
+    "enterprise/identifiers/profile_id_service_factory.cc",
+    "enterprise/identifiers/profile_id_service_factory.h",
     "enterprise/profile_management/saml_response_parser.cc",
     "enterprise/profile_management/saml_response_parser.h",
     "enterprise/reporting/legacy_tech/legacy_tech_report_generator.cc",
@@ -1990,6 +1995,8 @@ static_library("browser") {  sources = [
       "visited_url_ranking/desktop_tab_model_url_visit_data_fetcher.h",
       "webapps/webapps_client_desktop.cc",
       "webapps/webapps_client_desktop.h",
+      "webid/digital_identity_provider_desktop.cc",
+      "webid/digital_identity_provider_desktop.h",
     ]
   }
 
@@ -2124,7 +2131,6 @@ static_library("browser") {  sources = [
     "//chrome/browser/companion/text_finder",
     "//chrome/browser/crash_upload_list",
     "//chrome/browser/devtools",
-    "//chrome/browser/enterprise/identifiers",
     "//chrome/browser/enterprise/platform_auth:features",
     "//chrome/browser/favicon",
     "//chrome/browser/first_party_sets",
@@ -2428,6 +2434,7 @@ static_library("browser") {  sources = [
     "//components/privacy_sandbox/privacy_sandbox_attestations",
     "//components/profile_metrics",
     "//components/proxy_config",
+    "//components/qr_code_generator:bitmap_generator",
     "//components/query_parser",
     "//components/query_tiles",
     "//components/reading_list/core",
@@ -2583,7 +2590,6 @@ static_library("browser") {  sources = [
     "//components/webrtc_logging/browser",
     "//components/webrtc_logging/common",
     "//components/zoom",
-    # "//components/sso_auth",
     "//content/public/browser",
     "//content/public/common",
     "//crypto",
@@ -2696,7 +2702,9 @@ static_library("browser") {  sources = [
 
   if (!is_android) {
     deps += [
+      "//chrome/browser/new_tab_page/chrome_colors",
       "//chrome/browser/ui/lens",
+      "//chrome/browser/ui/webui/cr_components/theme_color_picker",
       "//chrome/browser/ui/webui/search_engine_choice:mojo_bindings",
       "//components/manta",
       "//components/manta/proto",
@@ -3686,7 +3694,6 @@ static_library("browser") {  sources = [
       "//components/android_autofill/browser:android",
       "//components/autofill/android:keyboard_suppressor",
       "//components/background_sync",
-      # "//components/sso_auth",
       "//components/bookmarks/common/android",
       "//components/browser_ui/accessibility/android",
       "//components/browser_ui/contacts_picker/android",
@@ -5442,6 +5449,7 @@ static_library("browser") {  sources = [
       "//ash/webui/projector_app",
       "//ash/webui/projector_app/mojom:annotator_mojo_bindings",
       "//ash/webui/projector_app/mojom:projector_mojo_bindings",
+      "//ash/webui/sanitize_ui",
       "//ash/webui/scanning",
       "//ash/webui/scanning/mojom",
       "//ash/webui/shimless_rma",
@@ -5474,7 +5482,6 @@ static_library("browser") {  sources = [
       "//chrome/browser/nearby_sharing/contacts",
       "//chrome/browser/nearby_sharing/instantmessaging/proto",
       "//chrome/browser/nearby_sharing/local_device_data",
-      "//chrome/browser/nearby_sharing/logging",
       "//chrome/browser/nearby_sharing/logging:util",
       "//chrome/browser/nearby_sharing/proto:tachyon_proto",
       "//chrome/browser/policy:onc",
@@ -5534,6 +5541,7 @@ static_library("browser") {  sources = [
       "//chromeos/ash/components/geolocation",
       "//chromeos/ash/components/growth:config_provider",
       "//chromeos/ash/components/install_attributes",
+      "//chromeos/ash/components/kiosk/vision:vision_prefs",
       "//chromeos/ash/components/local_search_service",
       "//chromeos/ash/components/local_search_service/public/cpp",
       "//chromeos/ash/components/local_search_service/public/mojom",
@@ -6130,6 +6138,14 @@ static_library("browser") {  sources = [
       "webauthn/local_credential_management_mac.h",
     ]
   }
+  if (is_mac || is_win) {
+    sources += [
+      "enterprise/platform_auth/platform_auth_policy_observer.cc",
+      "enterprise/platform_auth/platform_auth_policy_observer.h",
+      "enterprise/platform_auth/platform_auth_provider_manager.cc",
+      "enterprise/platform_auth/platform_auth_provider_manager.h",
+    ]
+  }
   if (is_win) {
     libs += [
       "secur32.lib",
@@ -6161,11 +6177,7 @@ static_library("browser") {  sources = [
       "enterprise/platform_auth/cloud_ap_utils_win.h",
       "enterprise/platform_auth/platform_auth_navigation_throttle.cc",
       "enterprise/platform_auth/platform_auth_navigation_throttle.h",
-      "enterprise/platform_auth/platform_auth_policy_observer.cc",
-      "enterprise/platform_auth/platform_auth_policy_observer.h",
       "enterprise/platform_auth/platform_auth_provider.h",
-      "enterprise/platform_auth/platform_auth_provider_manager.cc",
-      "enterprise/platform_auth/platform_auth_provider_manager.h",
       "enterprise/signals/device_info_fetcher_win.cc",
       "enterprise/signals/device_info_fetcher_win.h",
       "first_run/first_run_internal_win.cc",
@@ -6303,6 +6315,7 @@ static_library("browser") {  sources = [
       "//chrome/browser/os_crypt",
       "//chrome/browser/shortcuts",
       "//chrome/browser/web_applications/chrome_pwa_launcher:util",
+      "//chrome/browser/win:mica_titlebar",
       "//chrome/browser/win/conflicts:module_info",
       "//chrome/chrome_elf:constants",
       "//chrome/chrome_elf:dll_hash",

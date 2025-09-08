@@ -127,9 +127,7 @@ class TabListEmptyCoordinator {
             FrameLayout.LayoutParams emptyViewParams =
                     (FrameLayout.LayoutParams) mEmptyView.getLayoutParams();
             int toolbarHeightPx = mBrowserControlsStateProvider.getTopControlsHeight();
-            
             emptyViewParams.bottomMargin = toolbarHeightPx;
-            
             mEmptyView.setLayoutParams(emptyViewParams);
         }
         setEmptyViewVisibility(View.GONE);

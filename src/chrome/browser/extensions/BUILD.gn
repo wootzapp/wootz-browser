@@ -822,7 +822,6 @@ static_library("extensions") {
     "//chrome/browser:theme_properties",
     "//chrome/browser/apps:user_type_filter",
     "//chrome/browser/apps/app_service:constants",
-    "//components/saml_verifier",
 
     # Only for allow_circular_includes_from
     # "//chrome/browser/apps/app_service/app_icon",
@@ -852,6 +851,7 @@ static_library("extensions") {
     "//components/device_reauth",
     "//components/optimization_guide/core:features",
     "//components/safe_browsing/content/browser",
+    "//components/saml_verifier",
     "//components/safe_browsing/core/browser:safe_browsing_metrics_collector",
     "//components/security_interstitials/content:security_interstitial_page",
     "//components/site_engagement/core/mojom:mojo_bindings",
@@ -1022,7 +1022,6 @@ static_library("extensions") {
     "//ui/shell_dialogs",
     "//ui/strings",
     "//url",
-     "//components/saml_verifier",
   ]
 
   if (is_linux || is_mac || is_win) {

@@ -1164,8 +1164,16 @@ NamedNodeMap* Element::attributesForBindings() const {
   return rare_data.AttributeMap();
 }
 
-AttributeNamesView Element::getAttributeNames() const {
+AttributeNamesView Element::getAttributeNamesForBindings() const {
   return bindings::Transform<AttributeToNameTransform>(Attributes());
+}
+
+Vector<AtomicString> Element::getAttributeNames() const {
+  Vector<AtomicString> result;
+  auto view = getAttributeNamesForBindings();
+  std::transform(view.begin(), view.end(), std::back_inserter(result),
+                 [](const String& str) { return AtomicString(str); });
+  return result;
 }
 
 inline ElementRareDataVector* Element::GetElementRareData() const {
@@ -6977,7 +6985,6 @@ void Element::setOuterHTML(const String& html,
   }
 
   auto* parent = DynamicTo<Element>(p);
-  
   if (!parent) {
     exception_state.ThrowDOMException(
         DOMExceptionCode::kNoModificationAllowedError,
@@ -6985,7 +6992,7 @@ void Element::setOuterHTML(const String& html,
             "', which is not an element node.");
     return;
   }
-  LOG(WARNING) << "parent: " << parent <<" "<< parent->getAttribute(AtomicString("data-testid"));
+
   Node* prev = previousSibling();
   Node* next = nextSibling();
 

@@ -904,9 +904,6 @@ Document::Document(const DocumentInit& initializer,
               ? MakeGarbageCollected<RenderBlockingResourceManager>(*this)
               : nullptr),
       data_(MakeGarbageCollected<DocumentData>(GetExecutionContext())) {
-
-  LOG(INFO) << "AMIT Document::Document";
-
   TRACE_EVENT_WITH_FLOW0("blink", "Document::Document", TRACE_ID_LOCAL(this),
                          TRACE_EVENT_FLAG_FLOW_OUT);
   DCHECK(agent_);
@@ -3377,7 +3374,26 @@ bool Document::WillPrintSoon() {
     loading_for_print_ = loading_for_print_ || view->LoadAllLazyLoadedIframes();
   }
 
+  loading_for_print_ =
+      loading_for_print_ || InitiateStyleOrLayoutDependentLoadForPrint();
+
   return loading_for_print_;
+}
+
+bool Document::InitiateStyleOrLayoutDependentLoadForPrint() {
+  if (auto* view = View()) {
+    view->AdjustMediaTypeForPrinting(true);
+    UpdateStyleAndLayout(DocumentUpdateReason::kPrinting);
+
+    view->FlushAnyPendingPostLayoutTasks();
+
+    view->AdjustMediaTypeForPrinting(false);
+    UpdateStyleAndLayout(DocumentUpdateReason::kPrinting);
+
+    return !ShouldComplete();
+  }
+
+  return false;
 }
 
 void Document::SetPrinting(PrintingState state) {
@@ -5982,26 +5998,27 @@ void Document::EnqueueOverscrollEventForNode(Node* target,
   scripted_animation_controller_->EnqueuePerFrameEvent(overscroll_event);
 }
 
-void Document::EnqueueSnapChangedEvent(Node* target,
-                                       Member<Node>& block_target,
-                                       Member<Node>& inline_target) {
-  Event* snapchanged_event = SnapEvent::Create(
-      event_type_names::kSnapchanged,
+void Document::EnqueueScrollSnapChangeEvent(Node* target,
+                                            Member<Node>& block_target,
+                                            Member<Node>& inline_target) {
+  Event* scrollsnapchange_event = SnapEvent::Create(
+      event_type_names::kScrollsnapchange,
       (target->IsDocumentNode() ? Event::Bubbles::kYes : Event::Bubbles::kNo),
       block_target, inline_target);
-  snapchanged_event->SetTarget(target);
-  scripted_animation_controller_->EnqueuePerFrameEvent(snapchanged_event);
+  scrollsnapchange_event->SetTarget(target);
+  scripted_animation_controller_->EnqueuePerFrameEvent(scrollsnapchange_event);
 }
 
-void Document::EnqueueSnapChangingEvent(Node* target,
-                                        Member<Node>& block_target,
-                                        Member<Node>& inline_target) {
-  Event* snapchanging_event = SnapEvent::Create(
-      event_type_names::kSnapchanging,
+void Document::EnqueueScrollSnapChangingEvent(Node* target,
+                                              Member<Node>& block_target,
+                                              Member<Node>& inline_target) {
+  Event* scrollsnapchanging_event = SnapEvent::Create(
+      event_type_names::kScrollsnapchanging,
       (target->IsDocumentNode() ? Event::Bubbles::kYes : Event::Bubbles::kNo),
       block_target, inline_target);
-  snapchanging_event->SetTarget(target);
-  scripted_animation_controller_->EnqueuePerFrameEvent(snapchanging_event);
+  scrollsnapchanging_event->SetTarget(target);
+  scripted_animation_controller_->EnqueuePerFrameEvent(
+      scrollsnapchanging_event);
 }
 
 void Document::EnqueueMoveEvent() {

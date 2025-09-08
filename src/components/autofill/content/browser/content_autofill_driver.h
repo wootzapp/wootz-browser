@@ -159,7 +159,6 @@ class ContentAutofillDriver : public AutofillDriver,
   AutofillManager& GetAutofillManager() override;
   bool IsInActiveFrame() const override;
   bool IsInAnyMainFrame() const override;
-  bool IsPrerendering() const override;
   bool HasSharedAutofillPermission() const override;
   bool CanShowAutofillUi() const override;
   net::IsolationInfo IsolationInfo() override;
@@ -264,6 +263,9 @@ class ContentAutofillDriver : public AutofillDriver,
   void SelectControlDidChange(const FormData& form,
                               const FormFieldData& field) override;
   void SelectOrSelectListFieldOptionsDidChange(const FormData& form) override;
+  void CaretMovedInFormField(const FormData& form,
+                             const FormFieldData& field,
+                             const gfx::Rect& caret_bounds) override;
   void TextFieldDidChange(const FormData& form,
                           const FormFieldData& field,
                           base::TimeTicks timestamp) override;

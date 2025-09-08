@@ -459,11 +459,13 @@ source_set("browser") {
     "attribution_reporting/attribution_report_network_sender.cc",
     "attribution_reporting/attribution_report_network_sender.h",
     "attribution_reporting/attribution_report_sender.h",
-    "attribution_reporting/attribution_storage.h",
-    "attribution_reporting/attribution_storage_delegate.cc",
-    "attribution_reporting/attribution_storage_delegate.h",
-    "attribution_reporting/attribution_storage_delegate_impl.cc",
-    "attribution_reporting/attribution_storage_delegate_impl.h",
+    "attribution_reporting/attribution_resolver.h",
+    "attribution_reporting/attribution_resolver_delegate.cc",
+    "attribution_reporting/attribution_resolver_delegate.h",
+    "attribution_reporting/attribution_resolver_delegate_impl.cc",
+    "attribution_reporting/attribution_resolver_delegate_impl.h",
+    "attribution_reporting/attribution_resolver_impl.cc",
+    "attribution_reporting/attribution_resolver_impl.h",
     "attribution_reporting/attribution_storage_sql.cc",
     "attribution_reporting/attribution_storage_sql.h",
     "attribution_reporting/attribution_storage_sql_migrations.cc",
@@ -1904,8 +1906,6 @@ source_set("browser") {
     "renderer_host/transient_allow_popup.h",
     "renderer_host/transient_focus_source_user_activation.cc",
     "renderer_host/transient_focus_source_user_activation.h",
-    "renderer_host/ui_events_helper.cc",
-    "renderer_host/ui_events_helper.h",
     "renderer_host/view_transition_commit_deferring_condition.cc",
     "renderer_host/view_transition_commit_deferring_condition.h",
     "renderer_host/view_transition_opt_in_state.cc",
@@ -2061,6 +2061,8 @@ source_set("browser") {
     "service_worker/url_loader_client_checker.h",
     "shared_storage/shared_storage_budget_charger.cc",
     "shared_storage/shared_storage_budget_charger.h",
+    "shared_storage/shared_storage_code_cache_host_proxy.cc",
+    "shared_storage/shared_storage_code_cache_host_proxy.h",
     "shared_storage/shared_storage_document_service_impl.cc",
     "shared_storage/shared_storage_document_service_impl.h",
     "shared_storage/shared_storage_event_params.cc",
@@ -2634,6 +2636,7 @@ source_set("browser") {
       "AppKit.framework",
       "AVFAudio.framework",
       "Carbon.framework",
+      "Cocoa.framework",
       "CoreGraphics.framework",
       "QuartzCore.framework",
       "IOSurface.framework",
@@ -2811,10 +2814,6 @@ source_set("browser") {
       "media/dcomp_surface_registry_broker.h",
       "media/key_system_support_win.cc",
       "media/key_system_support_win.h",
-      "media/web_app_system_media_controls.cc",
-      "media/web_app_system_media_controls.h",
-      "media/web_app_system_media_controls_manager.cc",
-      "media/web_app_system_media_controls_manager.h",
       "memory/swap_metrics_driver_impl_win.cc",
       "network/network_service_process_tracker_win.cc",
       "network/network_service_process_tracker_win.h",
@@ -2853,6 +2852,15 @@ source_set("browser") {
       "portabledeviceguids.lib",
       "uiautomationcore.lib",
       "wtsapi32.lib",
+    ]
+  }
+
+  if (is_win || is_mac) {
+    sources += [
+      "media/web_app_system_media_controls.cc",
+      "media/web_app_system_media_controls.h",
+      "media/web_app_system_media_controls_manager.cc",
+      "media/web_app_system_media_controls_manager.h",
     ]
   }
 
@@ -3281,12 +3289,6 @@ source_set("browser") {
       "service_worker/service_worker_usb_delegate_observer.h",
 
       # Most speech code is non-Android.
-      "speech/endpointer/endpointer.cc",
-      "speech/endpointer/endpointer.h",
-      "speech/endpointer/energy_endpointer.cc",
-      "speech/endpointer/energy_endpointer.h",
-      "speech/endpointer/energy_endpointer_params.cc",
-      "speech/endpointer/energy_endpointer_params.h",
       "speech/network_speech_recognition_engine_impl.cc",
       "speech/network_speech_recognition_engine_impl.h",
       "speech/speech_recognition_engine.cc",

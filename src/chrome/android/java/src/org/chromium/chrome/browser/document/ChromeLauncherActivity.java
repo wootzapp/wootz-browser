@@ -27,8 +27,8 @@ public class ChromeLauncherActivity extends Activity {
         super.onCreate(savedInstanceState);
         Log.e("ChromeLauncherActivity", "onCreate");
 
-        // Skip welcome page
-        FirstRunStatus.setSkipWelcomePage(true);
+        // // Skip welcome page
+        // FirstRunStatus.setSkipWelcomePage(true);
 
         // Handle Branch intents by redirecting to first run experience
         if (getIntent() != null && getIntent().getData() != null 

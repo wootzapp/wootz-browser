@@ -8,6 +8,7 @@
 #include <memory>
 #include <string>
 #include <utility>
+
 #include "base/logging.h"
 #include "base/command_line.h"
 #include "base/files/file_util.h"
@@ -99,6 +100,7 @@
 #include "base/android/build_info.h"
 #include "base/android/content_uri_utils.h"
 #include "base/android/path_utils.h"
+#include "base/process/process_handle.h"
 #include "chrome/browser/android/tab_android.h"
 #include "chrome/browser/download/android/chrome_duplicate_download_infobar_delegate.h"
 #include "chrome/browser/download/android/download_controller.h"
@@ -634,9 +636,14 @@ bool ChromeDownloadManagerDelegate::DetermineDownloadTarget(
           profile_->GetPrefs()->GetString(prefs::kDefaultCharset),
           download->GetSuggestedFilename(), download->GetMimeType(),
           l10n_util::GetStringUTF8(IDS_DEFAULT_DOWNLOAD_FILENAME));
-      base::FilePath cache_dir;
-      base::android::GetCacheDirectory(&cache_dir);
-      download_path = cache_dir.Append(kPdfDirName).Append(generated_filename);
+      if (profile_->IsOffTheRecord()) {
+        download_path = download->GetDownloadFile()->FullPath();
+      } else {
+        base::FilePath cache_dir;
+        base::android::GetCacheDirectory(&cache_dir);
+        download_path =
+            cache_dir.Append(kPdfDirName).Append(generated_filename);
+      }
       action = DownloadPathReservationTracker::UNIQUIFY;
     } else {
       action = DownloadPathReservationTracker::OVERWRITE;
@@ -830,32 +837,32 @@ bool ChromeDownloadManagerDelegate::ShouldOpenDownload(
     content::DownloadOpenDelayedCallback callback) {
 #if BUILDFLAG(ENABLE_EXTENSIONS)
   if (download_crx_util::IsExtensionDownload(*item)) {// &&
-      scoped_refptr<CrxInstaller> installer(
-          download_crx_util::CreateCrxInstaller(profile_, *item));
+    scoped_refptr<CrxInstaller> installer(
+        download_crx_util::CreateCrxInstaller(profile_, *item));
 
-        installer->set_off_store_install_allow_reason(
-            CrxInstaller::OffStoreInstallAllowedBecausePref);
+      installer->set_off_store_install_allow_reason(
+          CrxInstaller::OffStoreInstallAllowedBecausePref);
 
-      auto token = base::UnguessableToken::Create();
-      running_crx_installs_[token] = installer;
+    auto token = base::UnguessableToken::Create();
+    running_crx_installs_[token] = installer;
 
-      installer->AddInstallerCallback(base::BindOnce(
-          &ChromeDownloadManagerDelegate::OnInstallerDone,
-          weak_ptr_factory_.GetWeakPtr(), token, std::move(callback)));
+    installer->AddInstallerCallback(base::BindOnce(
+        &ChromeDownloadManagerDelegate::OnInstallerDone,
+        weak_ptr_factory_.GetWeakPtr(), token, std::move(callback)));
 
-      if (extensions::UserScript::IsURLUserScript(item->GetURL(),
-                                                  item->GetMimeType())) {
-        installer->InstallUserScript(item->GetFullPath(), item->GetURL());
-      } else {
-        installer->set_allow_silent_install(true);
-        installer->InstallCrx(item->GetFullPath());
-      }
+    if (extensions::UserScript::IsURLUserScript(item->GetURL(),
+                                                item->GetMimeType())) {
+      installer->InstallUserScript(item->GetFullPath(), item->GetURL());
+    } else {
+      installer->set_allow_silent_install(true);
+      installer->InstallCrx(item->GetFullPath());
+    }
 
-      // The status text and percent complete indicator will change now
-      // that we are installing a CRX.  Update observers so that they pick
-      // up the change.
-      item->UpdateObservers();
-      return false;
+    // The status text and percent complete indicator will change now
+    // that we are installing a CRX.  Update observers so that they pick
+    // up the change.
+    item->UpdateObservers();
+    return false;
     // }
     // else {
       // LOG(INFO) << "WOOTZ: Downloading Extension is not from test origin";
@@ -1921,6 +1928,13 @@ download::QuarantineConnectionCallback
 ChromeDownloadManagerDelegate::GetQuarantineConnectionCallback() {
   return base::BindRepeating(
       &ChromeDownloadManagerDelegate::ConnectToQuarantineService);
+}
+
+std::unique_ptr<download::DownloadItemRenameHandler>
+ChromeDownloadManagerDelegate::GetRenameHandlerForDownload(
+    download::DownloadItem* download_item) {
+  // TODO(b/341259898): Add implementation for SkyVault on CrOS.
+  return nullptr;
 }
 
 void ChromeDownloadManagerDelegate::CheckSavePackageAllowed(
