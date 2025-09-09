@@ -450,5 +450,28 @@ class WootzChangeWootzAppSearchConfigurationFunction : public ExtensionFunction 
   ResponseAction Run() override;
 };
 
+class WootzCaptureScreenshotFunction : public ExtensionFunction {
+ public:
+  DECLARE_EXTENSION_FUNCTION("wootz.captureScreenshot", WOOTZ_CAPTURE_SCREENSHOT)
+ protected:
+  ~WootzCaptureScreenshotFunction() override = default;
+  ResponseAction Run() override;
+ public:
+  void OnScreenshotComplete(const std::string& base64_data);
+  void OnScreenshotError(const std::string& error);
+
+  // Add reference counting to ensure the object stays alive during async callbacks
+  void AddRef() { ref_count_++; }
+  void Release() { 
+    if (--ref_count_ == 0) {
+      delete this;
+    }
+  }
+  int ref_count_ = 0;
+
+ private:
+  base::WeakPtrFactory<WootzCaptureScreenshotFunction> weak_factory_{this};
+};
+
 }  // namespace extensions
 #endif  // CHROME_BROWSER_EXTENSIONS_API_WOOTZ_WOOTZ_API_H_
