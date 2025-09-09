@@ -314,7 +314,7 @@ android_resources("java_resources") {
     "java/res/drawable/ic_google_round.xml",
     "java/res/drawable/ic_logo_googleg_20dp.xml",
     "java/res/drawable/ic_loop_round.xml",
-    "java/res/drawable/ic_wootzapp.xml",git
+    "java/res/drawable/ic_wootzapp.xml",
     "java/res/drawable/ic_arrow_forward.xml",
     "java/res/drawable/ai_suggestion_loading_shimmer.xml",
     "java/res/drawable/ic_swap_vert_round.xml",
