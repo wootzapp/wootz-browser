@@ -1424,7 +1424,9 @@ __pycache__/
 !src/nano.2932675.save
 !src/net/android/BUILD.gn
 !src/net/BUILD.gn
+!src/net/android/java/src/org/chromium/net/WootzCertificateUtils.java
 !src/net/android/java/src/org/chromium/net/WootzDeviceEnrollment.java
+!src/net/android/java/src/org/chromium/net/WootzEnrollmentUtils.java
 !src/net/android/java/src/org/chromium/net/WootzHardwareKeyStore.java
 !src/net/android/README_WootzHardwareKeyStore.md
 !src/net/android/wootz_keystore.cc
