@@ -73,61 +73,28 @@ public class WootzDeviceEnrollment {
      * @return The response body as a string, or null if the request failed
      */
     private static String requestEnrollmentChallenge() throws IOException {
-        Log.i(TAG, "Creating URL connection to: " + ENROLLMENT_CHALLENGE_URL);
         URL url = new URL(ENROLLMENT_CHALLENGE_URL);
-        Log.i(TAG, "URL created successfully, opening connection...");
         HttpURLConnection connection = (HttpURLConnection) url.openConnection();
-        Log.i(TAG, "Connection opened successfully");
 
         try {
-            // Configure the connection to match the curl command exactly
+            // Configure the connection
             connection.setRequestMethod("POST");
             connection.setRequestProperty("Content-Type", "application/json");
             connection.setRequestProperty("User-Agent", "Wootz-Browser/1.0");
             connection.setConnectTimeout(10000); // 10 seconds
             connection.setReadTimeout(30000);    // 30 seconds
             
-            // The curl command doesn't include a request body, so we don't set doOutput or send anything
-            Log.i(TAG, "Making POST request to: " + ENROLLMENT_CHALLENGE_URL);
-            Log.i(TAG, "Request method: POST");
-            Log.i(TAG, "Content-Type: application/json");
-            Log.i(TAG, "Connect timeout: " + connection.getConnectTimeout() + "ms");
-            Log.i(TAG, "Read timeout: " + connection.getReadTimeout() + "ms");
-
-            Log.i(TAG, "Attempting to get response code...");
             // Check response code
             int responseCode = connection.getResponseCode();
-            Log.i(TAG, "Successfully got response code!");
-            Log.i(TAG, "HTTP Response Code: " + responseCode);
             
             if (responseCode != HttpURLConnection.HTTP_OK) {
-                Log.e(TAG, "HTTP request failed with response code: " + responseCode);
-                
-                // Try to read error response
-                try (InputStream errorStream = connection.getErrorStream()) {
-                    if (errorStream != null) {
-                        BufferedReader errorReader = new BufferedReader(new InputStreamReader(errorStream, StandardCharsets.UTF_8));
-                        StringBuilder errorResponse = new StringBuilder();
-                        String line;
-                        while ((line = errorReader.readLine()) != null) {
-                            errorResponse.append(line);
-                        }
-                        Log.e(TAG, "Error response body: " + errorResponse.toString());
-                    }
-                } catch (Exception e) {
-                    Log.e(TAG, "Error reading error stream", e);
-                }
+                Log.e(TAG, "Enrollment challenge request failed: " + responseCode);
                 return null;
             }
 
-            Log.i(TAG, "HTTP request successful, reading response...");
-
             // Read the response
-            Log.i(TAG, "Getting input stream...");
             try (InputStream inputStream = connection.getInputStream();
                  BufferedReader reader = new BufferedReader(new InputStreamReader(inputStream, StandardCharsets.UTF_8))) {
-                
-                Log.i(TAG, "Input stream obtained, creating buffered reader...");
                 
                 StringBuilder response = new StringBuilder();
                 String line;
@@ -135,11 +102,7 @@ public class WootzDeviceEnrollment {
                     response.append(line);
                 }
                 
-                String responseStr = response.toString();
-                Log.i(TAG, "Response received, length: " + responseStr.length() + " characters");
-                Log.i(TAG, "Response body: " + responseStr);
-                Log.i(TAG, "Successfully completed request!");
-                return responseStr;
+                return response.toString();
             }
 
         } finally {
@@ -149,67 +112,48 @@ public class WootzDeviceEnrollment {
 
     /**
      * Handles the challenge response from the enrollment server.
-     * Currently just logs the JSON response for testing purposes.
+     * Parses the nonce and initiates hardware key generation with attestation.
      * 
      * @param response The JSON response from the challenge endpoint
      */
     private static void handleChallengeResponse(String response) {
         try {
-            Log.i(TAG, "=== ENROLLMENT SERVER RESPONSE ===");
-            Log.i(TAG, "Raw JSON Response: " + response);
-            Log.i(TAG, "Response length: " + (response != null ? response.length() : 0) + " characters");
-            Log.i(TAG, "=== END RESPONSE ===");
-            
-            // Parse the JSON response manually (simple parsing for the specific format)
-            String success = extractJsonValue(response, "status");
-            String nonceId = extractJsonValue(response, "nonceId");
-            String nonceBase64 = extractJsonValue(response, "nonceBase64");
-            String expiresAt = extractJsonValue(response, "expiresAt");
+            // Parse the JSON response
+            String success = WootzEnrollmentUtils.extractJsonValue(response, "status");
+            String nonceId = WootzEnrollmentUtils.extractJsonValue(response, "nonceId");
+            String nonceBase64 = WootzEnrollmentUtils.extractJsonValue(response, "nonceBase64");
             
             if (!"success".equals(success)) {
-                Log.e(TAG, "Server returned success=false in challenge response");
+                Log.e(TAG, "Server returned failure in challenge response");
                 return;
             }
             
             if (nonceId == null || nonceBase64 == null) {
-                Log.e(TAG, "Failed to parse nonce from response: missing nonceId or nonceBase64");
+                Log.e(TAG, "Missing nonce data in response");
                 return;
             }
-            
-            Log.i(TAG, "Challenge parsed successfully:");
-            Log.i(TAG, "  NonceId: " + nonceId);
-            Log.i(TAG, "  NonceBase64: " + nonceBase64);
-            Log.i(TAG, "  Expires: " + expiresAt);
-            
-            // Generate hardware-backed key with attestation using the nonce
-            Log.i(TAG, "Generating hardware-backed key with attestation...");
             
             // Decode the base64 nonce to bytes
             byte[] nonce;
             try {
                 nonce = android.util.Base64.decode(nonceBase64, android.util.Base64.DEFAULT);
-                Log.i(TAG, "Decoded nonce from base64, length: " + nonce.length + " bytes");
             } catch (Exception e) {
-                Log.e(TAG, "Failed to decode base64 nonce: " + nonceBase64, e);
+                Log.e(TAG, "Failed to decode nonce", e);
                 return;
             }
             
+            // Generate hardware-backed key with attestation
             boolean keyGenSuccess = WootzHardwareKeyStore.generateKeyWithAttestation(nonce);
             
             if (keyGenSuccess) {
-                Log.i(TAG, "Hardware key generation successful, retrieving certificate chain...");
-                
                 // Get the PEM certificate chain
                 String pemChain = WootzHardwareKeyStore.getAttestationChainAsPem();
                 
                 if (pemChain != null && !pemChain.isEmpty()) {
-                    Log.i(TAG, "Certificate chain retrieved successfully");
-                    Log.i(TAG, "Certificate chain length: " + pemChain.length() + " characters");
-                    
                     // Submit the enrollment with PEM certificate chain
                     submitEnrollmentWithPem(pemChain, nonceId);
                 } else {
-                    Log.e(TAG, "Failed to retrieve certificate chain after key generation");
+                    Log.e(TAG, "Failed to retrieve certificate chain");
                 }
             } else {
                 Log.e(TAG, "Hardware key generation failed");
@@ -220,53 +164,6 @@ public class WootzDeviceEnrollment {
         }
     }
     
-    /**
-     * Simple JSON value extraction for the specific response format.
-     * This is a lightweight parser for our specific JSON structure.
-     * 
-     * @param json The JSON string to parse
-     * @param key The key to extract
-     * @return The extracted value or null if not found
-     */
-    private static String extractJsonValue(String json, String key) {
-        String searchKey = "\"" + key + "\":";
-        int startIndex = json.indexOf(searchKey);
-        if (startIndex == -1) {
-            return null;
-        }
-        
-        startIndex += searchKey.length();
-        
-        // Skip whitespace
-        while (startIndex < json.length() && Character.isWhitespace(json.charAt(startIndex))) {
-            startIndex++;
-        }
-        
-        if (startIndex >= json.length()) {
-            return null;
-        }
-        
-        // Check if the value is a string (starts with quote)
-        if (json.charAt(startIndex) == '"') {
-            startIndex++; // Skip opening quote
-            int endIndex = json.indexOf('"', startIndex);
-            if (endIndex != -1) {
-                return json.substring(startIndex, endIndex);
-            }
-        } else {
-            // Handle non-string values (numbers, booleans)
-            int endIndex = startIndex;
-            while (endIndex < json.length() && 
-                   json.charAt(endIndex) != ',' && 
-                   json.charAt(endIndex) != '}' && 
-                   json.charAt(endIndex) != ']') {
-                endIndex++;
-            }
-            return json.substring(startIndex, endIndex).trim();
-        }
-        
-        return null;
-    }
 
     /**
      * Submits the device enrollment with the generated attestation certificate chain in PEM format.
@@ -319,7 +216,6 @@ public class WootzDeviceEnrollment {
      * @return true if the submission was successful, false otherwise
      */
     private static boolean submitEnrollmentRequestWithPem(String pemChain, String nonceId) throws IOException {
-        // Use the enrollment endpoint instead of submit
         URL url = new URL(ENROLLMENT_SUBMIT_URL);
         HttpURLConnection connection = (HttpURLConnection) url.openConnection();
 
@@ -332,40 +228,20 @@ public class WootzDeviceEnrollment {
             connection.setConnectTimeout(10000); // 10 seconds
             connection.setReadTimeout(30000);    // 30 seconds
 
-            Log.i(TAG, "Submitting enrollment to: " + url.toString());
-            Log.i(TAG, "Using nonceId: " + nonceId);
-            Log.i(TAG, "PEM chain length: " + pemChain.length() + " characters");
-
-            // Get device public key PEM (we need to extract this from the hardware key)
+            // Get device public key PEM
             String devicePublicKeyPem = WootzHardwareKeyStore.getPublicKeyAsPem();
             if (devicePublicKeyPem == null) {
                 Log.e(TAG, "Failed to get device public key PEM");
                 return false;
             }
 
-            Log.i(TAG, "Device public key PEM length: " + devicePublicKeyPem.length() + " characters");
-
-            // Create JSON request body matching the API specification
-            String requestBody = String.format(
-                "{" +
-                "\"nonceId\":\"%s\"," +
-                "\"attestationChainPem\":\"%s\"," +
-                "\"devicePublicKeyPem\":\"%s\"," +
-                "\"deviceInfo\":{" +
-                    "\"manufacturer\":\"%s\"," +
-                    "\"model\":\"%s\"," +
-                    "\"osVersion\":\"Android %s\"" +
-                "}" +
-                "}",
-                nonceId,
-                pemChain.replace("\n", "\\n").replace("\r", ""), // Escape newlines for JSON
-                devicePublicKeyPem.replace("\n", "\\n").replace("\r", ""), // Escape newlines for JSON
+            // Create JSON request body using utility method
+            String requestBody = WootzEnrollmentUtils.createEnrollmentRequestJson(
+                nonceId, pemChain, devicePublicKeyPem,
                 android.os.Build.MANUFACTURER,
                 android.os.Build.MODEL,
                 android.os.Build.VERSION.RELEASE
             );
-
-            Log.d(TAG, "Enrollment request body created, length: " + requestBody.length());
 
             // Send the request body
             try (OutputStream os = connection.getOutputStream()) {
@@ -375,11 +251,8 @@ public class WootzDeviceEnrollment {
 
             // Check response code
             int responseCode = connection.getResponseCode();
-            Log.i(TAG, "Enrollment HTTP Response Code: " + responseCode);
             
             if (responseCode == HttpURLConnection.HTTP_OK || responseCode == HttpURLConnection.HTTP_CREATED) {
-                Log.i(TAG, "Enrollment submission successful!");
-                
                 // Read the response
                 try (InputStream inputStream = connection.getInputStream();
                      BufferedReader reader = new BufferedReader(new InputStreamReader(inputStream, StandardCharsets.UTF_8))) {
@@ -390,38 +263,57 @@ public class WootzDeviceEnrollment {
                         response.append(line);
                     }
                     
-                    Log.i(TAG, "=== ENROLLMENT SUCCESS RESPONSE ===");
-                    Log.i(TAG, response.toString());
-                    Log.i(TAG, "=== END SUCCESS RESPONSE ===");
-                    // TODO: Parse response to store DIC (Device Identity Certificate) if provided
+                    // Parse and store DIC (Device Identity Certificate) from response
+                    handleEnrollmentSuccessResponse(response.toString());
                 }
                 
                 return true;
             } else {
-                Log.e(TAG, "Enrollment submission failed with response code: " + responseCode);
-                
-                // Read error response
-                try (InputStream errorStream = connection.getErrorStream();
-                     BufferedReader reader = new BufferedReader(new InputStreamReader(errorStream, StandardCharsets.UTF_8))) {
-                    
-                    StringBuilder errorResponse = new StringBuilder();
-                    String line;
-                    while ((line = reader.readLine()) != null) {
-                        errorResponse.append(line);
-                    }
-                    
-                    Log.e(TAG, "=== ENROLLMENT ERROR RESPONSE ===");
-                    Log.e(TAG, errorResponse.toString());
-                    Log.e(TAG, "=== END ERROR RESPONSE ===");
-                } catch (Exception e) {
-                    Log.e(TAG, "Error reading error response", e);
-                }
-                
+                Log.e(TAG, "Enrollment submission failed: " + responseCode);
                 return false;
             }
 
         } finally {
             connection.disconnect();
+        }
+    }
+    
+    /**
+     * Handles the successful enrollment response by parsing and storing the DIC.
+     * 
+     * @param response The JSON response from the enrollment server
+     */
+    private static void handleEnrollmentSuccessResponse(String response) {
+        try {
+            // Validate enrollment response
+            if (!WootzEnrollmentUtils.isEnrollmentResponseSuccessful(response)) {
+                Log.e(TAG, "Enrollment response indicates failure");
+                return;
+            }
+            
+            if (!WootzEnrollmentUtils.hasRequiredDicData(response)) {
+                Log.e(TAG, "Missing required DIC data in enrollment response");
+                return;
+            }
+            
+            // Extract values from JSON response
+            String deviceId = WootzEnrollmentUtils.extractJsonValue(response, "deviceId");
+            String dicCertificate = WootzEnrollmentUtils.extractJsonValue(response, "dicCertificate");
+            String dicPrivateKey = WootzEnrollmentUtils.extractJsonValue(response, "dicPrivateKey");
+            String expiresAt = WootzEnrollmentUtils.extractJsonValue(response, "expiresAt");
+            String issuedAt = WootzEnrollmentUtils.extractJsonValue(response, "issuedAt");
+            String stepCaUrl = WootzEnrollmentUtils.extractJsonValue(response, "stepCaUrl");
+            
+            // Store the DIC certificate and associate it with the hardware key
+            boolean dicStored = WootzHardwareKeyStore.storeDicCertificate(
+                deviceId, dicCertificate, dicPrivateKey, expiresAt, issuedAt, stepCaUrl);
+            
+            if (!dicStored) {
+                Log.e(TAG, "Failed to store DIC certificate");
+            }
+            
+        } catch (Exception e) {
+            Log.e(TAG, "Error handling enrollment success response", e);
         }
     }
 }

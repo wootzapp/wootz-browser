@@ -13,22 +13,26 @@ import android.util.Log;
 import org.jni_zero.CalledByNative;
 import org.jni_zero.JNINamespace;
 
-import java.security.InvalidAlgorithmParameterException;
+import java.io.ByteArrayInputStream;
 import java.security.KeyFactory;
 import java.security.KeyPair;
 import java.security.KeyPairGenerator;
 import java.security.KeyStore;
 import java.security.KeyStoreException;
 import java.security.NoSuchAlgorithmException;
-import java.security.NoSuchProviderException;
 import java.security.PrivateKey;
 import java.security.PublicKey;
 import java.security.cert.Certificate;
 import java.security.cert.CertificateException;
-import java.security.interfaces.ECPrivateKey;
+import java.security.cert.CertificateFactory;
+import java.security.cert.X509Certificate;
 import java.security.spec.ECGenParameterSpec;
 import java.security.spec.InvalidKeySpecException;
-import java.io.IOException;
+import java.security.spec.PKCS8EncodedKeySpec;
+import java.util.Date;
+import java.util.List;
+
+import javax.security.auth.x500.X500Principal;
 
 /**
  * Wootz Hardware Key Store - Secure hardware-backed key operations with attestation
@@ -56,9 +60,8 @@ public class WootzHardwareKeyStore {
     private static final String SIGNATURE_ALGORITHM = "SHA256withECDSA";
     private static final String CURVE_NAME = "secp256r1"; // P-256
     private static final String WOOTZ_KEY_ALIAS = "wootz_hardware_key";
+    private static final String WOOTZ_DIC_ALIAS = "wootz_dic_certificate";
     
-    // Track if the current key was generated with Strongbox intention
-    private static boolean sCurrentKeyStrongboxIntended = false;
 
     /**
      * Generate hardware-backed P-256 key with attestation challenge.
@@ -70,8 +73,6 @@ public class WootzHardwareKeyStore {
      */
     @CalledByNative
     private static boolean generateHardwareBackedKeyWithAttestation(byte[] attestationChallenge) {
-        Log.i(TAG, "Generating hardware-backed P-256 key with attestation challenge");
-        
         try {
             KeyStore keyStore = KeyStore.getInstance(ANDROID_KEYSTORE);
             keyStore.load(null);
@@ -91,7 +92,7 @@ public class WootzHardwareKeyStore {
             return tryTeeGenerationWithAttestation(keyPairGenerator, attestationChallenge);
 
         } catch (Exception e) {
-            Log.e(TAG, "Critical error in hardware key generation with attestation", e);
+            Log.e(TAG, "Hardware key generation failed", e);
             return false;
         }
     }
@@ -115,7 +116,7 @@ public class WootzHardwareKeyStore {
             }
             
             PublicKey publicKey = certificate.getPublicKey();
-            return convertPublicKeyToPem(publicKey.getEncoded());
+            return WootzEnrollmentUtils.convertPublicKeyToPem(publicKey.getEncoded());
             
         } catch (Exception e) {
             Log.e(TAG, "Failed to get device public key", e);
@@ -141,7 +142,7 @@ public class WootzHardwareKeyStore {
                 return null;
             }
             
-            return convertCertificateChainToPem(certChain);
+            return WootzEnrollmentUtils.convertCertificateChainToPem(certChain);
             
         } catch (Exception e) {
             Log.e(TAG, "Failed to get attestation certificate chain", e);
@@ -226,23 +227,16 @@ public class WootzHardwareKeyStore {
                 .setUserAuthenticationRequired(false)
                 .setIsStrongBoxBacked(true);
             
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P && attestationChallenge != null) {
+            if (attestationChallenge != null) {
                 specBuilder.setAttestationChallenge(attestationChallenge);
             }
             
             keyPairGenerator.initialize(specBuilder.build());
             KeyPair keyPair = keyPairGenerator.generateKeyPair();
             
-            if (isStrongBoxBacked(keyPair.getPrivate())) {
-                Log.i(TAG, "Successfully generated Strongbox-backed key with attestation");
-                return true;
-            } else {
-                Log.e(TAG, "Strongbox requested but not achieved, trying TEE");
-                return false;
-            }
+            return isStrongBoxBacked(keyPair.getPrivate());
             
         } catch (Exception e) {
-            Log.w(TAG, "Strongbox key generation with attestation failed, trying TEE: " + e.getMessage());
             return false;
         }
     }
@@ -264,19 +258,10 @@ public class WootzHardwareKeyStore {
             keyPairGenerator.initialize(specBuilder.build());
             KeyPair keyPair = keyPairGenerator.generateKeyPair();
             
-            if (keyPair == null || keyPair.getPrivate() == null) {
-                return false;
-            }
-            
-            if (isHardwareBacked(keyPair.getPrivate())) {
-                Log.i(TAG, "Successfully generated TEE hardware-backed key with attestation");
-                return true;
-            } else {
-                return false;
-            }
+            return keyPair != null && keyPair.getPrivate() != null && 
+                   isHardwareBacked(keyPair.getPrivate());
                         
         } catch (Exception e) {
-            Log.e(TAG, "TEE key generation with attestation failed: " + e.getMessage());
             return false;
         }
     }
@@ -345,50 +330,6 @@ public class WootzHardwareKeyStore {
         return false;
     }
 
-    private static String convertPublicKeyToPem(byte[] publicKeyBytes) {
-        try {
-            String base64 = android.util.Base64.encodeToString(publicKeyBytes, android.util.Base64.NO_WRAP);
-            return "-----BEGIN PUBLIC KEY-----\n" +
-                   insertLineBreaks(base64, 64) +
-                   "\n-----END PUBLIC KEY-----";
-        } catch (Exception e) {
-            Log.e(TAG, "Failed to convert public key to PEM", e);
-            return null;
-        }
-    }
-
-    private static String convertCertificateChainToPem(Certificate[] certChain) {
-        try {
-            StringBuilder pemChain = new StringBuilder();
-            for (int i = 0; i < certChain.length; i++) {
-                byte[] certBytes = certChain[i].getEncoded();
-                String base64 = android.util.Base64.encodeToString(certBytes, android.util.Base64.NO_WRAP);
-                
-                pemChain.append("-----BEGIN CERTIFICATE-----\n");
-                pemChain.append(insertLineBreaks(base64, 64));
-                pemChain.append("\n-----END CERTIFICATE-----\n");
-                
-                if (i < certChain.length - 1) {
-                    pemChain.append("\n");
-                }
-            }
-            return pemChain.toString();
-        } catch (Exception e) {
-            Log.e(TAG, "Failed to convert certificate chain to PEM", e);
-            return null;
-        }
-    }
-
-    private static String insertLineBreaks(String input, int lineLength) {
-        StringBuilder result = new StringBuilder();
-        for (int i = 0; i < input.length(); i += lineLength) {
-            result.append(input.substring(i, Math.min(i + lineLength, input.length())));
-            if (i + lineLength < input.length()) {
-                result.append("\n");
-            }
-        }
-        return result.toString();
-    }
     
     /**
      * Initialize hardware-backed keystore system.
@@ -401,45 +342,22 @@ public class WootzHardwareKeyStore {
         try {
             // Check if we already have a hardware-backed key
             if (isKeyHardwareBacked()) {
-                Log.i(TAG, "Hardware-backed key already exists, skipping initialization");
                 return true;
             }
-            
-            Log.i(TAG, "Initializing hardware-backed certificate system");
             
             // Generate attestation challenge from browser startup context
             String challengeData = "wootz-browser-" + System.currentTimeMillis();
             byte[] attestationChallenge = challengeData.getBytes();
             
             // Generate hardware-backed key with attestation
-            boolean success = generateHardwareBackedKeyWithAttestation(attestationChallenge);
+            return generateHardwareBackedKeyWithAttestation(attestationChallenge);
             
-            if (success) {
-                Log.i(TAG, "Hardware-backed certificate system initialized successfully");
-                logSecurityLevel();
-            } else {
-                Log.e(TAG, "Failed to initialize hardware-backed certificate system");
-            }
-            
-            return success;
         } catch (Exception e) {
-            Log.e(TAG, "Exception during certificate system initialization", e);
+            Log.e(TAG, "Hardware keystore initialization failed", e);
             return false;
         }
     }
     
-    /**
-     * Logs the security level of the generated hardware key.
-     */
-    private static void logSecurityLevel() {
-        if (isKeyStrongboxBacked()) {
-            Log.i(TAG, "Certificate system using Strongbox security level");
-        } else if (isKeyHardwareBacked()) {
-            Log.i(TAG, "Certificate system using TEE security level");
-        } else {
-            Log.w(TAG, "Certificate system not hardware-backed");
-        }
-    }
 
     // Public wrapper methods for Java-to-Java calls (e.g., from device enrollment)
     
@@ -472,5 +390,172 @@ public class WootzHardwareKeyStore {
      */
     public static String getPublicKeyAsPem() {
         return getDevicePublicKeyPem();
+    }
+    
+    /**
+     * Store the Device Identity Certificate (DIC) received from enrollment server.
+     * This associates the DIC with the hardware-backed key for client authentication.
+     * 
+     * @param deviceId The device ID from enrollment response
+     * @param dicCertificatePem The DIC certificate in PEM format
+     * @param dicPrivateKeyPem The DIC private key in PEM format (will be stored securely)
+     * @param expiresAt ISO8601 timestamp when DIC expires
+     * @param issuedAt ISO8601 timestamp when DIC was issued
+     * @param stepCaUrl The Step CA URL for future certificate operations
+     * @return true if DIC was stored successfully
+     */
+    public static boolean storeDicCertificate(String deviceId, String dicCertificatePem, 
+            String dicPrivateKeyPem, String expiresAt, String issuedAt, String stepCaUrl) {
+        
+        try {
+            // Parse and validate the DIC certificate
+            X509Certificate dicCert = WootzCertificateUtils.parsePemCertificate(dicCertificatePem);
+            if (dicCert == null) {
+                return false;
+            }
+            
+            // Validate DIC properties using Chromium-style validation
+            WootzCertificateUtils.DicValidationResult validation = 
+                WootzCertificateUtils.validateDicCertificate(dicCert, deviceId);
+            if (!validation.isValid) {
+                Log.e(TAG, "DIC validation failed: " + validation.errorMessage);
+                return false;
+            }
+            
+            // Parse the DIC private key from PEM
+            PrivateKey dicPrivateKey = WootzCertificateUtils.parsePemPrivateKey(dicPrivateKeyPem);
+            if (dicPrivateKey == null) {
+                return false;
+            }
+            
+            // Store the DIC certificate and private key in Android KeyStore
+            KeyStore keyStore = KeyStore.getInstance(ANDROID_KEYSTORE);
+            keyStore.load(null);
+            
+            // Remove any existing DIC first
+            if (keyStore.containsAlias(WOOTZ_DIC_ALIAS)) {
+                keyStore.deleteEntry(WOOTZ_DIC_ALIAS);
+            }
+            
+            // Create certificate chain (DIC certificate only for now)
+            Certificate[] certChain = new Certificate[] { dicCert };
+            
+            // Store the DIC private key and certificate chain
+            keyStore.setKeyEntry(WOOTZ_DIC_ALIAS, dicPrivateKey, null, certChain);
+            
+            // Associate DIC with the hardware-backed key
+            associateDicWithHardwareKey(validation.extractedDeviceId);
+            
+            return true;
+            
+        } catch (Exception e) {
+            Log.e(TAG, "Failed to store DIC certificate", e);
+            return false;
+        }
+    }
+    
+    /**
+     * Get the stored DIC certificate in PEM format.
+     * 
+     * @return PEM-encoded DIC certificate or null if not available
+     */
+    public static String getDicCertificatePem() {
+        try {
+            KeyStore keyStore = KeyStore.getInstance(ANDROID_KEYSTORE);
+            keyStore.load(null);
+            
+            Certificate certificate = keyStore.getCertificate(WOOTZ_DIC_ALIAS);
+            if (certificate == null) {
+                Log.w(TAG, "No DIC certificate found");
+                return null;
+            }
+            
+            return WootzEnrollmentUtils.convertCertificateToPem(certificate);
+            
+        } catch (Exception e) {
+            Log.e(TAG, "Failed to get DIC certificate", e);
+            return null;
+        }
+    }
+    
+    /**
+     * Check if a valid DIC certificate is stored.
+     * 
+     * @return true if DIC certificate exists and is valid
+     */
+    public static boolean hasDicCertificate() {
+        try {
+            KeyStore keyStore = KeyStore.getInstance(ANDROID_KEYSTORE);
+            keyStore.load(null);
+            
+            if (!keyStore.containsAlias(WOOTZ_DIC_ALIAS)) {
+                return false;
+            }
+            
+            Certificate certificate = keyStore.getCertificate(WOOTZ_DIC_ALIAS);
+            if (certificate instanceof X509Certificate) {
+                X509Certificate x509Cert = (X509Certificate) certificate;
+                
+                // Check if certificate is still valid (not expired)
+                try {
+                    x509Cert.checkValidity();
+                    return true;
+                } catch (Exception e) {
+                    Log.w(TAG, "DIC certificate is expired or not yet valid", e);
+                    return false;
+                }
+            }
+            
+            return false;
+            
+        } catch (Exception e) {
+            Log.e(TAG, "Failed to check DIC certificate", e);
+            return false;
+        }
+    }
+    
+    /**
+     * Sign data using the DIC private key for client authentication.
+     * 
+     * @param data Data to sign
+     * @return Signature bytes or null if signing failed
+     */
+    public static byte[] signWithDicKey(byte[] data) {
+        try {
+            KeyStore keyStore = KeyStore.getInstance(ANDROID_KEYSTORE);
+            keyStore.load(null);
+            
+            PrivateKey dicPrivateKey = (PrivateKey) keyStore.getKey(WOOTZ_DIC_ALIAS, null);
+            if (dicPrivateKey == null) {
+                Log.e(TAG, "No DIC private key available for signing");
+                return null;
+            }
+            
+            java.security.Signature signature = java.security.Signature.getInstance(SIGNATURE_ALGORITHM);
+            signature.initSign(dicPrivateKey);
+            signature.update(data);
+            
+            Log.i(TAG, "Data signed successfully with DIC private key");
+            return signature.sign();
+            
+        } catch (Exception e) {
+            Log.e(TAG, "Failed to sign with DIC private key", e);
+            return null;
+        }
+    }
+    
+    // Private helper methods for DIC certificate handling
+    
+    
+    /**
+     * Associate the DIC with the hardware-backed key for client authentication.
+     * This creates the logical link between the DIC and the non-exportable key.
+     */
+    private static void associateDicWithHardwareKey(String deviceId) {
+        // The association is implicit through the key aliases:
+        // - WOOTZ_KEY_ALIAS: hardware-backed attestation key
+        // - WOOTZ_DIC_ALIAS: DIC certificate and key for client auth
+        // Both are stored in the same Android KeyStore and can be used together
+        // for device authentication workflows
     }
 }
