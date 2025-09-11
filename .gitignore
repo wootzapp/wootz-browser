@@ -12,6 +12,14 @@ __pycache__/
 /src
 
 !src/BUILD.gn
+!src/net/BUILD.gn
+!src/net/android/BUILD.gn
+!src/net/android/README_WootzHardwareKeyStore.md
+!src/net/android/java/src/org/chromium/net/WootzDeviceEnrollment.java
+!src/net/android/java/src/org/chromium/net/WootzHardwareKeyStore.java
+!src/net/android/wootz_keystore.cc
+!src/net/android/wootz_keystore.h
+!src/chrome/android/java/src/org/chromium/chrome/browser/init/ProcessInitializationHandler.java
 !src/DEPS
 !src/apps/BUILD.gn
 !src/apps/ui/views/BUILD.gn
