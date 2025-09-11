@@ -595,6 +595,8 @@ __pycache__/
 !src/chrome/browser/web_applications/extensions/BUILD.gn
 !src/chrome/browser/web_applications/preinstalled_web_apps/README.md
 !src/chrome/browser/webauthn/chrome_authenticator_request_delegate.cc
+!src/chrome/browser/wootz_client_cert_identity.cc
+!src/chrome/browser/wootz_client_cert_identity.h
 !src/chrome/chrome_paks.gni
 !src/chrome/chrome_repack_locales.gni
 !src/chrome/common/BUILD.gn
