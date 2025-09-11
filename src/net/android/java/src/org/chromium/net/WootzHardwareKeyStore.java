@@ -44,8 +44,32 @@ import javax.security.auth.x500.X500Principal;
  * Security Features:
  * - Non-exportable P-256 keys in Strongbox/TEE
  * - Hardware attestation with X.509 certificate chains
+ * - Cryptographic association between DIC and hardware keys
  * - JNI-only interface (no public Java access)
  * - Integration with Chromium's existing security infrastructure
+ * 
+ * DIC-Hardware Key Association:
+ * The association between Device Identity Certificate (DIC) and the non-exportable
+ * hardware key is established through cryptographic binding:
+ * 
+ * 1. Hardware Key Generation (WOOTZ_KEY_ALIAS = "wootz_hardware_key"):
+ *    - Generated in Strongbox/TEE with non-exportable properties
+ *    - Used for attestation and cryptographic binding signatures
+ * 
+ * 2. DIC Storage (WOOTZ_DIC_ALIAS = "wootz_dic_certificate"):
+ *    - DIC certificate and private key stored in Android KeyStore
+ *    - Associated with hardware key through cryptographic signature
+ * 
+ * 3. Cryptographic Binding (WootzKeyAssociation):
+ *    - Creates dedicated association key in Android KeyStore
+ *    - Association key uses attestation challenge with binding data
+ *    - Provides verifiable proof that DIC belongs to specific hardware key
+ *    - No reliance on SharedPreferences - all data in secure KeyStore
+ * 
+ * 4. Verification Methods:
+ *    - verifyDicAssociation(): Cryptographically verifies the binding
+ *    - hasDicAssociation(): Quick check for association existence
+ *    - getDicAssociationDetails(): Full association status with security level
  * 
  * Architecture:
  * - Located in net/android (Chromium's trusted security layer)
@@ -77,9 +101,10 @@ public class WootzHardwareKeyStore {
             KeyStore keyStore = KeyStore.getInstance(ANDROID_KEYSTORE);
             keyStore.load(null);
             
-            // Remove any existing key first
+            // Remove any existing key and association first
             if (keyStore.containsAlias(WOOTZ_KEY_ALIAS)) {
                 keyStore.deleteEntry(WOOTZ_KEY_ALIAS);
+                WootzKeyAssociation.removeAssociation();
             }
             
             KeyPairGenerator keyPairGenerator = KeyPairGenerator.getInstance(
@@ -432,9 +457,10 @@ public class WootzHardwareKeyStore {
             KeyStore keyStore = KeyStore.getInstance(ANDROID_KEYSTORE);
             keyStore.load(null);
             
-            // Remove any existing DIC first
+            // Remove any existing DIC and association first
             if (keyStore.containsAlias(WOOTZ_DIC_ALIAS)) {
                 keyStore.deleteEntry(WOOTZ_DIC_ALIAS);
+                WootzKeyAssociation.removeAssociation();
             }
             
             // Create certificate chain (DIC certificate only for now)
@@ -549,13 +575,70 @@ public class WootzHardwareKeyStore {
     
     /**
      * Associate the DIC with the hardware-backed key for client authentication.
-     * This creates the logical link between the DIC and the non-exportable key.
+     * This creates a cryptographic binding between the DIC and the non-exportable key.
+     * 
+     * @param deviceId The device ID extracted from the DIC certificate
      */
     private static void associateDicWithHardwareKey(String deviceId) {
-        // The association is implicit through the key aliases:
-        // - WOOTZ_KEY_ALIAS: hardware-backed attestation key
-        // - WOOTZ_DIC_ALIAS: DIC certificate and key for client auth
-        // Both are stored in the same Android KeyStore and can be used together
-        // for device authentication workflows
+        boolean success = WootzKeyAssociation.createAssociation(deviceId, WOOTZ_KEY_ALIAS, WOOTZ_DIC_ALIAS);
+        if (success) {
+            Log.i(TAG, "Successfully created cryptographic association between DIC and hardware key");
+        } else {
+            Log.e(TAG, "Failed to create cryptographic association between DIC and hardware key");
+        }
+    }
+    
+    /**
+     * Verify that the DIC is properly associated with the hardware-backed key.
+     * This performs cryptographic verification of the binding.
+     * 
+     * @return true if the association is valid
+     */
+    public static boolean verifyDicAssociation() {
+        WootzKeyAssociation.AssociationResult result = 
+            WootzKeyAssociation.verifyAssociation(WOOTZ_KEY_ALIAS, WOOTZ_DIC_ALIAS);
+        
+        if (!result.isValid) {
+            Log.e(TAG, "DIC association verification failed: " + result.errorMessage);
+        }
+        
+        return result.isValid;
+    }
+    
+    /**
+     * Check if a valid DIC association exists.
+     * 
+     * @return true if DIC is properly associated with hardware key
+     */
+    public static boolean hasDicAssociation() {
+        return WootzKeyAssociation.hasValidAssociation(WOOTZ_KEY_ALIAS, WOOTZ_DIC_ALIAS);
+    }
+    
+    /**
+     * Get the device ID from the DIC association.
+     * 
+     * @return The associated device ID or null if no association exists
+     */
+    public static String getAssociatedDeviceId() {
+        return WootzKeyAssociation.getAssociatedDeviceId();
+    }
+    
+    /**
+     * Remove the DIC association. This should be called when regenerating keys
+     * or resetting enrollment.
+     */
+    public static void removeDicAssociation() {
+        WootzKeyAssociation.removeAssociation();
+        Log.i(TAG, "Removed DIC association");
+    }
+    
+    /**
+     * Get detailed information about the DIC association.
+     * This provides comprehensive status including security level and device ID.
+     * 
+     * @return AssociationResult with detailed association information
+     */
+    public static WootzKeyAssociation.AssociationResult getDicAssociationDetails() {
+        return WootzKeyAssociation.verifyAssociation(WOOTZ_KEY_ALIAS, WOOTZ_DIC_ALIAS);
     }
 }
