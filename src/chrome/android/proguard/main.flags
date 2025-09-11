@@ -46,3 +46,27 @@
 -keep class org.chromium.chrome.browser.extensions.Extensions { *; }
 -keep class org.chromium.chrome.browser.extensions.ExtensionsConfirmationDialog { *; }
 -keep class org.chromium.chrome.browser.extensions.ExtensionInfo { *; }
+
+# Keep WootzScreenshotApi class and its methods to prevent ProGuard obfuscation
+-keep class org.chromium.chrome.browser.extensions.WootzScreenshotApi {
+  public static void captureScreenshot(long);
+  public static class Natives {
+    void onScreenshotComplete(long, java.lang.String);
+    void onScreenshotError(long, java.lang.String);
+  }
+}
+
+# Keep the auto-generated JNI binding class
+-keep class org.chromium.chrome.browser.extensions.WootzScreenshotApiJni {
+  public static *;
+}
+
+# Prevent obfuscation of JNI method names - this is critical for Play Store builds
+-keepclassmembers class org.chromium.chrome.browser.extensions.WootzScreenshotApi {
+  native <methods>;
+}
+
+# Keep all JNI-related classes and methods for WootzScreenshotApi
+-keep class org.chromium.chrome.browser.extensions.WootzScreenshotApi** {
+  *;
+}
