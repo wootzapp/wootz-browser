@@ -27,7 +27,7 @@ import java.io.ByteArrayOutputStream;
 @JNINamespace("chrome::android")
 public class WootzScreenshotApi {
     private static final String TAG = "WootzScreenshotApi";
-    private static final int MAX_VIEWPORT_DIMENSION = 1000; // Reduced to prevent large base64
+    private static final int MAX_VIEWPORT_DIMENSION = 1080; // Reduced to prevent large base64
     private static final int JPEG_QUALITY = 80; // Reduced quality to prevent large base64
 
     /**
@@ -40,14 +40,14 @@ public class WootzScreenshotApi {
             Activity activity = ApplicationStatus.getLastTrackedFocusedActivity();
             if (activity == null) {
                 Log.e(TAG, "No focused activity found");
-                onScreenshotError(nativePtr, "No focused activity found");
+                WootzScreenshotApiJni.get().onScreenshotError(nativePtr, "No focused activity found");
                 return;
             }
 
             // Check if activity is still valid before proceeding
             if (activity.isFinishing() || activity.isDestroyed()) {
                 Log.e(TAG, "Activity not valid - finishing: " + activity.isFinishing() + ", destroyed: " + activity.isDestroyed());
-                onScreenshotError(nativePtr, "Activity not valid");
+                WootzScreenshotApiJni.get().onScreenshotError(nativePtr, "Activity not valid");
                 return;
             }
 
@@ -62,7 +62,7 @@ public class WootzScreenshotApi {
 
                         if (!screenshotTask.isReady()) {
                             Log.e(TAG, "ScreenshotTask not ready");
-                            onScreenshotError(nativePtr, "ScreenshotTask not ready");
+                            WootzScreenshotApiJni.get().onScreenshotError(nativePtr, "ScreenshotTask not ready");
                             return;
                         }
 
@@ -80,22 +80,22 @@ public class WootzScreenshotApi {
 
                             // Convert to base64 with compression
                             String base64Data = convertBitmapToBase64Compressed(bitmap);
-                            onScreenshotComplete(nativePtr, base64Data);
+                            WootzScreenshotApiJni.get().onScreenshotComplete(nativePtr, base64Data);
                             return;
                         } else {
                             Log.e(TAG, "ScreenshotTask returned null bitmap");
-                            onScreenshotError(nativePtr, "ScreenshotTask returned null bitmap");
+                            WootzScreenshotApiJni.get().onScreenshotError(nativePtr, "ScreenshotTask returned null bitmap");
                         }
                     } catch (Exception e) {
                         Log.e(TAG, "Error in ScreenshotTask callback", e);
-                        onScreenshotError(nativePtr, "Error in ScreenshotTask: " + e.getMessage());
+                        WootzScreenshotApiJni.get().onScreenshotError(nativePtr, "Error in ScreenshotTask: " + e.getMessage());
                     }
                 }
             });
 
         } catch (Exception e) {
             Log.e(TAG, "Error creating ScreenshotTask", e);
-            onScreenshotError(nativePtr, "Error creating ScreenshotTask: " + e.getMessage());
+            WootzScreenshotApiJni.get().onScreenshotError(nativePtr, "Error creating ScreenshotTask: " + e.getMessage());
         }
     }
 
@@ -149,6 +149,9 @@ public class WootzScreenshotApi {
         }
     }
 
-    private static native void onScreenshotComplete(long nativePtr, String base64Data);
-    private static native void onScreenshotError(long nativePtr, String error);
+    @NativeMethods
+    interface Natives {
+        void onScreenshotComplete(long nativePtr, String base64Data);
+        void onScreenshotError(long nativePtr, String error);
+    }
 }

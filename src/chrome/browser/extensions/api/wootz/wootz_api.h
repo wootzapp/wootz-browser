@@ -459,6 +459,10 @@ class WootzCaptureScreenshotFunction : public ExtensionFunction {
  public:
   void OnScreenshotComplete(const std::string& base64_data);
   void OnScreenshotError(const std::string& error);
+  
+  // JNI callback methods (called by generated JNI code)
+  void OnScreenshotComplete(JNIEnv* env, const base::android::JavaParamRef<jstring>& base64_data);
+  void OnScreenshotError(JNIEnv* env, const base::android::JavaParamRef<jstring>& error);
 
   // Add reference counting to ensure the object stays alive during async callbacks
   void AddRef() { ref_count_++; }

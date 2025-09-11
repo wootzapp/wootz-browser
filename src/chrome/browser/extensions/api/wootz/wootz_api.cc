@@ -1954,6 +1954,17 @@ void WootzCaptureScreenshotFunction::OnScreenshotError(const std::string& error)
   Release();
 }
 
+// JNI callback functions for screenshot functionality (matching generated header)
+void WootzCaptureScreenshotFunction::OnScreenshotComplete(JNIEnv* env, const base::android::JavaParamRef<jstring>& base64_data) {
+  std::string base64_string = base::android::ConvertJavaStringToUTF8(env, base64_data);
+  OnScreenshotComplete(base64_string);
+}
+
+void WootzCaptureScreenshotFunction::OnScreenshotError(JNIEnv* env, const base::android::JavaParamRef<jstring>& error) {
+  std::string error_string = base::android::ConvertJavaStringToUTF8(env, error);
+  OnScreenshotError(error_string);
+}
+
 }  // namespace extensions
 
 void JNI_WootzBridge_OnConsentResult(JNIEnv* env, jboolean consented){
@@ -1988,78 +1999,6 @@ void JNI_WootzBridge_OnDropdownButtonClicked(JNIEnv* env, const base::android::J
   wootz_api->OnDropdownButtonClicked(feature, extId, extName);
 }
 
-
-// JNI callback functions for screenshot functionality
-extern "C" JNIEXPORT void JNICALL
-Java_org_chromium_chrome_browser_extensions_WootzScreenshotApi_onScreenshotComplete(
-    JNIEnv* env, jclass clazz, jlong native_ptr, jstring base64_data) {
-  if (native_ptr == 0) {
-    LOG(ERROR) << "native_ptr is null";
-    return;
-  }
-
-  auto* function = reinterpret_cast<extensions::WootzCaptureScreenshotFunction*>(native_ptr);
-  if (!function) {
-    LOG(ERROR) << "Failed to reinterpret_cast native_ptr to WootzCaptureScreenshotFunction";
-    return;
-  }
-
-  std::string base64_string = base::android::ConvertJavaStringToUTF8(env, base64_data);
-
-  // Add a reference to ensure the object stays alive during the callback
-  function->AddRef();
-
-  // Create a scoped_refptr to properly manage the refcounted object
-  scoped_refptr<extensions::WootzCaptureScreenshotFunction> function_ref(function);
-
-  // Post to UI thread to ensure Respond() is called on the correct thread
-  content::GetUIThreadTaskRunner({})->PostTask(
-      FROM_HERE,
-      base::BindOnce(
-        [](scoped_refptr<extensions::WootzCaptureScreenshotFunction> fn,
-           std::string data) {
-          if (fn) {
-            fn->OnScreenshotComplete(data);
-          }
-        },
-        std::move(function_ref), std::move(base64_string)));
-}
-
-extern "C" JNIEXPORT void JNICALL
-Java_org_chromium_chrome_browser_extensions_WootzScreenshotApi_onScreenshotError(
-    JNIEnv* env, jclass clazz, jlong native_ptr, jstring error) {
-
-  if (native_ptr == 0) {
-    LOG(ERROR) << "native_ptr is null";
-    return;
-  }
-
-  auto* function = reinterpret_cast<extensions::WootzCaptureScreenshotFunction*>(native_ptr);
-  if (!function) {
-    LOG(ERROR) << "Failed to reinterpret_cast native_ptr to WootzCaptureScreenshotFunction";
-    return;
-  }
-
-  std::string error_string = base::android::ConvertJavaStringToUTF8(env, error);
-
-  // Add a reference to ensure the object stays alive during the callback
-  function->AddRef();
-
-  // Create a scoped_refptr to properly manage the refcounted object
-  scoped_refptr<extensions::WootzCaptureScreenshotFunction> function_ref(function);
-
-  // Post to UI thread to ensure Respond() is called on the correct thread
-  content::GetUIThreadTaskRunner({})->PostTask(
-      FROM_HERE,
-      base::BindOnce(
-        [](scoped_refptr<extensions::WootzCaptureScreenshotFunction> fn,
-           std::string error_msg) {
-          if (fn) {
-            fn->OnScreenshotError(error_msg);
-          }
-        },
-        std::move(function_ref), std::move(error_string)));
-}
 
 // extern "C" JNIEXPORT void JNICALL
 // Java_org_chromium_chrome_browser_extensions_WootzBridge_nativeOnConsentDialogResult(
