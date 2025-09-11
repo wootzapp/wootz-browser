@@ -125,4 +125,84 @@ std::vector<uint8_t> SignWithHardwareKey(base::span<const uint8_t> data) {
   return signature;
 }
 
+// mTLS Client Certificate Functions
+
+bool IsDicAvailableForMTLS() {
+  JNIEnv* env = AttachCurrentThread();
+  return Java_WootzHardwareKeyStore_isDicAvailableForMTLS(env);
+}
+
+std::vector<uint8_t> GetMTLSClientCertificate() {
+  JNIEnv* env = AttachCurrentThread();
+  ScopedJavaLocalRef<jbyteArray> cert_array =
+      Java_WootzHardwareKeyStore_getMTLSClientCertificate(env);
+  
+  if (cert_array.is_null()) {
+    return std::vector<uint8_t>();
+  }
+  
+  std::vector<uint8_t> certificate;
+  JavaByteArrayToByteVector(env, cert_array, &certificate);
+  return certificate;
+}
+
+std::vector<uint8_t> SignMTLSHandshake(base::span<const uint8_t> handshake_data) {
+  JNIEnv* env = AttachCurrentThread();
+  ScopedJavaLocalRef<jbyteArray> data_array = ToJavaByteArray(env, handshake_data);
+  
+  ScopedJavaLocalRef<jbyteArray> signature_array =
+      Java_WootzHardwareKeyStore_signMTLSHandshake(env, data_array);
+  
+  if (signature_array.is_null()) {
+    LOG(ERROR) << "Failed to sign mTLS handshake data";
+    return std::vector<uint8_t>();
+  }
+  
+  std::vector<uint8_t> signature;
+  JavaByteArrayToByteVector(env, signature_array, &signature);
+  
+  LOG(INFO) << "Successfully signed mTLS handshake with hardware key, signature size: " 
+            << signature.size();
+  return signature;
+}
+
+std::vector<std::vector<uint8_t>> GetMTLSCertificateChain() {
+  JNIEnv* env = AttachCurrentThread();
+  ScopedJavaLocalRef<jobjectArray> chain_array =
+      Java_WootzHardwareKeyStore_getMTLSCertificateChain(env);
+  
+  if (chain_array.is_null()) {
+    return std::vector<std::vector<uint8_t>>();
+  }
+  
+  std::vector<std::vector<uint8_t>> certificate_chain;
+  jsize chain_length = env->GetArrayLength(chain_array.obj());
+  
+  for (jsize i = 0; i < chain_length; ++i) {
+    ScopedJavaLocalRef<jbyteArray> cert_array(
+        env, static_cast<jbyteArray>(
+            env->GetObjectArrayElement(chain_array.obj(), i)));
+    
+    if (!cert_array.is_null()) {
+      std::vector<uint8_t> certificate;
+      JavaByteArrayToByteVector(env, cert_array, &certificate);
+      certificate_chain.push_back(std::move(certificate));
+    }
+  }
+  
+  return certificate_chain;
+}
+
+std::string GetMTLSSecurityInfo() {
+  JNIEnv* env = AttachCurrentThread();
+  ScopedJavaLocalRef<jstring> info_string =
+      Java_WootzHardwareKeyStore_getMTLSSecurityInfo(env);
+  
+  if (info_string.is_null()) {
+    return std::string();
+  }
+  
+  return ConvertJavaStringToUTF8(env, info_string);
+}
+
 }  // namespace net::android::wootz

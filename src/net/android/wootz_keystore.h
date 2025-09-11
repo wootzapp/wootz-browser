@@ -79,6 +79,50 @@ bool IsKeyHardwareBacked();
  */
 std::vector<uint8_t> SignWithHardwareKey(base::span<const uint8_t> data);
 
+// mTLS Client Certificate Functions
+
+/**
+ * Check if DIC is available and ready for mTLS client authentication.
+ * This verifies both certificate validity and hardware key association.
+ * 
+ * @return true if DIC can be used for mTLS
+ */
+bool IsDicAvailableForMTLS();
+
+/**
+ * Get the DIC certificate for mTLS client authentication.
+ * Returns the certificate that should be presented to the server.
+ * 
+ * @return DER-encoded DIC certificate bytes or empty vector if not available
+ */
+std::vector<uint8_t> GetMTLSClientCertificate();
+
+/**
+ * Sign TLS handshake data using the hardware-backed key.
+ * This is used during the mTLS handshake to prove possession of the private key
+ * associated with the DIC certificate.
+ * 
+ * @param handshake_data The TLS handshake data to sign
+ * @return Signature bytes or empty vector if signing failed
+ */
+std::vector<uint8_t> SignMTLSHandshake(base::span<const uint8_t> handshake_data);
+
+/**
+ * Get the DIC certificate chain for mTLS (if intermediate certificates exist).
+ * Currently returns single certificate, but can be extended for full chain.
+ * 
+ * @return Vector of DER-encoded certificate byte vectors or empty if not available
+ */
+std::vector<std::vector<uint8_t>> GetMTLSCertificateChain();
+
+/**
+ * Get security information about the hardware key used for mTLS.
+ * This provides details about the security level for logging/debugging.
+ * 
+ * @return JSON string with security information
+ */
+std::string GetMTLSSecurityInfo();
+
 }  // namespace net::android::wootz
 
 #endif  // NET_ANDROID_WOOTZ_KEYSTORE_H_

@@ -641,4 +641,130 @@ public class WootzHardwareKeyStore {
     public static WootzKeyAssociation.AssociationResult getDicAssociationDetails() {
         return WootzKeyAssociation.verifyAssociation(WOOTZ_KEY_ALIAS, WOOTZ_DIC_ALIAS);
     }
+    
+    // mTLS Client Certificate Methods
+    
+    /**
+     * Check if DIC is available and ready for mTLS client authentication.
+     * This verifies both certificate validity and hardware key association.
+     * 
+     * @return true if DIC can be used for mTLS
+     */
+    @CalledByNative
+    private static boolean isDicAvailableForMTLS() {
+        return hasDicCertificate() && hasDicAssociation() && isKeyHardwareBacked();
+    }
+    
+    /**
+     * Get the DIC certificate for mTLS client authentication.
+     * Returns the certificate that should be presented to the server.
+     * 
+     * @return DER-encoded DIC certificate bytes or null if not available
+     */
+    @CalledByNative
+    private static byte[] getMTLSClientCertificate() {
+        try {
+            if (!isDicAvailableForMTLS()) {
+                Log.w(TAG, "DIC not available for mTLS");
+                return null;
+            }
+            
+            KeyStore keyStore = KeyStore.getInstance(ANDROID_KEYSTORE);
+            keyStore.load(null);
+            
+            Certificate certificate = keyStore.getCertificate(WOOTZ_DIC_ALIAS);
+            if (certificate == null) {
+                Log.e(TAG, "DIC certificate not found for mTLS");
+                return null;
+            }
+            
+            return certificate.getEncoded();
+            
+        } catch (Exception e) {
+            Log.e(TAG, "Failed to get mTLS client certificate", e);
+            return null;
+        }
+    }
+    
+    /**
+     * Sign TLS handshake data using the hardware-backed key.
+     * This is used during the mTLS handshake to prove possession of the private key
+     * associated with the DIC certificate.
+     * 
+     * @param handshakeData The TLS handshake data to sign
+     * @return Signature bytes or null if signing failed
+     */
+    @CalledByNative
+    private static byte[] signMTLSHandshake(byte[] handshakeData) {
+        try {
+            if (!isDicAvailableForMTLS()) {
+                Log.e(TAG, "DIC not available for mTLS handshake signing");
+                return null;
+            }
+            
+            // Use the hardware key to sign the handshake data
+            // This ensures the private key never leaves the TEE/Strongbox
+            byte[] signature = signWithHardwareKey(handshakeData);
+            
+            if (signature != null) {
+                Log.i(TAG, "Successfully signed mTLS handshake with hardware key");
+            } else {
+                Log.e(TAG, "Failed to sign mTLS handshake with hardware key");
+            }
+            
+            return signature;
+            
+        } catch (Exception e) {
+            Log.e(TAG, "Error during mTLS handshake signing", e);
+            return null;
+        }
+    }
+    
+    /**
+     * Get the DIC certificate chain for mTLS (if intermediate certificates exist).
+     * Currently returns single certificate, but can be extended for full chain.
+     * 
+     * @return Array of DER-encoded certificate bytes or null if not available
+     */
+    @CalledByNative
+    private static byte[][] getMTLSCertificateChain() {
+        try {
+            byte[] dicCert = getMTLSClientCertificate();
+            if (dicCert == null) {
+                return null;
+            }
+            
+            // Currently return single certificate
+            // Can be extended to include intermediate certificates if needed
+            return new byte[][] { dicCert };
+            
+        } catch (Exception e) {
+            Log.e(TAG, "Failed to get mTLS certificate chain", e);
+            return null;
+        }
+    }
+    
+    /**
+     * Get security information about the hardware key used for mTLS.
+     * This provides details about the security level for logging/debugging.
+     * 
+     * @return JSON string with security information
+     */
+    @CalledByNative
+    private static String getMTLSSecurityInfo() {
+        try {
+            boolean isStrongbox = isKeyStrongboxBacked();
+            boolean isHardware = isKeyHardwareBacked();
+            String deviceId = getAssociatedDeviceId();
+            
+            return String.format(
+                "{\"strongbox\":%b,\"hardware\":%b,\"deviceId\":\"%s\"}",
+                isStrongbox, isHardware, deviceId != null ? deviceId : "unknown"
+            );
+            
+        } catch (Exception e) {
+            Log.e(TAG, "Failed to get mTLS security info", e);
+            return "{\"error\":\"failed to get security info\"}";
+        }
+    }
 }
