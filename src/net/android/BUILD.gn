@@ -28,6 +28,8 @@ android_library("net_java") {
     "java/src/org/chromium/net/ProxyChangeListener.java",
     "java/src/org/chromium/net/RegistrationPolicyAlwaysRegister.java",
     "java/src/org/chromium/net/RegistrationPolicyApplicationStatus.java",
+    "java/src/org/chromium/net/WootzCertificateUtils.java",
+    "java/src/org/chromium/net/WootzEnrollmentUtils.java",
     "java/src/org/chromium/net/WootzDeviceEnrollment.java",
     "java/src/org/chromium/net/WootzHardwareKeyStore.java",
     "java/src/org/chromium/net/X509Util.java",
