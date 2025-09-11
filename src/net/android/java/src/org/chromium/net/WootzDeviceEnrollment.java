@@ -295,18 +295,18 @@ public class WootzDeviceEnrollment {
                 Log.e(TAG, "Missing required DIC data in enrollment response");
                 return;
             }
+            Log.e(TAG, "Enrollment response: " + response);
             
-            // Extract values from JSON response
+            // Extract values from JSON response (no private key needed)
             String deviceId = WootzEnrollmentUtils.extractJsonValue(response, "deviceId");
             String dicCertificate = WootzEnrollmentUtils.extractJsonValue(response, "dicCertificate");
-            String dicPrivateKey = WootzEnrollmentUtils.extractJsonValue(response, "dicPrivateKey");
             String expiresAt = WootzEnrollmentUtils.extractJsonValue(response, "expiresAt");
             String issuedAt = WootzEnrollmentUtils.extractJsonValue(response, "issuedAt");
             String stepCaUrl = WootzEnrollmentUtils.extractJsonValue(response, "stepCaUrl");
             
             // Store the DIC certificate and associate it with the hardware key
             boolean dicStored = WootzHardwareKeyStore.storeDicCertificate(
-                deviceId, dicCertificate, dicPrivateKey, expiresAt, issuedAt, stepCaUrl);
+                deviceId, dicCertificate, expiresAt, issuedAt, stepCaUrl);
             
             if (!dicStored) {
                 Log.e(TAG, "Failed to store DIC certificate");

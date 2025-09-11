@@ -423,15 +423,17 @@ public class WootzHardwareKeyStore {
      * 
      * @param deviceId The device ID from enrollment response
      * @param dicCertificatePem The DIC certificate in PEM format
-     * @param dicPrivateKeyPem The DIC private key in PEM format (will be stored securely)
      * @param expiresAt ISO8601 timestamp when DIC expires
      * @param issuedAt ISO8601 timestamp when DIC was issued
      * @param stepCaUrl The Step CA URL for future certificate operations
      * @return true if DIC was stored successfully
      */
     public static boolean storeDicCertificate(String deviceId, String dicCertificatePem, 
-            String dicPrivateKeyPem, String expiresAt, String issuedAt, String stepCaUrl) {
-        
+            String expiresAt, String issuedAt, String stepCaUrl) {
+        Log.d(TAG, "Storing DIC certificate for device: " + deviceId);
+        Log.d(TAG, "Expires at: " + expiresAt);
+        Log.d(TAG, "Issued at: " + issuedAt);
+        Log.d(TAG, "Step CA URL: " + stepCaUrl);
         try {
             // Parse and validate the DIC certificate
             X509Certificate dicCert = WootzCertificateUtils.parsePemCertificate(dicCertificatePem);
@@ -447,13 +449,7 @@ public class WootzHardwareKeyStore {
                 return false;
             }
             
-            // Parse the DIC private key from PEM
-            PrivateKey dicPrivateKey = WootzCertificateUtils.parsePemPrivateKey(dicPrivateKeyPem);
-            if (dicPrivateKey == null) {
-                return false;
-            }
-            
-            // Store the DIC certificate and private key in Android KeyStore
+            // Store only the DIC certificate (no private key needed)
             KeyStore keyStore = KeyStore.getInstance(ANDROID_KEYSTORE);
             keyStore.load(null);
             
@@ -463,11 +459,8 @@ public class WootzHardwareKeyStore {
                 WootzKeyAssociation.removeAssociation();
             }
             
-            // Create certificate chain (DIC certificate only for now)
-            Certificate[] certChain = new Certificate[] { dicCert };
-            
-            // Store the DIC private key and certificate chain
-            keyStore.setKeyEntry(WOOTZ_DIC_ALIAS, dicPrivateKey, null, certChain);
+            // Store only the DIC certificate (certificate-only entry)
+            keyStore.setCertificateEntry(WOOTZ_DIC_ALIAS, dicCert);
             
             // Associate DIC with the hardware-backed key
             associateDicWithHardwareKey(validation.extractedDeviceId);

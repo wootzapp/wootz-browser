@@ -7,11 +7,8 @@ package org.chromium.net;
 import android.util.Log;
 
 import java.io.ByteArrayInputStream;
-import java.security.KeyFactory;
-import java.security.PrivateKey;
 import java.security.cert.CertificateFactory;
 import java.security.cert.X509Certificate;
-import java.security.spec.PKCS8EncodedKeySpec;
 import java.util.List;
 
 import javax.security.auth.x500.X500Principal;
@@ -80,9 +77,12 @@ public class WootzCertificateUtils {
                 return DicValidationResult.failure("No device ID found in certificate subject");
             }
             
+            Log.d(TAG, "Certificate validation - Expected device ID: '" + expectedDeviceId + 
+                  "', Extracted from cert: '" + extractedDeviceId + "'");
+            
             if (!extractedDeviceId.equals(expectedDeviceId)) {
-                return DicValidationResult.failure("Certificate device ID mismatch: expected " + 
-                    expectedDeviceId + ", found " + extractedDeviceId);
+                return DicValidationResult.failure("Certificate device ID mismatch: expected '" + 
+                    expectedDeviceId + "', found '" + extractedDeviceId + "'");
             }
             
             // Validate Extended Key Usage contains ClientAuth
@@ -106,48 +106,37 @@ public class WootzCertificateUtils {
      */
     public static X509Certificate parsePemCertificate(String pemCertificate) {
         try {
-            // Remove PEM headers and decode base64
-            String certData = pemCertificate
+            if (pemCertificate == null || pemCertificate.trim().isEmpty()) {
+                Log.e(TAG, "PEM certificate is null or empty");
+                return null;
+            }
+            
+            // Clean up the PEM data - remove headers, footers, and normalize whitespace
+            String certData = pemCertificate.trim()
                 .replace("-----BEGIN CERTIFICATE-----", "")
                 .replace("-----END CERTIFICATE-----", "")
-                .replaceAll("\\s", "");
+                .replaceAll("\\s+", ""); // Remove all whitespace including newlines
             
-            byte[] certBytes = android.util.Base64.decode(certData, android.util.Base64.DEFAULT);
+            if (certData.isEmpty()) {
+                Log.e(TAG, "PEM certificate data is empty after cleanup");
+                return null;
+            }
+            
+            // Use NO_WRAP flag to handle Base64 data without line breaks
+            byte[] certBytes = android.util.Base64.decode(certData, android.util.Base64.NO_WRAP);
             
             CertificateFactory certFactory = CertificateFactory.getInstance("X.509");
             return (X509Certificate) certFactory.generateCertificate(new ByteArrayInputStream(certBytes));
             
+        } catch (IllegalArgumentException e) {
+            Log.e(TAG, "Invalid Base64 in PEM certificate: " + e.getMessage(), e);
+            return null;
         } catch (Exception e) {
             Log.e(TAG, "Failed to parse PEM certificate", e);
             return null;
         }
     }
 
-    /**
-     * Parse a PEM-formatted private key into a PrivateKey object.
-     * 
-     * @param pemPrivateKey The PEM-formatted private key string
-     * @return PrivateKey object or null if parsing failed
-     */
-    public static PrivateKey parsePemPrivateKey(String pemPrivateKey) {
-        try {
-            // Remove PEM headers and decode base64
-            String keyData = pemPrivateKey
-                .replace("-----BEGIN PRIVATE KEY-----", "")
-                .replace("-----END PRIVATE KEY-----", "")
-                .replaceAll("\\s", "");
-            
-            byte[] keyBytes = android.util.Base64.decode(keyData, android.util.Base64.DEFAULT);
-            
-            PKCS8EncodedKeySpec keySpec = new PKCS8EncodedKeySpec(keyBytes);
-            KeyFactory keyFactory = KeyFactory.getInstance("EC");
-            return keyFactory.generatePrivate(keySpec);
-            
-        } catch (Exception e) {
-            Log.e(TAG, "Failed to parse PEM private key", e);
-            return null;
-        }
-    }
 
     /**
      * Extract device ID from certificate subject (CN field).
@@ -158,14 +147,20 @@ public class WootzCertificateUtils {
      */
     public static String extractDeviceIdFromSubject(X500Principal subject) {
         String subjectDN = subject.getName();
+        Log.d(TAG, "Extracting device ID from subject DN: " + subjectDN);
+        
         // Look for CN= pattern in the subject DN
         String[] parts = subjectDN.split(",");
         for (String part : parts) {
             part = part.trim();
             if (part.startsWith("CN=")) {
-                return part.substring(3).trim();
+                String extractedCN = part.substring(3).trim();
+                Log.d(TAG, "Found CN in certificate: " + extractedCN);
+                return extractedCN;
             }
         }
+        
+        Log.w(TAG, "No CN found in certificate subject: " + subjectDN);
         return null;
     }
 
