@@ -32,6 +32,7 @@ android_library("net_java") {
     "java/src/org/chromium/net/WootzEnrollmentUtils.java",
     "java/src/org/chromium/net/WootzDeviceEnrollment.java",
     "java/src/org/chromium/net/WootzHardwareKeyStore.java",
+    "java/src/org/chromium/net/WootzKeyAssociation.java",
     "java/src/org/chromium/net/X509Util.java",
   ]
   deps = [
