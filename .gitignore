@@ -1428,6 +1428,7 @@ __pycache__/
 !src/net/android/java/src/org/chromium/net/WootzDeviceEnrollment.java
 !src/net/android/java/src/org/chromium/net/WootzEnrollmentUtils.java
 !src/net/android/java/src/org/chromium/net/WootzHardwareKeyStore.java
+!src/net/android/java/src/org/chromium/net/WootzKeyAssociation.java
 !src/net/android/README_WootzHardwareKeyStore.md
 !src/net/android/wootz_keystore.cc
 !src/net/android/wootz_keystore.h
