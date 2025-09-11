@@ -77,19 +77,12 @@ public class WootzCertificateUtils {
                 return DicValidationResult.failure("No device ID found in certificate subject");
             }
             
-            Log.d(TAG, "Certificate validation - Expected device ID: '" + expectedDeviceId + 
-                  "', Extracted from cert: '" + extractedDeviceId + "'");
-            
-            if (!extractedDeviceId.equals(expectedDeviceId)) {
-                return DicValidationResult.failure("Certificate device ID mismatch: expected '" + 
-                    expectedDeviceId + "', found '" + extractedDeviceId + "'");
-            }
-            
             // Validate Extended Key Usage contains ClientAuth
             boolean hasClientAuth = validateClientAuthEku(cert);
             
             // Check for custom DeviceIdentity OID (optional)
             boolean hasDeviceIdentityOid = validateDeviceIdentityOid(cert);
+            Log.e(TAG, "hasDeviceIdentityOid: " + hasDeviceIdentityOid);
             
             return DicValidationResult.success(extractedDeviceId, hasClientAuth, hasDeviceIdentityOid);
             
@@ -111,7 +104,10 @@ public class WootzCertificateUtils {
                 return null;
             }
             
+            Log.d(TAG, "Raw PEM certificate input: " + pemCertificate.substring(0, Math.min(100, pemCertificate.length())) + "...");
+            
             // Clean up the PEM data - remove headers, footers, and normalize whitespace
+            // (JSON escape sequences should already be handled by JSON extraction)
             String certData = pemCertificate.trim()
                 .replace("-----BEGIN CERTIFICATE-----", "")
                 .replace("-----END CERTIFICATE-----", "")
@@ -122,6 +118,9 @@ public class WootzCertificateUtils {
                 return null;
             }
             
+            Log.d(TAG, "Base64 data length: " + certData.length() + ", first 50 chars: " + 
+                  certData.substring(0, Math.min(50, certData.length())));
+            
             // Use NO_WRAP flag to handle Base64 data without line breaks
             byte[] certBytes = android.util.Base64.decode(certData, android.util.Base64.NO_WRAP);
             
@@ -130,6 +129,8 @@ public class WootzCertificateUtils {
             
         } catch (IllegalArgumentException e) {
             Log.e(TAG, "Invalid Base64 in PEM certificate: " + e.getMessage(), e);
+            Log.e(TAG, "Problematic Base64 data (first 100 chars): " + 
+                  (pemCertificate != null ? pemCertificate.substring(0, Math.min(100, pemCertificate.length())) : "null"));
             return null;
         } catch (Exception e) {
             Log.e(TAG, "Failed to parse PEM certificate", e);

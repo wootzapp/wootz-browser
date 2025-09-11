@@ -44,9 +44,11 @@ public class WootzEnrollmentUtils {
         // Check if the value is a string (starts with quote)
         if (json.charAt(startIndex) == '"') {
             startIndex++; // Skip opening quote
-            int endIndex = json.indexOf('"', startIndex);
+            int endIndex = findClosingQuote(json, startIndex);
             if (endIndex != -1) {
-                return json.substring(startIndex, endIndex);
+                String rawValue = json.substring(startIndex, endIndex);
+                // Properly handle JSON escape sequences
+                return unescapeJsonString(rawValue);
             }
         } else {
             // Handle non-string values (numbers, booleans)
@@ -200,5 +202,83 @@ public class WootzEnrollmentUtils {
         String dicPrivateKey = extractJsonValue(response, "dicPrivateKey");
         
         return deviceId != null && dicCertificate != null && dicPrivateKey != null;
+    }
+    
+    /**
+     * Find the closing quote for a JSON string value, handling escaped quotes.
+     * 
+     * @param json The JSON string
+     * @param startIndex The index to start searching from (after opening quote)
+     * @return The index of the closing quote, or -1 if not found
+     */
+    private static int findClosingQuote(String json, int startIndex) {
+        for (int i = startIndex; i < json.length(); i++) {
+            char c = json.charAt(i);
+            if (c == '"') {
+                // Check if this quote is escaped
+                int backslashCount = 0;
+                for (int j = i - 1; j >= startIndex && json.charAt(j) == '\\'; j--) {
+                    backslashCount++;
+                }
+                // If even number of backslashes (including 0), the quote is not escaped
+                if (backslashCount % 2 == 0) {
+                    return i;
+                }
+            }
+        }
+        return -1;
+    }
+    
+    /**
+     * Unescape a JSON string value by converting escape sequences to actual characters.
+     * 
+     * @param escaped The escaped JSON string value
+     * @return The unescaped string
+     */
+    private static String unescapeJsonString(String escaped) {
+        if (escaped == null || escaped.isEmpty()) {
+            return escaped;
+        }
+        
+        StringBuilder result = new StringBuilder();
+        for (int i = 0; i < escaped.length(); i++) {
+            char c = escaped.charAt(i);
+            if (c == '\\' && i + 1 < escaped.length()) {
+                char next = escaped.charAt(i + 1);
+                switch (next) {
+                    case 'n':
+                        result.append('\n');
+                        i++; // Skip the next character
+                        break;
+                    case 'r':
+                        result.append('\r');
+                        i++; // Skip the next character
+                        break;
+                    case 't':
+                        result.append('\t');
+                        i++; // Skip the next character
+                        break;
+                    case '\\':
+                        result.append('\\');
+                        i++; // Skip the next character
+                        break;
+                    case '"':
+                        result.append('"');
+                        i++; // Skip the next character
+                        break;
+                    case '/':
+                        result.append('/');
+                        i++; // Skip the next character
+                        break;
+                    default:
+                        // Unknown escape sequence, keep as-is
+                        result.append(c);
+                        break;
+                }
+            } else {
+                result.append(c);
+            }
+        }
+        return result.toString();
     }
 }
