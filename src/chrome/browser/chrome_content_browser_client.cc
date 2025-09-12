@@ -610,7 +610,9 @@
 #endif
 
 #if BUILDFLAG(IS_ANDROID)
+#include "chrome/browser/wootz_client_cert_identity.h"
 #include "components/crash/content/browser/crash_handler_host_linux.h"
+#include "net/android/wootz_keystore.h"
 #else
 #include "chrome/browser/apps/link_capturing/web_app_link_capturing_delegate.h"
 #endif
@@ -3991,6 +3993,41 @@ base::OnceClosure ChromeContentBrowserClient::SelectClientCertificate(
     VLOG(1) << "Client cert requested in " << profile_name << " profile.";
   }
 #endif  // BUILDFLAG(IS_CHROMEOS_ASH)
+
+#if BUILDFLAG(IS_ANDROID)
+  // WOOTZ mTLS INTEGRATION: Check for DIC auto-selection
+  if (net::android::wootz::IsDicAvailableForMTLS()) {
+    LOG(INFO) << "Auto-selecting Wootz DIC for mTLS authentication";
+    
+    // Get DIC certificate in DER format
+    std::vector<uint8_t> dic_cert_der = net::android::wootz::GetMTLSClientCertificate();
+    if (!dic_cert_der.empty()) {
+      // Create X509Certificate from DER bytes
+      scoped_refptr<net::X509Certificate> dic_certificate = 
+          net::X509Certificate::CreateFromBytes(dic_cert_der);
+      
+      if (dic_certificate) {
+        // Create Wootz ClientCertIdentity with hardware key integration
+        auto wootz_cert_identity = std::make_unique<WootzClientCertIdentity>(
+            dic_certificate);
+        
+        // Auto-select: acquire private key and continue
+        net::ClientCertIdentity::SelfOwningAcquirePrivateKey(
+            std::move(wootz_cert_identity),
+            base::BindOnce(
+                &content::ClientCertificateDelegate::ContinueWithCertificate,
+                std::move(delegate), dic_certificate));
+        
+        LOG(INFO) << "Successfully auto-selected Wootz DIC for mTLS";
+        return base::OnceClosure();  // No UI to cancel
+      } else {
+        LOG(ERROR) << "Failed to parse Wootz DIC certificate";
+      }
+    } else {
+      LOG(ERROR) << "Wootz DIC certificate not available";
+    }
+  }
+#endif  // BUILDFLAG(IS_ANDROID)
 
   GURL requesting_url = chrome::enterprise_util::GetRequestingUrl(
       cert_request_info->host_and_port);
