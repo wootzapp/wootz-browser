@@ -60,32 +60,7 @@ public class ChromeApplicationImpl extends SplitCompatApplication.Impl {
 
         if (SplitCompatApplication.isBrowserProcess()) {
             Log.e(TAG, "Initializing Chrome browser process");
-            
-            // Initialize Branch SDK first
-            try {
-                Log.e(TAG, "Initializing Branch SDK");
-                
-                // For Android 9, we need to set the user agent string before initialization
-                if (android.os.Build.VERSION.SDK_INT == android.os.Build.VERSION_CODES.P) {
-                    Log.e(TAG, "Setting user agent string for Android 9");
-                    
-                    // Set system user agent property to avoid WebView PacProcessor crash on Android 9
-                    System.setProperty("http.agent", "Mozilla/5.0 (Linux; Android 9; Mobile) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/114.0.0.0 Mobile Safari/537.36");
-                    
-                    // Tell Branch SDK to use synchronous user agent fetching on Android 9
-                    // This avoids the coroutine that causes the crash
-                    Branch.setIsUserAgentSync(true);
-                }
-                
-                // Initialize Branch SDK as normal
-                io.branch.referral.Branch.enableLogging();
-                io.branch.referral.Branch branch = io.branch.referral.Branch.getAutoInstance(getApplication());
-                Log.e(TAG, "Branch SDK initialized successfully");
-                
-            } catch (Exception e) {
-                Log.e(TAG, "Error initializing Branch SDK: " + e.getMessage(), e);
-            }
-            
+
             // Check Android version
             checkAndroidVersion();
             
