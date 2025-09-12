@@ -24,7 +24,6 @@ import java.io.ByteArrayOutputStream;
  * Java implementation of screenshot functionality for Wootz extensions.
  * Captures only the visible viewport for efficiency.
  */
-@JNINamespace("chrome::android")
 public class WootzScreenshotApi {
     private static final String TAG = "WootzScreenshotApi";
     private static final int MAX_VIEWPORT_DIMENSION = 1080; // Reduced to prevent large base64
@@ -32,22 +31,21 @@ public class WootzScreenshotApi {
 
     /**
      * Called from C++ to trigger screenshot capture.
-     * @param nativePtr Pointer to the C++ function object
      */
     @CalledByNative
-    public static void captureScreenshot(long nativePtr) {
+    public static void captureScreenshot() {
         try {
             Activity activity = ApplicationStatus.getLastTrackedFocusedActivity();
             if (activity == null) {
                 Log.e(TAG, "No focused activity found");
-                WootzScreenshotApiJni.get().onScreenshotError(nativePtr, "No focused activity found");
+                WootzScreenshotApiJni.get().onScreenshotError("No focused activity found");
                 return;
             }
 
             // Check if activity is still valid before proceeding
             if (activity.isFinishing() || activity.isDestroyed()) {
                 Log.e(TAG, "Activity not valid - finishing: " + activity.isFinishing() + ", destroyed: " + activity.isDestroyed());
-                WootzScreenshotApiJni.get().onScreenshotError(nativePtr, "Activity not valid");
+                WootzScreenshotApiJni.get().onScreenshotError("Activity not valid");
                 return;
             }
 
@@ -62,16 +60,12 @@ public class WootzScreenshotApi {
 
                         if (!screenshotTask.isReady()) {
                             Log.e(TAG, "ScreenshotTask not ready");
-                            WootzScreenshotApiJni.get().onScreenshotError(nativePtr, "ScreenshotTask not ready");
+                            WootzScreenshotApiJni.get().onScreenshotError("ScreenshotTask not ready");
                             return;
                         }
 
                         Bitmap bitmap = screenshotTask.getScreenshot();
                         if (bitmap != null) {
-                            int[] pixels = new int[Math.min(bitmap.getWidth(), 10) * Math.min(bitmap.getHeight(), 10)];
-                            bitmap.getPixels(pixels, 0, Math.min(bitmap.getWidth(), 10), 0, 0, 
-                                           Math.min(bitmap.getWidth(), 10), Math.min(bitmap.getHeight(), 10));
-
                             // Scale down if too large to reduce memory usage
                             Bitmap scaledBitmap = scaleBitmapIfNeeded(bitmap);
                             if (scaledBitmap != bitmap) {
@@ -80,22 +74,22 @@ public class WootzScreenshotApi {
 
                             // Convert to base64 with compression
                             String base64Data = convertBitmapToBase64Compressed(bitmap);
-                            WootzScreenshotApiJni.get().onScreenshotComplete(nativePtr, base64Data);
+                            WootzScreenshotApiJni.get().onScreenshotComplete(base64Data);
                             return;
                         } else {
                             Log.e(TAG, "ScreenshotTask returned null bitmap");
-                            WootzScreenshotApiJni.get().onScreenshotError(nativePtr, "ScreenshotTask returned null bitmap");
+                            WootzScreenshotApiJni.get().onScreenshotError("ScreenshotTask returned null bitmap");
                         }
                     } catch (Exception e) {
                         Log.e(TAG, "Error in ScreenshotTask callback", e);
-                        WootzScreenshotApiJni.get().onScreenshotError(nativePtr, "Error in ScreenshotTask: " + e.getMessage());
+                        WootzScreenshotApiJni.get().onScreenshotError("Error in ScreenshotTask: " + e.getMessage());
                     }
                 }
             });
 
         } catch (Exception e) {
             Log.e(TAG, "Error creating ScreenshotTask", e);
-            WootzScreenshotApiJni.get().onScreenshotError(nativePtr, "Error creating ScreenshotTask: " + e.getMessage());
+            WootzScreenshotApiJni.get().onScreenshotError("Error creating ScreenshotTask: " + e.getMessage());
         }
     }
 
@@ -151,7 +145,7 @@ public class WootzScreenshotApi {
 
     @NativeMethods
     interface Natives {
-        void onScreenshotComplete(long nativePtr, String base64Data);
-        void onScreenshotError(long nativePtr, String error);
+        void onScreenshotComplete(String base64Data);
+        void onScreenshotError(String error);
     }
 }

@@ -866,8 +866,7 @@
                 "type": "object",
                 "properties": {
                   "success": {"type": "boolean", "description": "Whether the screenshot was successful"},
-                  "dataUrl": {"type": "string", "optional": true, "description": "Base64-encoded Jpeg image as data URL"},
-                  "error": {"type": "string", "optional": true, "description": "Error message if screenshot failed"}
+                  "message": {"type": "string", "optional": true, "description": "Message about the screenshot"}
                 }
               }
             ]
@@ -972,6 +971,22 @@
                 "extensionId": {"type": "string", "description": "ID of the target extension"},
                 "extensionName": {"type": "string", "description": "Name of the target extension"},
                 "timestamp": {"type": "number", "description": "When the event occurred"}
+              }
+            }
+          ]
+        },
+        {
+          "name": "onScreenshotComplete",
+          "type": "function",
+          "description": "Fired when a screenshot capture is completed",
+          "parameters": [
+            {
+              "name": "result",
+              "type": "object",
+              "properties": {
+                "success": {"type": "boolean", "description": "Whether the screenshot was successful"},
+                "dataUrl": {"type": "string", "optional": true, "description": "Base64-encoded Jpeg image as data URL"},
+                "error": {"type": "string", "optional": true, "description": "Error message if screenshot failed"}
               }
             }
           ]
