@@ -207,6 +207,7 @@ public class ChromeFeatureList {
             "AndroidTabDeclutterRescueKillswitch";
     public static final String ANDROID_TAB_GROUP_STABLE_IDS = "AndroidTabGroupStableIds";
     public static final String ANIMATED_IMAGE_DRAG_SHADOW = "AnimatedImageDragShadow";
+    public static final String APP_INFO_TAB_RESUMPTION_MODULE = "AppInfoTabResumptionModule";
     public static final String APP_SPECIFIC_HISTORY = "AppSpecificHistory";
     public static final String ARCHIVE_TAB_SERVICE = "ArchiveTabService";
     public static final String ASYNC_NOTIFICATION_MANAGER = "AsyncNotificationManager";
@@ -263,8 +264,6 @@ public class ChromeFeatureList {
     public static final String CCT_AUTO_TRANSLATE = "CCTAutoTranslate";
     public static final String CCT_BEFORE_UNLOAD = "CCTBeforeUnload";
     public static final String CCT_CLIENT_DATA_HEADER = "CCTClientDataHeader";
-    public static final String CCT_EMBEDDER_SPECIAL_BEHAVIOR_TRIGGER =
-            "CCTEmbedderSpecialBehaviorTrigger";
     public static final String CCT_EPHEMERAL_MODE = "CCTEphemeralMode";
     public static final String CCT_EXTEND_TRUSTED_CDN_PUBLISHER = "CCTExtendTrustedCdnPublisher";
     public static final String CCT_FEATURE_USAGE = "CCTFeatureUsage";
@@ -289,8 +288,6 @@ public class ChromeFeatureList {
     public static final String CCT_TAB_MODAL_DIALOG = "CCTTabModalDialog";
     public static final String CHROME_SURVEY_NEXT_ANDROID = "ChromeSurveyNextAndroid";
     public static final String CHROME_SHARE_PAGE_INFO = "ChromeSharePageInfo";
-    public static final String CLEAR_OMNIBOX_FOCUS_AFTER_NAVIGATION =
-            "ClearOmniboxFocusAfterNavigation";
     public static final String COLLECT_ANDROID_FRAME_TIMELINE_METRICS =
             "CollectAndroidFrameTimelineMetrics";
     public static final String COMMAND_LINE_ON_NON_ROOTED = "CommandLineOnNonRooted";
@@ -568,6 +565,8 @@ public class ChromeFeatureList {
     public static final CachedFlag sAndroidHub = newCachedFlag(ANDROID_HUB, true);
     public static final CachedFlag sAndroidTabGroupStableIds =
             newCachedFlag(ANDROID_TAB_GROUP_STABLE_IDS, true);
+    public static final CachedFlag sAppInfoTabResumptionModule =
+            newCachedFlag(APP_INFO_TAB_RESUMPTION_MODULE, false);
     public static final CachedFlag sAppSpecificHistory = newCachedFlag(APP_SPECIFIC_HISTORY, false);
     public static final CachedFlag sArchiveTabService = newCachedFlag(ARCHIVE_TAB_SERVICE, false);
     public static final CachedFlag sAsyncNotificationManager =
@@ -722,13 +721,13 @@ public class ChromeFeatureList {
 
     public static final List<CachedFlag> sFlagsCachedFullBrowser =
             List.of(
-                    sAccountReauthenticationRecentTimeWindow,
                     sAdBlockFeature,
                     sAccountReauthenticationRecentTimeWindow,
                     sAndroidAppIntegration,
                     sAndroidElegantTextHeight,
                     sAndroidHub,
                     sAndroidTabGroupStableIds,
+                    sAppInfoTabResumptionModule,
                     sAppSpecificHistory,
                     sArchiveTabService,
                     sAsyncNotificationManager,
