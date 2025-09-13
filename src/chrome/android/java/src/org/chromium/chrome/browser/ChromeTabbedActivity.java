@@ -3814,10 +3814,13 @@ public class ChromeTabbedActivity extends ChromeActivity<ChromeActivityComponent
     public void onStart() {
         try (TraceEvent e = TraceEvent.scoped("ChromeTabbedActivity.onStart")) {
             super.onStart();
-
+            
             JSONObject firstReferringParams = Branch.getInstance().getFirstReferringParams();
             Log.e(TAG, "First referring params: " + firstReferringParams.toString());
             handleBranchDeepLinkParams(firstReferringParams);
+       }
+       catch(Exception ex) {
+            Log.e(TAG, "Exception in onStart", ex);
        }
     }
 
