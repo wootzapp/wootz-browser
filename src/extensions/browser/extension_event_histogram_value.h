@@ -582,6 +582,7 @@ enum HistogramValue {
   WOOTZ_ON_TRANSACTION_STATUS_CHANGED = 559,
   WOOTZ_ON_SOLANA_SIGN_TRANSACTION_REQUESTED = 560,
   WOOTZ_ON_DROPDOWN_BUTTON_CLICKED = 561,
+  WOOTZ_ON_SCREENSHOT_COMPLETE = 562,
   
   // Last entry: Add new entries above, then run:
   // tools/metrics/histograms/update_extension_histograms.py

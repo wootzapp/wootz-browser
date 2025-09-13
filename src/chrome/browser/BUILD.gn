@@ -2837,6 +2837,8 @@ static_library("browser") {
       "accessibility/accessibility_prefs/android/accessibility_prefs_controller.cc",
       "accessibility/accessibility_prefs/android/accessibility_prefs_controller.h",
       "after_startup_task_utils_android.cc",
+      "wootz_client_cert_identity.cc",
+      "wootz_client_cert_identity.h",
       "android/android_theme_resources.h",
       "android/autocomplete/tab_matcher_android.cc",
       "android/autocomplete/tab_matcher_android.h",

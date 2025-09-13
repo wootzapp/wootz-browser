@@ -72,6 +72,7 @@ function_registration("api_registration") {
     "//extensions/common/api",
     "//components/zk_proof:zk_proof",
     "//components/automation_agent/content/browser",
+    "//ui/snapshot",
 
     # Different APIs include some headers from chrome/common that in turn
     # include generated headers from these targets.

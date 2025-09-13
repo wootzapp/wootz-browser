@@ -450,5 +450,14 @@ class WootzChangeWootzAppSearchConfigurationFunction : public ExtensionFunction 
   ResponseAction Run() override;
 };
 
+class WootzCaptureScreenshotFunction : public ExtensionFunction {
+ public:
+  DECLARE_EXTENSION_FUNCTION("wootz.captureScreenshot", WOOTZ_CAPTURE_SCREENSHOT)
+  WootzCaptureScreenshotFunction() = default;
+ protected:
+  ~WootzCaptureScreenshotFunction() override = default;
+  ResponseAction Run() override;
+};
+
 }  // namespace extensions
 #endif  // CHROME_BROWSER_EXTENSIONS_API_WOOTZ_WOOTZ_API_H_

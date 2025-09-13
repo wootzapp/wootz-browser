@@ -18,13 +18,16 @@
 #include "base/base64.h"
 #include "base/functional/bind.h"
 #include "base/json/json_writer.h"
+#include "base/task/sequenced_task_runner.h"
 #include "base/lazy_instance.h"
 #include "base/memory/ref_counted.h"
 #include "base/strings/utf_string_conversions.h"
+#include "base/memory/scoped_refptr.h"
 #include "base/values.h"
 #include "build/build_config.h"
 #include "chrome/android/chrome_jni_headers/WootzAppBackgroundContentService_jni.h"
 #include "chrome/android/chrome_jni_headers/WootzBridge_jni.h"
+#include "chrome/android/chrome_jni_headers/WootzScreenshotApi_jni.h"
 #include "chrome/browser/extensions/extension_service.h"
 #include "chrome/browser/profiles/profile.h"
 #include "chrome/browser/profiles/profile_manager.h"
@@ -83,6 +86,7 @@
 #include "components/saml_verifier/saml_verifier.h"
 #include "content/public/browser/copy_paste_blocker_prefs.h"
 #include "content/public/browser/render_frame_host.h"
+#include "content/public/browser/browser_thread.h"
 #include "components/action_url/content/common/mojom/sensitive_element_masking.mojom.h"
 #include "mojo/public/cpp/bindings/associated_remote.h"
 #include "third_party/blink/public/common/associated_interfaces/associated_interface_provider.h"
@@ -1899,6 +1903,24 @@ ExtensionFunction::ResponseAction WootzChangeWootzAppSearchConfigurationFunction
   return RespondNow(NoArguments());
 }
 
+ExtensionFunction::ResponseAction WootzCaptureScreenshotFunction::Run() {
+  // Validate arguments (no arguments needed for basic screenshot)
+  if (!args().empty()) {
+    LOG(WARNING) << " Unexpected arguments provided";
+  }
+
+  // Trigger screenshot capture via JNI
+  JNIEnv* env = base::android::AttachCurrentThread();
+  Java_WootzScreenshotApi_captureScreenshot(env);
+
+  // Return success immediately - the actual result will be handled by the event
+  base::Value::Dict result;
+  result.Set("success", true);
+  result.Set("message", "Screenshot capture initiated");
+
+  return RespondNow(WithArguments(std::move(result)));
+}
+
 }  // namespace extensions
 
 void JNI_WootzBridge_OnConsentResult(JNIEnv* env, jboolean consented){
@@ -1932,6 +1954,99 @@ void JNI_WootzBridge_OnDropdownButtonClicked(JNIEnv* env, const base::android::J
   }
   wootz_api->OnDropdownButtonClicked(feature, extId, extName);
 }
+
+
+// Global JNI callback functions 
+void JNI_WootzScreenshotApi_OnScreenshotComplete(JNIEnv* env, const base::android::JavaParamRef<jstring>& base64_data) {
+  std::string base64_string = base::android::ConvertJavaStringToUTF8(env, base64_data);
+  LOG(INFO) << "JNI: Screenshot completed, base64 length: " << base64_string.length();
+  
+  // Dispatch event to all extensions (like WootzBridge pattern)
+  ProfileManager* profile_manager = g_browser_process->profile_manager();
+  if (!profile_manager) {
+    LOG(ERROR) << "JNI: ProfileManager not available";
+    return;
+  }
+  
+  Profile* profile = profile_manager->GetPrimaryUserProfile();
+  if (!profile) {
+    LOG(ERROR) << "JNI: Primary user profile not available";
+    return;
+  }
+  
+  auto* event_router = extensions::EventRouter::Get(profile);
+  if (!event_router) {
+    LOG(ERROR) << "JNI: Event router not available";
+    return;
+  }
+  
+  // Create event data
+  base::Value::List event_args;
+  base::Value::Dict result;
+  result.Set("success", true);
+  result.Set("dataUrl", base64_string);
+  event_args.Append(std::move(result));
+  
+  // Create and dispatch event
+  std::unique_ptr<extensions::Event> event = std::make_unique<extensions::Event>(
+      extensions::events::WOOTZ_ON_SCREENSHOT_COMPLETE,
+      "wootz.onScreenshotComplete",
+      std::move(event_args), 
+      profile,
+      std::nullopt,
+      GURL(), 
+      extensions::EventRouter::USER_GESTURE_UNKNOWN,
+      extensions::mojom::EventFilteringInfo::New());
+  
+  LOG(INFO) << "JNI: Dispatching screenshot complete event";
+  event_router->BroadcastEvent(std::move(event));
+}
+
+void JNI_WootzScreenshotApi_OnScreenshotError(JNIEnv* env, const base::android::JavaParamRef<jstring>& error) {
+  std::string error_string = base::android::ConvertJavaStringToUTF8(env, error);
+  LOG(ERROR) << "JNI: Screenshot error: " << error_string;
+  
+  // Dispatch event to all extensions (like WootzBridge pattern)
+  ProfileManager* profile_manager = g_browser_process->profile_manager();
+  if (!profile_manager) {
+    LOG(ERROR) << "JNI: ProfileManager not available";
+    return;
+  }
+  
+  Profile* profile = profile_manager->GetPrimaryUserProfile();
+  if (!profile) {
+    LOG(ERROR) << "JNI: Primary user profile not available";
+    return;
+  }
+  
+  auto* event_router = extensions::EventRouter::Get(profile);
+  if (!event_router) {
+    LOG(ERROR) << "JNI: Event router not available";
+    return;
+  }
+  
+  // Create event data
+  base::Value::List event_args;
+  base::Value::Dict result;
+  result.Set("success", false);
+  result.Set("error", error_string);
+  event_args.Append(std::move(result));
+  
+  // Create and dispatch event
+  std::unique_ptr<extensions::Event> event = std::make_unique<extensions::Event>(
+      extensions::events::WOOTZ_ON_SCREENSHOT_COMPLETE,
+      "wootz.onScreenshotComplete",
+      std::move(event_args), 
+      profile,
+      std::nullopt,
+      GURL(), 
+      extensions::EventRouter::USER_GESTURE_UNKNOWN,
+      extensions::mojom::EventFilteringInfo::New());
+  
+  LOG(INFO) << "JNI: Dispatching screenshot error event";
+  event_router->BroadcastEvent(std::move(event));
+}
+
 
 // extern "C" JNIEXPORT void JNICALL
 // Java_org_chromium_chrome_browser_extensions_WootzBridge_nativeOnConsentDialogResult(
