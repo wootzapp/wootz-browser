@@ -268,9 +268,7 @@ class LayerTreeHostImpl::ImageDecodeCacheHolder {
 
  private:
   std::unique_ptr<ImageDecodeCache> image_decode_cache_;
-  // RAW_PTR_EXCLUSION: ImageDecodeCache is marked as not supported by raw_ptr.
-  // See raw_ptr.h for more information.
-  RAW_PTR_EXCLUSION ImageDecodeCache* image_decode_cache_ptr_ = nullptr;
+  raw_ptr<ImageDecodeCache> image_decode_cache_ptr_ = nullptr;
 };
 
 void LayerTreeHostImpl::DidUpdateScrollAnimationCurve() {

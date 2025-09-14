@@ -42,7 +42,6 @@ import org.chromium.chrome.browser.toolbar.ToolbarFeatures;
 import org.chromium.components.browser_ui.util.BrowserControlsVisibilityDelegate;
 import org.chromium.ui.base.ViewUtils;
 import org.chromium.ui.util.TokenHolder;
-
 import java.lang.annotation.Retention;
 import java.lang.annotation.RetentionPolicy;
 
@@ -430,7 +429,6 @@ public class BrowserControlsManager implements ActivityStateListener, BrowserCon
     public int getTopControlsHeight() {
         return mTopControlContainerHeight;
     }
-
     @Override
     public int getTopControlsHeightRealOffset() {
         return 0;

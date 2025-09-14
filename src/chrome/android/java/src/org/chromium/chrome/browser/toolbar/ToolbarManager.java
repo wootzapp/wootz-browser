@@ -200,7 +200,6 @@ import org.chromium.ui.base.WindowDelegate;
 import org.chromium.ui.modaldialog.ModalDialogManager;
 import org.chromium.ui.util.TokenHolder;
 import org.chromium.url.GURL;
-
 import android.util.Log;
 import java.util.List;
 import org.chromium.base.ContextUtils;
@@ -306,7 +305,6 @@ public class ToolbarManager
     private Runnable mMenuStateObserver;
     private UpdateMenuItemHelper mUpdateMenuItemHelper;
     private Runnable mStartSurfaceMenuStateObserver;
-
     private @Nullable Runnable mShowMyBottomSheet;
     private boolean mShouldUpdateToolbarPrimaryColor = true;
     private int mCurrentThemeColor;
@@ -610,6 +608,7 @@ public class ToolbarManager
             @Nullable Runnable showMyBottomSheet
             ) {
         TraceEvent.begin("ToolbarManager.ToolbarManager");
+        
         mActivity = activity;
         mWindowAndroid = windowAndroid;
         mCompositorViewHolder = compositorViewHolder;
@@ -675,7 +674,7 @@ public class ToolbarManager
             ((ViewGroup.MarginLayoutParams) mToolbarHairline.getLayoutParams());
         layoutParamsHR.topMargin = 0;
         mToolbarHairline.setLayoutParams(layoutParamsHR);
-
+        
         mBookmarkModelSupplier = bookmarkModelSupplier;
         // We need to capture a reference to setBookmarkModel/setCurrentProfile in order to remove
         // them later; there is no guarantee in the JLS that referencing the same method later will
@@ -1464,10 +1463,7 @@ public class ToolbarManager
                                                 ? LayoutType.NONE
                                                 : mLayoutStateProvider.getActiveLayoutType()),
                         mCompositorViewHolder::getResourceManager,
-                        () -> {
-                            return IncognitoUtils.isIncognitoModeEnabled(
-                                    mTabModelSelector.getCurrentModel().getProfile());
-                        },
+                        IncognitoUtils::isIncognitoModeEnabled,
                         isTabToGtsAnimationEnabled,
                         isStartSurfaceEnabled,
                         HistoryManagerUtils::showHistoryManager,
@@ -1693,8 +1689,8 @@ public class ToolbarManager
                 : "LocationBar should be an instance of LocationBarCoordinator.";
         return ((LocationBarCoordinator) mLocationBar).getUrlBarTextWithoutAutocomplete();
     }
+        View mBottomRoot;
 
-    View mBottomRoot;
     private void MoveBottomBarOverTopBar() {
         if (mBottomRoot != null &&
                 true) {
@@ -2303,7 +2299,9 @@ public class ToolbarManager
      */
     private int getToolbarExtraYOffset() {
         int toolbarHairlineHeight = mToolbarHairline.getHeight();
-        toolbarHairlineHeight = 0; // For now, ignore the hairline height.
+
+            toolbarHairlineHeight = 0;
+            
         final int controlContainerHeight = mControlContainer.getHeight();
 
         // Offset can't be calculated if control container height isn't known yet.

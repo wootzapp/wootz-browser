@@ -250,7 +250,7 @@ void ExtensionStoreMessageHandler::OnFetchExtensionsComplete(std::unique_ptr<std
   }
 
   // Parse the JSON response.
-  std::optional<base::Value> json = base::JSONReader::Read(*response_body);
+  absl::optional<base::Value> json = base::JSONReader::Read(*response_body);
   if (!json || !json->is_dict()) {
     return;
   }

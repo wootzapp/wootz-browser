@@ -96,7 +96,7 @@ void ViewportData::UpdateViewportDescription() {
 
   // If we are forcing to expand into the display cutout then we should override
   // the viewport fit value.
-  if (force_expand_display_cutout_)
+  if (force_expand_display_cutout_) 
     current_viewport_fit = mojom::ViewportFit::kCoverForcedByUserAgent;
 
   if (force_stop_display_cutout_)
@@ -123,6 +123,7 @@ void ViewportData::UpdateViewportDescription() {
       if (document_->GetFrame()->IsOutermostMainFrame()) {
         if (current_viewport_fit == mojom::blink::ViewportFit::kContain) {
           UseCounter::Count(document_, WebFeature::kViewportFitContain);
+          VLOG(0) << "E2E_Used ViewportFitContain";
         } else if (current_viewport_fit == mojom::blink::ViewportFit::kCover ||
                    current_viewport_fit ==
                        mojom::blink::ViewportFit::kCoverForcedByUserAgent) {

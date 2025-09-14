@@ -85,8 +85,7 @@ if (proprietary_codecs && media_use_ffmpeg) {
 # Common configuration for targets in the media directory; these must not be
 # exported since things like USE_NEON and USE_CRAS have different meanings
 # elsewhere in the code base.
-config("media_config") {
-  defines = []
+config("media_config") {  defines = []
   if (current_cpu == "arm64" || (current_cpu == "arm" && arm_use_neon)) {
     defines += [ "USE_NEON" ]
   }

@@ -17,7 +17,6 @@ import org.chromium.chrome.browser.browser_controls.BrowserControlsStateProvider
 import org.chromium.chrome.browser.fullscreen.BrowserControlsManager;
 import org.chromium.components.messages.MessageContainer;
 import org.chromium.ui.base.ViewUtils;
-
 import android.view.Gravity;
 /**
  * Coordinator of {@link MessageContainer}, which can adjust margins of the message container

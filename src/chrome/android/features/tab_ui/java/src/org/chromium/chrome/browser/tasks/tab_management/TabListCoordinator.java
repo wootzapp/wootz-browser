@@ -16,7 +16,6 @@ import android.view.View;
 import android.view.View.OnLayoutChangeListener;
 import android.view.ViewGroup;
 import android.widget.ImageView;
-
 import android.os.Parcel;
 import android.os.Parcelable;
 import androidx.annotation.IntDef;
@@ -27,11 +26,11 @@ import androidx.recyclerview.widget.ItemTouchHelper;
 import androidx.recyclerview.widget.LinearLayoutManager;
 import androidx.recyclerview.widget.RecyclerView;
 import androidx.recyclerview.widget.RecyclerView.OnItemTouchListener;
-
 import android.content.res.Configuration;
 import org.chromium.base.Callback;
 import org.chromium.base.Log;
 import org.chromium.base.TraceEvent;
+import org.chromium.chrome.browser.flags.ChromeFeatureList;
 import org.chromium.base.supplier.ObservableSupplier;
 import org.chromium.base.supplier.Supplier;
 import org.chromium.chrome.browser.browser_controls.BrowserControlsStateProvider;
@@ -498,8 +497,7 @@ public class TabListCoordinator
                         .getDecorView()
                         .getWindowVisibleDisplayFrame(frame);
                 updateGridCardLayout(frame.width());
-            } else if (mMode == TabListMode.STRIP
-                    || mMode == TabListMode.LIST) {
+            } else if (mMode == TabListMode.STRIP) {
                 LinearLayoutManager layoutManager =
                         new LinearLayoutManager(
                                 context,
@@ -514,6 +512,17 @@ public class TabListCoordinator
                             }
                         };
                 mRecyclerView.setLayoutManager(layoutManager);
+            } else if (mMode == TabListMode.LIST) {
+                LinearLayoutManager layout =
+                    new LinearLayoutManager(context, LinearLayoutManager.VERTICAL, false) {
+                            @Override
+                            public void onLayoutCompleted(RecyclerView.State state) {
+                                super.onLayoutCompleted(state);
+                                checkAwaitingLayout();
+                            }
+                        };
+                layout.setStackFromEnd(true);
+                mRecyclerView.setLayoutManager(layout);
             }
             mMediator.setRecyclerViewItemAnimationToggle(mRecyclerView::setDisableItemAnimations);
         }
@@ -534,11 +543,6 @@ public class TabListCoordinator
             mEmptyStateSubheadingResId = emptySubheadingStringResId;
             mEmptyStateImageResId = emptyImageResId;
         }
-    }
-
-    /** Returns the {@link TabListMode} of the coordinator. */
-    public @TabListMode int getTabListMode() {
-        return mMode;
     }
 
     /**

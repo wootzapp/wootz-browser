@@ -847,6 +847,7 @@ __pycache__/
 !src/extensions/strings/BUILD.gn
 !src/infra/config/generated/testing/variants.pyl
 !src/infra/config/targets/lacros-version-skew-variants.jso
+!src/media/BUILD.gn
 !src/media/filters/BUILD.gn
 !src/mojo/public/tools/mojom/mojom_parser.py
 !src/remoting/resources/remoting_strings.grd

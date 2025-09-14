@@ -174,7 +174,6 @@ const base::Feature* const kFeaturesExposedToJava[] = {
     &kAndroidTabDeclutterRescueKillswitch,
     &kAndroidToolbarScrollAblation,
     &kAnimatedImageDragShadow,
-    &kAppInfoTabResumptionModule,
     &kAppSpecificHistory,
     &kArchiveTabService,
     &kAsyncNotificationManager,
@@ -189,8 +188,10 @@ const base::Feature* const kFeaturesExposedToJava[] = {
     &kBrowserControlsEarlyResize,
     &kCacheActivityTaskID,
     &kCastDeviceFilter,
+    &kClearOmniboxFocusAfterNavigation,
     &kCCTBeforeUnload,
     &kCCTClientDataHeader,
+    &kCCTEmbedderSpecialBehaviorTrigger,
     &kCCTExtendTrustedCdnPublisher,
     &kCCTFeatureUsage,
     &kCCTEphemeralMode,
@@ -488,10 +489,6 @@ BASE_FEATURE(kAnimatedImageDragShadow,
              "AnimatedImageDragShadow",
              base::FEATURE_DISABLED_BY_DEFAULT);
 
-BASE_FEATURE(kAppInfoTabResumptionModule,
-             "AppInfoTabResumptionModule",
-             base::FEATURE_DISABLED_BY_DEFAULT);
-
 BASE_FEATURE(kAppSpecificHistory,
              "AppSpecificHistory",
              base::FEATURE_DISABLED_BY_DEFAULT);
@@ -529,12 +526,20 @@ BASE_FEATURE(kCastDeviceFilter,
              "CastDeviceFilter",
              base::FEATURE_DISABLED_BY_DEFAULT);
 
+BASE_FEATURE(kClearOmniboxFocusAfterNavigation,
+             "ClearOmniboxFocusAfterNavigation",
+             base::FEATURE_ENABLED_BY_DEFAULT);
+
 BASE_FEATURE(kCCTBeforeUnload,
              "CCTBeforeUnload",
              base::FEATURE_ENABLED_BY_DEFAULT);
 
 BASE_FEATURE(kCCTClientDataHeader,
              "CCTClientDataHeader",
+             base::FEATURE_DISABLED_BY_DEFAULT);
+
+BASE_FEATURE(kCCTEmbedderSpecialBehaviorTrigger,
+             "CCTEmbedderSpecialBehaviorTrigger",
              base::FEATURE_DISABLED_BY_DEFAULT);
 
 BASE_FEATURE(kCCTEphemeralMode,
@@ -557,7 +562,7 @@ BASE_FEATURE(kCCTIntentFeatureOverrides,
              "CCTIntentFeatureOverrides",
              base::FEATURE_ENABLED_BY_DEFAULT);
 
-BASE_FEATURE(kCCTMinimized, "CCTMinimized", base::FEATURE_ENABLED_BY_DEFAULT);
+BASE_FEATURE(kCCTMinimized, "CCTMinimized", base::FEATURE_DISABLED_BY_DEFAULT);
 
 BASE_FEATURE(kCCTMinimizedEnabledByDefault,
              "CCTMinimizedEnabledByDefault",
@@ -973,7 +978,7 @@ BASE_FEATURE(kTestDefaultEnabled,
 // choice promo. See crbug.com/1471643 for more details.
 BASE_FEATURE(kSearchEnginesPromoV3,
              "SearchEnginesPromoV3",
-             base::FEATURE_ENABLED_BY_DEFAULT);
+             base::FEATURE_DISABLED_BY_DEFAULT);
 
 BASE_FEATURE(kSearchInCCT, "SearchInCCT", base::FEATURE_DISABLED_BY_DEFAULT);
 

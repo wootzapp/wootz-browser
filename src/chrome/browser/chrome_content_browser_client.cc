@@ -5583,6 +5583,9 @@ ChromeContentBrowserClient::CreateThrottlesForNavigation(
           handle),
       &throttles);
 
+      // Domain blocking is now handled directly in ChromeContentBrowserClient
+  // to avoid dependency cycles
+
   return throttles;
 }
 

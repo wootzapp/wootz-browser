@@ -775,10 +775,6 @@
     "META": {"sizes": {"includes": [15],}},
     "includes" : [5740],
   },
-  "<(SHARED_INTERMEDIATE_DIR)/chromeos/ash/components/kiosk/vision/webui/resources.grd" : {
-    "META": {"sizes": {"includes": [15]}},
-    "includes" : [5750],
-  },
   "chromeos/ash/resources/ash_resources.grd": {
     "includes": [5760],
   },
@@ -867,11 +863,8 @@
   "ash/webui/help_app_ui/resources/mock/help_app_bundle_mock_resources.grd": {
     "includes": [6060],
   },
-  "<(SHARED_INTERMEDIATE_DIR)/ash/webui/mall/resources/resources.grd": {
-    "META": {"join": 2, "sizes": {"includes": [10],}},
-    "includes": [6070],
-  },
   "ash/webui/media_app_ui/resources/media_app_resources.grd": {
+    "META": {"join": 2},
     "includes": [6080],
   },
   # Both media_app_bundle_resources.grd and media_app_bundle_mock_resources.grd
@@ -900,10 +893,6 @@
   "<(SHARED_INTERMEDIATE_DIR)/ash/webui/sample_system_web_app_ui/resources/untrusted/resources.grd": {
     "META": {"sizes": {"includes": [50],}},
     "includes": [6180],
-  },
-  "<(SHARED_INTERMEDIATE_DIR)/ash/webui/sanitize_ui/resources/resources.grd": {
-    "META": {"sizes": {"includes": [50],}},
-    "includes": [6190],
   },
   "<(SHARED_INTERMEDIATE_DIR)/ash/webui/scanning/resources/resources.grd": {
     "META": {"sizes": {"includes": [100],}},
@@ -1322,6 +1311,7 @@
   "weblayer/weblayer_resources.grd": {
     "includes": [8420],
   },
+   
 
   # This file is generated during the build.
   # .grd extension is required because it's checked before var interpolation.
@@ -1347,10 +1337,6 @@
     "META": {"sizes": {"includes": [50]}},
     "includes": [8520],
   },
-
-  # END "everything else" section.
-  # Everything but chrome/, components/, content/, and ios/
-
   # Thinking about appending to the end?
   # Please read the header and find the right section above instead.
 }
