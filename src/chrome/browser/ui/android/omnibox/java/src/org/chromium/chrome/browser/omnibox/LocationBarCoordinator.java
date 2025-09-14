@@ -64,6 +64,7 @@ import org.chromium.ui.modaldialog.ModalDialogManager;
 import java.util.List;
 import java.util.Optional;
 import java.util.function.BooleanSupplier;
+
 /**
  * The public API of the location bar component. Location bar responsibilities are:
  *

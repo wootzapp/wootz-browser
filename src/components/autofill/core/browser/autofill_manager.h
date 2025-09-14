@@ -21,7 +21,6 @@
 #include "base/task/sequenced_task_runner.h"
 #include "base/task/thread_pool.h"
 #include "base/time/time.h"
-#include "base/types/pass_key.h"
 #include "base/types/strong_alias.h"
 #include "build/build_config.h"
 #include "components/autofill/core/browser/autofill_driver.h"
@@ -46,7 +45,6 @@ struct FormData;
 class FormFieldData;
 class FormStructure;
 class LogManager;
-class TouchToFillDelegateAndroidImpl;
 
 // This class defines the interface should be implemented by autofill
 // implementation in browser side to interact with AutofillDriver.
@@ -85,6 +83,15 @@ class AutofillManager
                                    base::span<const FormGlobalId> forms) {}
     virtual void OnAfterFormsSeen(AutofillManager& manager,
                                   base::span<const FormGlobalId> forms) {}
+
+    virtual void OnBeforeCaretMovedInFormField(AutofillManager& manager,
+                                               const FormGlobalId& form,
+                                               const FieldGlobalId& field,
+                                               const gfx::Rect& caret_bounds) {}
+    virtual void OnAfterCaretMovedInFormField(AutofillManager& manager,
+                                              const FormGlobalId& form,
+                                              const FieldGlobalId& field,
+                                              const gfx::Rect& caret_bounds) {}
 
     virtual void OnBeforeTextFieldDidChange(AutofillManager& manager,
                                             FormGlobalId form,
@@ -187,20 +194,8 @@ class AutofillManager
 
   ~AutofillManager() override;
 
-  // The following will fail a DCHECK if called for a prerendered main frame.
-  AutofillClient& client() {
-    DCHECK(!driver().IsPrerendering());
-    return unsafe_client();
-  }
-
-  const AutofillClient& client() const {
-    return const_cast<AutofillManager*>(this)->client();
-  }
-
-  AutofillClient& unsafe_client(
-      base::PassKey<TouchToFillDelegateAndroidImpl> pass_key) {
-    return AutofillManager::unsafe_client();
-  }
+  AutofillClient& client() { return driver_->GetAutofillClient(); }
+  const AutofillClient& client() const { return driver_->GetAutofillClient(); }
 
   // Returns a WeakPtr to the leaf class.
   virtual base::WeakPtr<AutofillManager> GetWeakPtr() = 0;
@@ -229,6 +224,9 @@ class AutofillManager
       const gfx::Rect& caret_bounds,
       AutofillSuggestionTriggerSource trigger_source);
   void OnHidePopup();
+  virtual void OnCaretMovedInFormField(const FormData& form,
+                                       const FormFieldData& field,
+                                       const gfx::Rect& caret_bounds);
   virtual void OnDidFillAutofillFormData(const FormData& form,
                                          const base::TimeTicks timestamp);
   virtual void OnJavaScriptChangedAutofilledValue(
@@ -314,15 +312,14 @@ class AutofillManager
   // Retrieves the page language from |client_|
   LanguageCode GetCurrentPageLanguage();
 
-  // The following do not check for prerendering. These should only used while
-  // constructing or resetting the manager.
-  AutofillClient& unsafe_client() { return driver_->GetAutofillClient(); }
-
   // OnFooImpl() is called, potentially asynchronously after parsing the form,
   // by the renderer event OnFoo().
   virtual void OnFormSubmittedImpl(const FormData& form,
                                    bool known_success,
                                    mojom::SubmissionSource source) = 0;
+  virtual void OnCaretMovedInFormFieldImpl(const FormData& form,
+                                           const FormFieldData& field,
+                                           const gfx::Rect& caret_bounds) = 0;
   virtual void OnTextFieldDidChangeImpl(const FormData& form,
                                         const FormFieldData& field,
                                         const base::TimeTicks timestamp) = 0;

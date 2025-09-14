@@ -115,6 +115,15 @@ public class IntentHandler {
      * @param intent   The intent to check.
      * @return True if the splash screen was shown, false otherwise.
      */
+    public static boolean checkAndShowCustomSplash(Activity activity, Intent intent) {
+        if (intent != null && intent.getData() != null) {
+            Uri uri = intent.getData();
+            String utmSource = extractUtmParameter(uri, "utm_source");
+            Log.e("IntentHandler", "UTM source: of the god itself " + (utmSource != null ? utmSource : "null"));
+            // onIntentReceived(intent);
+        }
+        return false;
+    }
 
     /** Tab ID to use when creating a new Tab. */
     private static final String EXTRA_TAB_ID = "com.android.chrome.tab_id";

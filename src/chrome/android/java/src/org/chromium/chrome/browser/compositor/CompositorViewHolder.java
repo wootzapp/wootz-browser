@@ -92,7 +92,6 @@ import org.chromium.ui.base.WindowAndroid;
 import org.chromium.ui.mojom.VirtualKeyboardMode;
 import org.chromium.ui.resources.ResourceManager;
 import org.chromium.ui.resources.dynamics.DynamicResourceLoader;
-import org.chromium.chrome.browser.flags.ChromeFeatureList;
 
 import java.util.ArrayList;
 import java.util.HashSet;
@@ -610,7 +609,7 @@ public class CompositorViewHolder extends FrameLayout
     // state changes while fullscreened and is used to simulate a view resize. This is only needed
     // if the page has opted in to keyboard resizes.
     private void handleWindowInsetChanged() {
-         if (mApplicationBottomInsetSupplier != null
+        if (mApplicationBottomInsetSupplier != null
                 && mApplicationBottomInsetSupplier.insetsAffectWebContentsSize()) {
             tryUpdateControlsAndWebContentsSizing();
         }
@@ -895,7 +894,7 @@ public class CompositorViewHolder extends FrameLayout
         // TODO(crbug.com/40767446): Centralize the logic for calculating bottom insets by
         // merging them into ApplicationBottomInsetSupplier.
         int controlsInsets = 0;
-         if (mBrowserControlsManager != null) {
+        if (mBrowserControlsManager != null) {
             int controlsMinHeight =
                     mBrowserControlsManager.getTopControlsMinHeight()
                             + mBrowserControlsManager.getBottomControlsMinHeight();
@@ -1114,7 +1113,7 @@ public class CompositorViewHolder extends FrameLayout
         TraceEvent.begin("CompositorViewHolder:updateContentViewChildrenDimension");
         ViewGroup view = getContentView();
         if (view != null) {
-             assert mBrowserControlsManager != null;
+            assert mBrowserControlsManager != null;
             float topViewsTranslation = mBrowserControlsManager.getTopVisibleContentOffset();
             float bottomMargin =
                     BrowserControlsUtils.getBottomContentOffset(mBrowserControlsManager);

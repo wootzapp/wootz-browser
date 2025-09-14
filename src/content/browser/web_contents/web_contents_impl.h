@@ -688,8 +688,8 @@ class CONTENT_EXPORT WebContentsImpl : public WebContents,
   // Broadcasts the mode change to all frames.
   void ResetAccessibility() override;
   void AXTreeIDForMainFrameHasChanged() override;
-  void AccessibilityEventReceived(
-      const ui::AXUpdatesAndEvents& details) override;
+  void ProcessAccessibilityUpdatesAndEvents(
+      ui::AXUpdatesAndEvents& details) override;
   void AccessibilityLocationChangesReceived(
       const std::vector<ui::AXLocationChanges>& details) override;
   ui::AXNode* GetAccessibilityRootNode() override;
@@ -1146,6 +1146,8 @@ class CONTENT_EXPORT WebContentsImpl : public WebContents,
   RenderFrameHostImpl* GetProspectiveOuterDocument() override;
   FrameTree* LoadingTree() override;
   void SetFocusedFrame(FrameTreeNode* node, SiteInstanceGroup* source) override;
+  FrameTree* GetOwnedPictureInPictureFrameTree() override;
+  FrameTree* GetPictureInPictureOpenerFrameTree() override;
 
   // NavigationControllerDelegate ----------------------------------------------
 
@@ -2484,6 +2486,11 @@ class CONTENT_EXPORT WebContentsImpl : public WebContents,
   // WebContents::CreateParams::picture_in_picture_options.
   std::optional<blink::mojom::PictureInPictureWindowOptions>
       picture_in_picture_options_;
+
+  // Only set if this WebContents represents a document picture-in-picture
+  // window. This points to the WebContents that originally opened this
+  // WebContents.
+  base::WeakPtr<WebContents> picture_in_picture_opener_;
 
   VisibleTimeRequestTrigger visible_time_request_trigger_;
 

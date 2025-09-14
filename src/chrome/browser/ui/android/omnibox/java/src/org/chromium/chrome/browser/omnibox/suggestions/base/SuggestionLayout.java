@@ -150,8 +150,8 @@ class SuggestionLayout extends ViewGroup {
 
         var res = context.getResources();
 
-        int endSpace = res.getDimensionPixelSize(R.dimen.omnibox_suggestion_end_padding_modern);
-        setPaddingRelative(0, 0, endSpace, 8);
+        int endSpace = res.getDimensionPixelSize(R.dimen.omnibox_suggestion_end_padding);
+        setPaddingRelative(0, 0, endSpace, 0);
 
         mDecorationIconWidthPx =
                 OmniboxResourceProvider.getSuggestionDecorationIconSizeWidth(context);
@@ -181,8 +181,6 @@ class SuggestionLayout extends ViewGroup {
                         || mOutlineProvider.isBottomEdgeRounded() != roundBottomEdge;
 
         if (!needUpdate) return;
-        
-        //Abhinandan: interchanged bottom and top edged
         mOutlineProvider.setRoundingEdges(true, roundBottomEdge, true, roundTopEdge);
         setClipToOutline(roundTopEdge || roundBottomEdge);
         // Make sure the view redraws. Otherwise, the on-screen visuals may not reflect our desired

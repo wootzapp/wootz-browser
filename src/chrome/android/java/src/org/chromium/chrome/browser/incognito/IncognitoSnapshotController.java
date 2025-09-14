@@ -14,12 +14,8 @@ import org.chromium.chrome.browser.flags.ChromeFeatureList;
 import org.chromium.chrome.browser.customtabs.ContentPrivacyPreferencesBridge;
 
 /**
- * An abstract base class to provide common functionalities related to blocking screenshots
- * across {@link ChromeTabbedActivity} and {@link CustomTabActivity}.
- * 
- * Blocks screenshots when:
- * 1. Content privacy is enabled via SAML server response, OR
- * 2. User is in incognito mode (unless incognito screenshots are explicitly enabled)
+ * An abstract base class to provide common functionalities related to allowing/blocking snapshot
+ * for Incognito tabs across {@link ChromeTabbedActivity} and {@link CustomTabActivity}.
  */
 public abstract class IncognitoSnapshotController {
     private final @NonNull Window mWindow;
@@ -36,7 +32,7 @@ public abstract class IncognitoSnapshotController {
         mIsShowingIncognitoSupplier = isShowingIncognitoSupplier;
     }
 
-    /** Sets the attributes flags to secure to block screenshots globally. */
+    /** Sets the attributes flags to secure if there is an incognito tab visible. */
     protected void updateIncognitoTabSnapshotState() {
         // Safety check to prevent native crashes
         if (mWindow == null) return;

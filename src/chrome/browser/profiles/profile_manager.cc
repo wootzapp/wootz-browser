@@ -877,11 +877,7 @@ bool ProfileManager::IsAllowedProfilePath(const base::FilePath& path) const {
 }
 
 bool ProfileManager::CanCreateProfileAtPath(const base::FilePath& path) const {
-  bool is_allowed_path = IsAllowedProfilePath(path) ||
-                         base::CommandLine::ForCurrentProcess()->HasSwitch(
-                             switches::kAllowProfilesOutsideUserDir);
-
-  if (!is_allowed_path) {
+  if (!IsAllowedProfilePath(path)) {
     LOG(ERROR) << "Cannot create profile at path " << path.AsUTF8Unsafe();
     return false;
   }
@@ -1101,7 +1097,7 @@ void ProfileManager::AutoloadProfiles() {
 void ProfileManager::InitProfileUserPrefs(Profile* profile) {
   TRACE_EVENT0("browser", "ProfileManager::InitProfileUserPrefs");
   ProfileAttributesStorage& storage = GetProfileAttributesStorage();
-  
+
   if (!IsAllowedProfilePath(profile->GetPath())) {
     LOG(WARNING) << "Failed to initialize prefs for a profile at invalid path: "
                  << profile->GetPath().AsUTF8Unsafe();
@@ -1484,6 +1480,8 @@ void ProfileManager::DoFinalInitForServices(Profile* profile,
       AreKeyedServicesDisabledForProfileByDefault(profile)) {
     return;
   }
+
+  // Ensure WootzWalletService is started.
   wootz_wallet::WootzWalletServiceFactory::GetServiceForContext(profile);
   TRACE_EVENT0("browser", "ProfileManager::DoFinalInitForServices");
 

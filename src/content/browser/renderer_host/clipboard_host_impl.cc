@@ -840,9 +840,8 @@ void ClipboardHostImpl::ReadUnsanitizedCustomFormat(
 
   // `kMaxFormatSize` includes the null terminator as well so we check if
   // the `format` size is strictly less than `kMaxFormatSize` or not.
-  if (format.length() >= blink::mojom::ClipboardHost::kMaxFormatSize) {
+  if (format.length() >= blink::mojom::ClipboardHost::kMaxFormatSize)
     return;
-  }
 
   // Extract the custom format names and then query the web custom format
   // corresponding to the MIME type.
@@ -852,20 +851,17 @@ void ClipboardHostImpl::ReadUnsanitizedCustomFormat(
       ui::Clipboard::GetForCurrentThread()->ExtractCustomPlatformNames(
           ui::ClipboardBuffer::kCopyPaste, data_endpoint.get());
   std::string web_custom_format_string;
-  if (custom_format_names.find(format_name) != custom_format_names.end()) {
+  if (custom_format_names.find(format_name) != custom_format_names.end())
     web_custom_format_string = custom_format_names[format_name];
-  }
-  if (web_custom_format_string.empty()) {
+  if (web_custom_format_string.empty())
     return;
-  }
 
   std::string result;
   ui::Clipboard::GetForCurrentThread()->ReadData(
       ui::ClipboardFormatType::GetType(web_custom_format_string),
       data_endpoint.get(), &result);
-  if (result.size() >= blink::mojom::ClipboardHost::kMaxDataSize) {
+  if (result.size() >= blink::mojom::ClipboardHost::kMaxDataSize)
     return;
-  }
   base::span<const uint8_t> span = base::as_bytes(base::make_span(result));
   mojo_base::BigBuffer buffer = mojo_base::BigBuffer(span);
   std::move(callback).Run(std::move(buffer));
@@ -875,12 +871,10 @@ void ClipboardHostImpl::WriteUnsanitizedCustomFormat(
     const std::u16string& format,
     mojo_base::BigBuffer data) {
   // `kMaxFormatSize` & `kMaxDataSize` includes the null terminator.
-  if (format.length() >= blink::mojom::ClipboardHost::kMaxFormatSize) {
+  if (format.length() >= blink::mojom::ClipboardHost::kMaxFormatSize)
     return;
-  }
-  if (data.size() >= blink::mojom::ClipboardHost::kMaxDataSize) {
+  if (data.size() >= blink::mojom::ClipboardHost::kMaxDataSize)
     return;
-  }
 
   // The `format` is mapped to user agent defined web custom format before
   // writing to the clipboard. This happens in

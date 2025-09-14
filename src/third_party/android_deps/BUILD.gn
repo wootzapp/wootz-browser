@@ -2777,7 +2777,7 @@ if (!limit_android_deps) {
 
   # Branch SDK - Main library
   android_aar_prebuilt("io_branch_sdk_android_library_java") {
-    aar_path = "libs/io_branch_sdk_android_library/library-5.16.2.aar"
+    aar_path = "libs/io_branch_sdk_android_library/library-5.20.0.aar"
     info_path = "libs/io_branch_sdk_android_library/io_branch_sdk_android_library.info"
     enable_bytecode_checks = false
 

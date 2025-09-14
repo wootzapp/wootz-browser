@@ -398,9 +398,8 @@ void ClipboardPromise::OnReadAvailableFormatNames(
 
 void ClipboardPromise::ReadNextRepresentation() {
   DCHECK_CALLED_ON_VALID_SEQUENCE(sequence_checker_);
-  if (!GetExecutionContext()) {
+  if (!GetExecutionContext())
     return;
-  }
   if (clipboard_representation_index_ == clipboard_item_data_.size()) {
     ResolveRead();
     return;

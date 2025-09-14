@@ -5,15 +5,15 @@
 #include "content/public/browser/navigation_throttle.h"
 
 #include "base/functional/bind.h"
-#include "base/task/single_thread_task_runner.h"
-#include "content/browser/renderer_host/navigation_request.h"
-#include "content/public/browser/web_contents.h"
-#include "net/base/net_errors.h"
-#include "ui/base/page_transition_types.h"
 #include "base/logging.h"
 #include "base/strings/string_util.h"
+#include "base/task/single_thread_task_runner.h"
+#include "content/browser/renderer_host/navigation_request.h"
 #include "content/public/browser/content_browser_client.h"
+#include "content/public/browser/web_contents.h"
 #include "content/public/common/content_client.h"
+#include "net/base/net_errors.h"
+#include "ui/base/page_transition_types.h"
 #include "url/gurl.h"
 
 namespace content {

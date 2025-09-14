@@ -1523,12 +1523,12 @@ class CORE_EXPORT Document : public ContainerNode,
   void EnqueueVisualViewportScrollEvent();
   void EnqueueVisualViewportScrollEndEvent();
   void EnqueueVisualViewportResizeEvent();
-  void EnqueueSnapChangedEvent(Node* target,
-                               Member<Node>& block_target,
-                               Member<Node>& inline_target);
-  void EnqueueSnapChangingEvent(Node* target,
-                                Member<Node>& block_target,
-                                Member<Node>& inline_target);
+  void EnqueueScrollSnapChangeEvent(Node* target,
+                                    Member<Node>& block_target,
+                                    Member<Node>& inline_target);
+  void EnqueueScrollSnapChangingEvent(Node* target,
+                                      Member<Node>& block_target,
+                                      Member<Node>& inline_target);
 
   void DispatchEventsForPrinting();
 
@@ -2341,6 +2341,10 @@ class CORE_EXPORT Document : public ContainerNode,
   Resource* GetPendingLinkPreloadForTesting(const KURL&);
 
   ResizeObserver& GetLazyLoadedAutoSizedImgObserver();
+
+  // Initiates data loading for print that is dependent on style or layout.
+  // Returns true if data loading has started.
+  bool InitiateStyleOrLayoutDependentLoadForPrint();
 
   // Mutable because the token is lazily-generated on demand if no token is
   // explicitly set.

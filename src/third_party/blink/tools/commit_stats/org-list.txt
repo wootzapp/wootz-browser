@@ -24,7 +24,7 @@ BEC,bec.de
 BlackBerry,rim.com
 Blackberry,blackberry.com
 Bloomberg,bloomberg.net
-Wootz,wootz.com
+Brave,brave.com
 Broadcom,broadcom.com
 ByteDance,bytedance.com
 CERN,cern.ch
