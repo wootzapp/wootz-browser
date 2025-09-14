@@ -188,6 +188,7 @@ import org.chromium.chrome.browser.stylus_handwriting.StylusWritingCoordinator;
 import org.chromium.chrome.browser.sync.SyncServiceFactory;
 import org.chromium.chrome.browser.tab.RequestDesktopUtils;
 import org.chromium.chrome.browser.tab.Tab;
+import org.chromium.chrome.browser.tab.Tab.LoadUrlResult;
 import org.chromium.chrome.browser.tab.TabHidingType;
 import org.chromium.chrome.browser.tab.TabLaunchType;
 import org.chromium.chrome.browser.tab.TabLoadIfNeededCaller;
@@ -220,6 +221,7 @@ import org.chromium.chrome.browser.ui.appmenu.AppMenuDelegate;
 import org.chromium.chrome.browser.ui.appmenu.AppMenuPropertiesDelegate;
 import org.chromium.chrome.browser.ui.device_lock.MissingDeviceLockLauncher;
 import org.chromium.chrome.browser.ui.edge_to_edge.EdgeToEdgeController;
+import org.chromium.chrome.browser.ui.native_page.NativePage;
 import org.chromium.chrome.browser.ui.messages.snackbar.Snackbar;
 import org.chromium.chrome.browser.ui.messages.snackbar.SnackbarManager;
 import org.chromium.chrome.browser.ui.messages.snackbar.SnackbarManager.SnackbarManageable;
@@ -977,8 +979,8 @@ public abstract class ChromeActivity<C extends ChromeActivityComponent>
                 }
             });
             
-            // Start opacity timer
             startFabOpacityTimer();
+            updateFabVisibility();
         }
     }
 
@@ -1022,31 +1024,49 @@ public abstract class ChromeActivity<C extends ChromeActivityComponent>
      * Determines if the FAB should be visible based on current page and extension features
      */
     private boolean shouldShowFab() {
+        Log.e(TAG, "shouldShowFab called");
         Tab currentTab = getActivityTab();
         if (currentTab == null) {
             return false;
         }
-
-        boolean isOnSearchPage = false;
-        if (currentTab.getUrl() != null) {
-            isOnSearchPage = isSearchPage(currentTab.getUrl().getSpec());
+        
+        Log.e(TAG, "currentTab: " + currentTab.getUrl().getSpec());
+        if (currentTab.getUrl() == null || currentTab.getUrl().isEmpty()) {
+            return false;
         }
-
+        
+        boolean isOnSearchPage = isSearchPage(currentTab.getUrl().getSpec());
         Map<String, String> extensionFeatures = getExtensionFeaturesMap();
         boolean hasExtensionFeatures = !extensionFeatures.isEmpty();
+        
+        Log.e(TAG, "isOnSearchPage: " + isOnSearchPage + " hasExtensionFeatures: " + hasExtensionFeatures);
 
-        return isOnSearchPage || hasExtensionFeatures;
+        if (isOnSearchPage) {
+            Log.e(TAG, "Showing FAB because on search page");
+            return true;
+        }
+        
+        if (hasExtensionFeatures) {
+            Log.e(TAG, "Showing FAB because extensions have features");
+            return true;
+        }
+        
+        Log.e(TAG, "Hiding FAB - not on search page and no extension features");
+        return false;
     }
 
     public void updateFabVisibility() {
         View aiChatFab = findViewById(R.id.ai_chat_fab);
         if (aiChatFab != null) {
-            boolean shouldShow = shouldShowFab();
-            aiChatFab.setVisibility(shouldShow ? View.VISIBLE : View.GONE);
-            
-            if (shouldShow) {
-                resetFabOpacity();
-            }
+            new Handler(Looper.getMainLooper()).postDelayed(() -> {
+                boolean shouldShow = shouldShowFab();
+                Log.e(TAG, "shouldShow: " + shouldShow);
+                aiChatFab.setVisibility(shouldShow ? View.VISIBLE : View.GONE);
+                
+                if (shouldShow) {
+                    resetFabOpacity();
+                }
+            }, 50);
         }
     }
 
@@ -1122,7 +1142,6 @@ public abstract class ChromeActivity<C extends ChromeActivityComponent>
         ));
         scrollView.addView(menuContainer);
         
-        // Calculate maximum height as 60% of screen height to keep menu manageable
         int maxMenuHeight = (int) (screenHeight * 0.6);
         
         scrollView.measure(
@@ -1303,11 +1322,13 @@ public abstract class ChromeActivity<C extends ChromeActivityComponent>
 
     private boolean isSearchPage(String url) {
         if (TextUtils.isEmpty(url)) {
+            Log.e(TAG, "URL is empty");
             return false;
         }
 
         GURL gurl = new GURL(url);
         if (gurl.isEmpty()) {
+            Log.e(TAG, "GURL is empty");
             return false;
         }
         Tab currentTab = getActivityTab();
@@ -1321,6 +1342,18 @@ public abstract class ChromeActivity<C extends ChromeActivityComponent>
         boolean isSearchPage = templateUrlService.isSearchResultsPageFromDefaultSearchProvider(gurl);
         return isSearchPage;
     }
+
+    private void changeVisibility(Tab tab) {
+        View aiChatFab = findViewById(R.id.ai_chat_fab);
+        if (tab.isNativePage()) {
+            aiChatFab.setVisibility(View.GONE);
+            return;
+        }
+        if(tab.getUrl().getSpec().contains("chrome-native://")) {
+            aiChatFab.setVisibility(View.GONE);
+            return;
+        }
+    } 
 
 
     @Override
@@ -1502,6 +1535,12 @@ public abstract class ChromeActivity<C extends ChromeActivityComponent>
 
                     @Override
                     public void onUpdateUrl(Tab tab, GURL url) {
+                        updateFabVisibility();
+                    }
+
+                    @Override
+                    public void onLoadUrl(Tab tab, LoadUrlParams params, LoadUrlResult loadUrlResult) {
+                        changeVisibility(tab);
                         updateFabVisibility();
                     }
                 };

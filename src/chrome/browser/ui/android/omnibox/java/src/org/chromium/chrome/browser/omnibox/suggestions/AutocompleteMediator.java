@@ -71,6 +71,7 @@ import java.lang.annotation.Retention;
 import java.lang.annotation.RetentionPolicy;
 import java.util.List;
 import java.util.Optional;
+import org.chromium.base.Log;
 
 /** Handles updating the model state for the currently visible omnibox suggestions. */
 class AutocompleteMediator
@@ -249,6 +250,18 @@ class AutocompleteMediator
      */
     DropdownItemViewInfoListBuilder getDropdownItemViewInfoListBuilderForTest() {
         return mDropdownViewInfoListBuilder;
+    }
+
+    /**
+     * Refresh the suggestions list when AI suggestions need to be updated.
+     * This is called when the AI suggestion debounce completes.
+     */
+    void refreshSuggestionsList() {
+        if (mIsActive && !mAutocompleteResult.getSuggestionsList().isEmpty()) {
+            var viewInfoList =
+                    mDropdownViewInfoListBuilder.buildDropdownViewInfoList(mAutocompleteResult);
+            mDropdownViewInfoListManager.setSourceViewInfoList(viewInfoList);
+        }
     }
 
     public void destroy() {
@@ -766,6 +779,12 @@ class AutocompleteMediator
             return url;
         }
 
+        // Don't update URLs for custom schemes (like wootzapp://) - these are handled by AI suggestions
+        if (url.getScheme() != null && !url.getScheme().equals("http") && !url.getScheme().equals("https")) {
+            Log.i("Kartik", "Custom scheme detected: " + url.getScheme());
+            return url;
+        }
+
         GURL updatedUrl =
                 mAutocomplete.updateMatchDestinationUrlWithQueryFormulationTime(
                         suggestion, getElapsedTimeSinceInputChange());
@@ -779,6 +798,9 @@ class AutocompleteMediator
      */
     public void onTextChanged(@NonNull String textWithoutAutocomplete) {
         if (mShouldPreventOmniboxAutocomplete) return;
+
+        // Update the AI suggestion processor with the current query
+        mDropdownViewInfoListBuilder.updateAiQuery(textWithoutAutocomplete);
 
         mIgnoreOmniboxItemSelection = true;
         cancelAutocompleteRequests();

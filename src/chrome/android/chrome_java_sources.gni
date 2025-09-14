@@ -1281,6 +1281,7 @@ chrome_java_sources = [
   "java/src/org/chromium/chrome/browser/wootzapp_search/AiConfig.java",
   "java/src/org/chromium/chrome/browser/wootzapp_search/ChatAdapter.java",
   "java/src/org/chromium/chrome/browser/wootzapp_search/AiChatBottomSheetFragment.java",
+  "java/src/org/chromium/chrome/browser/wootzapp_search/AiSearchPage.java",
   "java/src/org/chromium/chrome/browser/wootzapp_search/ChatMessage.java",
   "java/src/org/chromium/chrome/browser/wootzapp_search/ChatRequest.java",
   "java/src/org/chromium/chrome/browser/wootzapp_search/ChatResponse.java",
