@@ -10,7 +10,6 @@ import android.content.res.Resources;
 import android.graphics.Color;
 import android.graphics.drawable.ColorDrawable;
 import android.util.AttributeSet;
-import android.util.Log;
 import android.view.InputDevice;
 import android.view.KeyEvent;
 import android.view.MotionEvent;
@@ -403,35 +402,6 @@ public class OmniboxSuggestionsDropdown extends RecyclerView {
     public void setAdapter(@NonNull Adapter adapter) {
         mAdapter = (OmniboxSuggestionsDropdownAdapter) adapter;
         super.setAdapter(mAdapter);
-    }
-
-    @Override
-    public void setVisibility(int visibility) {
-        if (OmniboxFeatures.sAsyncViewInflation.isEnabled()) {
-            if (visibility == VISIBLE) {
-                installAlignmentObserver();
-            } else {
-                removeAlignmentObserver();
-            }
-        }
-
-        super.setVisibility(visibility);
-    }
-
-    @Override
-    public void onAttachedToWindow() {
-        super.onAttachedToWindow();
-        if (!OmniboxFeatures.sAsyncViewInflation.isEnabled()) {
-            installAlignmentObserver();
-        }
-    }
-
-    @Override
-    protected void onDetachedFromWindow() {
-        super.onDetachedFromWindow();
-        if (!OmniboxFeatures.sAsyncViewInflation.isEnabled()) {
-            removeAlignmentObserver();
-        }
     }
 
     @Override

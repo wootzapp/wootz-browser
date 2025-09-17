@@ -60,7 +60,6 @@
 #include "components/guest_view/browser/guest_view_base.h"
 #endif
 
-
 namespace permissions {
 namespace {
 
@@ -514,8 +513,6 @@ void PermissionContextBase::PermissionDecided(const PermissionRequestID& id,
                                               ContentSetting content_setting,
                                               bool is_one_time,
                                               bool is_final_decision) {
-
-
   DCHECK(content_setting == CONTENT_SETTING_ALLOW ||
          content_setting == CONTENT_SETTING_BLOCK ||
          content_setting == CONTENT_SETTING_DEFAULT);

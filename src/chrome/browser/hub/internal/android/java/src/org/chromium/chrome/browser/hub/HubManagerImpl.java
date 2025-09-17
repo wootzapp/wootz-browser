@@ -107,9 +107,7 @@ public class HubManagerImpl implements HubManager, HubController {
         LayoutParams params = (LayoutParams) mHubContainerView.getLayoutParams();
         assert params != null : "HubContainerView should always have layout params.";
         mStatusIndicatorHeight = height;
-
         params.bottomMargin = mStatusIndicatorHeight + mAppHeaderHeight;
-        
         mHubContainerView.setLayoutParams(params);
     }
 
@@ -119,9 +117,7 @@ public class HubManagerImpl implements HubManager, HubController {
         LayoutParams params = (LayoutParams) mHubContainerView.getLayoutParams();
         assert params != null : "HubContainerView should always have layout params.";
         mAppHeaderHeight = height;
-
         params.bottomMargin = mStatusIndicatorHeight + mAppHeaderHeight;
-
         mHubContainerView.setLayoutParams(params);
     }
 
@@ -233,10 +229,7 @@ public class HubManagerImpl implements HubManager, HubController {
             mMenuOrKeyboardActionController.unregisterMenuOrKeyboardActionHandler(
                     menuOrKeyboardActionHandler);
         }
-
-
-            mSnackbarManager.setParentView((ViewGroup)getPaneHostView());
-            
+        mSnackbarManager.setParentView((ViewGroup)getPaneHostView());    
         // mSnackbarManager.setParentView(null);
     }
 

@@ -50,6 +50,7 @@ static_library("ui") {
     "accelerator_utils.h",
     "app_list/app_list_util.cc",
     "app_list/app_list_util.h",
+
     "webui/hello_world/hello_world_ui.cc",
     "webui/hello_world/hello_world_ui.h",
     "webui/extension_store/extension_store_ui.cc",
@@ -1502,8 +1503,6 @@ static_library("ui") {
       "safety_hub/password_status_check_service_factory.h",
       "safety_hub/safe_browsing_result.cc",
       "safety_hub/safe_browsing_result.h",
-      "safety_hub/safety_hub_constants.cc",
-      "safety_hub/safety_hub_constants.h",
       "safety_hub/safety_hub_prefs.cc",
       "safety_hub/safety_hub_prefs.h",
       "scoped_tabbed_browser_displayer.cc",

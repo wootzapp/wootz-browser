@@ -25,7 +25,6 @@ import org.chromium.chrome.browser.autofill.options.AutofillOptionsFragment.Auto
 import org.chromium.chrome.browser.autofill.settings.SettingsLauncherHelper;
 import android.content.SharedPreferences;
 import android.text.TextUtils;
-import android.util.Log;
 import org.chromium.base.ContextUtils;
 import org.chromium.chrome.browser.customtabs.CustomTabActivity;
 import org.chromium.chrome.browser.flags.ChromeFeatureList;

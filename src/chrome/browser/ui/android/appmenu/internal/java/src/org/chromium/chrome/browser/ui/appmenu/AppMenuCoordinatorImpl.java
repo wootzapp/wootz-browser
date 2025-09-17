@@ -10,13 +10,13 @@ import android.view.View;
 import android.view.ViewConfiguration;
 
 import androidx.annotation.VisibleForTesting;
-
 import android.util.Log;
 
 import org.chromium.base.Callback;
 import org.chromium.base.ResettersForTesting;
 import org.chromium.base.supplier.Supplier;
 import org.chromium.chrome.browser.lifecycle.ActivityLifecycleDispatcher;
+
 import org.chromium.ui.base.WindowAndroid;
 import androidx.fragment.app.FragmentManager;
 /** A UI coordinator the app menu. */
@@ -80,7 +80,7 @@ class AppMenuCoordinatorImpl implements AppMenuCoordinator {
             Supplier<Rect> appRect,
             FragmentManager fragmentManager,
             int itemRowHeight,
-            WindowAndroid windowAndroid) {  // Add this parameter
+            WindowAndroid windowAndroid) {
         mContext = context;
         mButtonDelegate = buttonDelegate;
         mAppMenuDelegate = appMenuDelegate;
@@ -97,7 +97,7 @@ class AppMenuCoordinatorImpl implements AppMenuCoordinator {
                         appRect,
                         fragmentManager,
                         itemRowHeight,
-                        windowAndroid);  // Pass the itemRowHeight
+                        windowAndroid);
     }
 
     @Override

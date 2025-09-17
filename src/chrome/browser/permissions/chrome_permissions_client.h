@@ -74,20 +74,6 @@ class ChromePermissionsClient : public permissions::PermissionsClient {
       content::WebContents* web_contents) override;
 #endif
 
-// #define CanBypassEmbeddingOriginCheck                                    
-//   WootzCanBypassEmbeddingOriginCheck(const GURL& requesting_origin,      
-//                                      const GURL& embedding_origin,       
-//                                      ContentSettingsType type) override; 
-//   bool CanBypassEmbeddingOriginCheck
-
-// #define MaybeCreateMessageUI                                        
-//   MaybeCreateMessageUI_ChromiumImpl(                                
-//       content::WebContents* web_contents, ContentSettingsType type, 
-//       base::WeakPtr<permissions::PermissionPromptAndroid> prompt);  
-//   std::unique_ptr<PermissionMessageDelegate> MaybeCreateMessageUI
-// #undef MaybeCreateMessageUI
-// #undef CanBypassEmbeddingOriginCheck
-
   void OnPromptResolved(
       permissions::RequestType request_type,
       permissions::PermissionAction action,

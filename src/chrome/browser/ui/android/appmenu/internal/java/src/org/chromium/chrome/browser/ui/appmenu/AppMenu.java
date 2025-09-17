@@ -4,7 +4,6 @@
 
 package org.chromium.chrome.browser.ui.appmenu;
 
-import android.app.Activity;
 import android.animation.Animator;
 import android.animation.AnimatorSet;
 import android.content.Context;
@@ -32,6 +31,7 @@ import android.widget.AdapterView.OnItemClickListener;
 import android.widget.ImageButton;
 import android.widget.ListView;
 import android.widget.PopupWindow;
+
 import android.os.Build;
 import android.widget.GridView;
 import androidx.annotation.NonNull;

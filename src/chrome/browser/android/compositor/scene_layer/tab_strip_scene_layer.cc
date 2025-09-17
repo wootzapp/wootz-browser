@@ -22,7 +22,6 @@
 #include "ui/gfx/geometry/rounded_corners_f.h"
 #include "ui/gfx/geometry/transform.h"
 
-
 using base::android::JavaParamRef;
 using base::android::JavaRef;
 

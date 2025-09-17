@@ -24,7 +24,6 @@ import org.chromium.components.browser_ui.widget.ClipDrawableProgressBar;
 import org.chromium.ui.base.DeviceFormFactor;
 import org.chromium.ui.modelutil.PropertyModel;
 import org.chromium.ui.resources.ResourceManager;
-import org.chromium.chrome.browser.preferences.ChromePreferenceKeys;
 
 import java.util.List;
 

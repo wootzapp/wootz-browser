@@ -285,6 +285,7 @@ base::expected<base::Value::Dict, std::string> ExtensionTabUtil::OpenTab(
        !IncognitoInfo::IsSplitMode(function->extension())) &&
       browser->profile()->IsOffTheRecord()) {
     Profile* original_profile = browser->profile()->GetOriginalProfile();
+
     browser = chrome::FindTabbedBrowser(original_profile, false);
     if (!browser) {
       browser = CreateBrowser(original_profile, user_gesture);
@@ -459,6 +460,9 @@ int ExtensionTabUtil::GetWindowIdOfTab(const WebContents* web_contents) {
 std::string ExtensionTabUtil::GetBrowserWindowTypeText(const Browser& browser) {
   if (browser.is_type_devtools())
     return tabs_constants::kWindowTypeValueDevTools;
+  // Browser::TYPE_APP_POPUP is considered 'popup' rather than 'app' since
+  // chrome.windows.create({type: 'popup'}) uses
+  // Browser::CreateParams::CreateForAppPopup().
   if (browser.is_type_popup() || browser.is_type_app_popup())
     return tabs_constants::kWindowTypeValuePopup;
   if (browser.is_type_app())
@@ -563,6 +567,7 @@ base::Value::List ExtensionTabUtil::CreateTabList(const Browser* browser,
                                     tab_strip, i)
                         .ToValue());
   }
+
   return tab_list;
 }
 
@@ -573,6 +578,7 @@ base::Value::Dict ExtensionTabUtil::CreateWindowValueForExtension(
     PopulateTabBehavior populate_tab_behavior,
     mojom::ContextType context) {
   base::Value::Dict dict;
+
   // no window api
 #if 0
   dict.Set(tabs_constants::kIdKey, browser.session_id().id());
@@ -611,6 +617,7 @@ base::Value::Dict ExtensionTabUtil::CreateWindowValueForExtension(
   if (populate_tab_behavior == kPopulateTabs)
     dict.Set(tabs_constants::kTabsKey,
              CreateTabList(&browser, extension, context));
+
 #endif
   return dict;
 }

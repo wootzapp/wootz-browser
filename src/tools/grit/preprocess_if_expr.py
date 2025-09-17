@@ -8,6 +8,7 @@ import io
 import json
 import os
 import sys
+
 import re
 # For Node, EvaluateExpression
 import grit.node.base
@@ -71,6 +72,7 @@ def ExtensionForComments(input_file):
     extension = '.html'
   return extension
 
+
 def _extract_template_from_dir(html_file):
   template = ''
   directory = os.path.dirname(html_file)
@@ -100,6 +102,7 @@ def _extract_template(html_file):
 
     template = ''.join(template_lines)
     return template
+
 def main(argv):
   parser = argparse.ArgumentParser()
   parser.add_argument('--in-folder', required=True)

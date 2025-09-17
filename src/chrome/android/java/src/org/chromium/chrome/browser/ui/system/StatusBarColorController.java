@@ -11,6 +11,7 @@ import android.view.Window;
 
 import androidx.annotation.ColorInt;
 import androidx.annotation.Nullable;
+
 import android.os.Build;
 import org.chromium.base.CallbackController;
 import org.chromium.base.supplier.ObservableSupplier;

@@ -44,7 +44,6 @@ template("chrome_repack_percent") {
       "$root_gen_dir/components/components_resources_${percent}_percent.pak",
       "$root_gen_dir/third_party/blink/public/resources/blink_scaled_resources_${percent}_percent.pak",
       "$root_gen_dir/ui/resources/ui_resources_${percent}_percent.pak",
-
     ]
 
     deps = [
@@ -55,7 +54,6 @@ template("chrome_repack_percent") {
       "//net:net_resources",
       "//third_party/blink/public:scaled_resources_${percent}_percent",
       "//ui/resources",
-
     ]
 
     if (defined(invoker.deps)) {
@@ -104,20 +102,20 @@ template("chrome_extra_paks") {
                            ])
     output = "${invoker.output_dir}/resources.pak"
     sources = [
-      # Jai
-      "$root_gen_dir/components/wootz_components_resources.pak",
-      
-      "$root_gen_dir/chrome/hello_world_resources.pak",
       "$root_gen_dir/base/tracing/protos/tracing_proto_resources.pak",
       "$root_gen_dir/chrome/browser_resources.pak",
       "$root_gen_dir/chrome/chrome_unscaled_resources.pak",
       "$root_gen_dir/chrome/common_resources.pak",
       "$root_gen_dir/chrome/data_sharing_internals_resources.pak",
+      "$root_gen_dir/chrome/extension_store_resources.pak",
+      "$root_gen_dir/chrome/hello_world_resources.pak",
       "$root_gen_dir/chrome/segmentation_internals_resources.pak",
+      "$root_gen_dir/chrome/startup_crx_install_resources.pak",
       "$root_gen_dir/components/autofill/core/browser/autofill_address_rewriter_resources.pak",
       "$root_gen_dir/components/components_resources.pak",
       "$root_gen_dir/components/flags_ui_resources.pak",
       "$root_gen_dir/components/version_ui_resources.pak",
+      "$root_gen_dir/components/wootz_components_resources.pak",
       "$root_gen_dir/content/attribution_internals_resources.pak",
       "$root_gen_dir/content/content_resources.pak",
       "$root_gen_dir/content/histograms_resources.pak",
@@ -129,15 +127,15 @@ template("chrome_extra_paks") {
       "$root_gen_dir/third_party/blink/public/resources/blink_resources.pak",
       "$root_gen_dir/third_party/blink/public/resources/inspector_overlay_resources.pak",
       "$root_gen_dir/ui/resources/webui_resources.pak",
-      "$root_gen_dir/chrome/extension_store_resources.pak",
-      "$root_gen_dir/chrome/startup_crx_install_resources.pak",
     ]
     deps = [
-      "//chrome/browser/resources/hello_world:resources",
       "//base/tracing/protos:chrome_track_event_resources",
       "//chrome/app/theme:chrome_unscaled_resources",
       "//chrome/browser:resources",
       "//chrome/browser/resources:resources",
+      "//chrome/browser/resources/extension_store:resources",
+      "//chrome/browser/resources/hello_world:resources",
+      "//chrome/browser/resources/startup_crx_install:resources",
       "//chrome/common:resources",
       "//components/autofill/core/browser:autofill_address_rewriter_resources",
       "//components/resources",
@@ -149,8 +147,6 @@ template("chrome_extra_paks") {
       "//third_party/blink/public:devtools_inspector_resources",
       "//third_party/blink/public:resources",
       "//ui/resources",
-      "//chrome/browser/resources/extension_store:resources",
-      "//chrome/browser/resources/startup_crx_install:resources",
     ]
     if (defined(invoker.deps)) {
       deps += invoker.deps
@@ -257,6 +253,7 @@ template("chrome_extra_paks") {
         "$root_gen_dir/ash/webui/ash_firmware_update_app_resources.pak",
         "$root_gen_dir/ash/webui/ash_focus_mode_resources.pak",
         "$root_gen_dir/ash/webui/ash_help_app_resources.pak",
+        "$root_gen_dir/ash/webui/ash_mall_cros_app_resources.pak",
         "$root_gen_dir/ash/webui/ash_media_app_resources.pak",
         "$root_gen_dir/ash/webui/ash_multidevice_debug_resources.pak",
         "$root_gen_dir/ash/webui/ash_os_feedback_resources.pak",
@@ -267,6 +264,7 @@ template("chrome_extra_paks") {
         "$root_gen_dir/ash/webui/ash_projector_annotator_untrusted_resources.pak",
         "$root_gen_dir/ash/webui/ash_projector_app_untrusted_resources.pak",
         "$root_gen_dir/ash/webui/ash_projector_common_resources.pak",
+        "$root_gen_dir/ash/webui/ash_sanitize_app_resources.pak",
         "$root_gen_dir/ash/webui/ash_scanning_app_resources.pak",
         "$root_gen_dir/ash/webui/ash_shimless_rma_resources.pak",
         "$root_gen_dir/ash/webui/ash_shortcut_customization_app_resources.pak",
@@ -317,6 +315,7 @@ template("chrome_extra_paks") {
         "$root_gen_dir/chrome/vc_tray_tester_resources.pak",
         "$root_gen_dir/chromeos/ash/ash_resources.pak",
         "$root_gen_dir/chromeos/ash/components/emoji/emoji.pak",
+        "$root_gen_dir/chromeos/ash/components/kiosk_vision_internals_resources.pak",
         "$root_gen_dir/chromeos/chromeos_help_app_bundle_resources.pak",
         "$root_gen_dir/chromeos/chromeos_help_app_kids_magazine_bundle_resources.pak",
         "$root_gen_dir/chromeos/chromeos_media_app_bundle_resources.pak",
@@ -341,6 +340,7 @@ template("chrome_extra_paks") {
         "//ash/webui/file_manager/untrusted_resources:file_manager_untrusted_resources",
         "//ash/webui/firmware_update_ui/resources:resources",
         "//ash/webui/focus_mode/resources:resources",
+        "//ash/webui/mall/resources",
         "//ash/webui/os_feedback_ui/resources:resources",
         "//ash/webui/os_feedback_ui/untrusted_resources:resources",
         "//ash/webui/personalization_app/resources:resources",
@@ -361,12 +361,14 @@ template("chrome_extra_paks") {
         "//ash/webui/resources:projector_app_bundle_resources",
         "//ash/webui/resources:projector_app_untrusted_resources",
         "//ash/webui/resources:projector_common_resources",
+        "//ash/webui/sanitize_ui/resources:resources",
         "//ash/webui/scanning/resources:resources",
         "//ash/webui/shimless_rma/resources:resources",
         "//ash/webui/shortcut_customization_ui/resources:resources",
         "//ash/webui/status_area_internals/resources:resources",
         "//ash/webui/vc_background_ui/resources:resources",
         "//chromeos/ash/components/emoji:resources",
+        "//chromeos/ash/components/kiosk/vision/webui:resources",
         "//chromeos/ash/resources",
         "//chromeos/resources",
         "//ui/chromeos/styles:cros_styles_resources",

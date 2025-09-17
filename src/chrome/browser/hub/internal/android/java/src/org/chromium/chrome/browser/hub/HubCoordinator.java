@@ -8,10 +8,13 @@ import android.content.Context;
 import android.view.LayoutInflater;
 import android.view.View;
 import android.widget.FrameLayout;
+
 import android.graphics.Outline;
 import android.view.ViewOutlineProvider;
 import android.util.TypedValue;
-import android.graphics.Path;  
+import android.graphics.Path;
+import android.graphics.Color;
+import android.os.Build;
 import android.widget.LinearLayout;
 import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
@@ -26,11 +29,6 @@ import org.chromium.chrome.browser.toolbar.menu_button.MenuButtonCoordinator;
 import org.chromium.components.browser_ui.widget.gesture.BackPressHandler;
 import org.chromium.components.browser_ui.widget.gesture.BackPressHandler.BackPressResult;
 
-import android.graphics.Color;
-import android.graphics.Outline;
-import android.view.ViewOutlineProvider;
-import android.os.Build;
-
 /** Root coordinator of the Hub. */
 public class HubCoordinator implements PaneHubController, BackPressHandler {
     private static final Integer START_SURFACE_LAYOUT_TYPE =
@@ -43,6 +41,7 @@ public class HubCoordinator implements PaneHubController, BackPressHandler {
     private final @NonNull HubPaneHostCoordinator mHubPaneHostCoordinator;
     private final @NonNull HubLayoutController mHubLayoutController;
     private final @NonNull ObservableSupplierImpl<Boolean> mHandleBackPressSupplier;
+
     private final @NonNull HubPaneHostView hubPaneHostView;
     private final @NonNull HubToolbarView hubToolbarView;
     /**
@@ -92,7 +91,6 @@ public class HubCoordinator implements PaneHubController, BackPressHandler {
         mContainerView.addView(mMainHubParent);
 
         hubToolbarView = mContainerView.findViewById(R.id.hub_toolbar);
-
         mHubToolbarCoordinator =
                 new HubToolbarCoordinator(hubToolbarView, paneManager, menuButtonCoordinator);
 
@@ -116,11 +114,10 @@ public class HubCoordinator implements PaneHubController, BackPressHandler {
 
         mCurrentTabSupplier = currentTabSupplier;
         mCurrentTabSupplier.addObserver(castCallback(mBackPressStateChangeCallback));
-
         mCurrentTabSupplier.addObserver((tab) -> {
             setHubBackgroundColor();
         });
-        
+
         mHubLayoutController
                 .getPreviousLayoutTypeSupplier()
                 .addObserver(castCallback(mBackPressStateChangeCallback));
@@ -130,7 +127,6 @@ public class HubCoordinator implements PaneHubController, BackPressHandler {
             setupViewForHubPaneHostView();
             setupViewForHubToolbarView();
         }
-
         setHubBackgroundColor();
     }
 
@@ -288,6 +284,5 @@ public class HubCoordinator implements PaneHubController, BackPressHandler {
                 mMainHubParent.setBackgroundColor(Color.parseColor("#FFFFFF"));
             }
         }
-    } 
-
+    }
 }

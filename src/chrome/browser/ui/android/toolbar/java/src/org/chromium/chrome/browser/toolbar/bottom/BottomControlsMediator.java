@@ -143,12 +143,6 @@ class BottomControlsMediator
     }
 
     void setBottomControlsVisible(boolean visible) {
-        if (visible == true
-                && mIsBottomControlsVisible == false
-                && true) {
-            // always show the toolbar if the bottom controls are visible, so as not to leave the hole below.
-            // mBottomControlsStacker.getBrowserControls().getBrowserVisibilityDelegate().showControlsTransient();
-        }
         mIsBottomControlsVisible = visible;
         updateCompositedViewVisibility();
         updateAndroidViewVisibility();

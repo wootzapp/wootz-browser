@@ -3,7 +3,7 @@
 // found in the LICENSE file.
 
 #include "components/permissions/permission_request_manager.h"
-#include "components/wootz_wallet/browser/permission_utils.h"
+
 #include <string>
 
 #include "base/auto_reset.h"
@@ -33,6 +33,7 @@
 #include "components/permissions/permissions_client.h"
 #include "components/permissions/request_type.h"
 #include "components/permissions/switches.h"
+#include "components/wootz_wallet/browser/permission_utils.h"
 #include "content/public/browser/back_forward_cache.h"
 #include "content/public/browser/browser_context.h"
 #include "content/public/browser/browser_task_traits.h"
@@ -46,7 +47,7 @@
 #include "ui/events/event.h"
 #include "url/gurl.h"
 #include "url/origin.h"
-#include "components/wootz_wallet/browser/permission_utils.h"
+
 #if BUILDFLAG(IS_ANDROID)
 #include "components/permissions/android/android_permission_util.h"
 #endif
@@ -120,6 +121,7 @@ bool IsExclusiveAccessRequest(RequestType type) {
          type == RequestType::kKeyboardLock;
 }
 #endif
+
 bool ShouldGroupRequests(PermissionRequest* a, PermissionRequest* b) {
   url::Origin origin_a;
   url::Origin origin_b;
@@ -151,6 +153,7 @@ bool ShouldGroupRequests(PermissionRequest* a, PermissionRequest* b) {
 #endif
   return false;
 }
+
 }  // namespace
 
 // PermissionRequestManager ----------------------------------------------------

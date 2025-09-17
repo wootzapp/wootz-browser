@@ -24,9 +24,6 @@ template("chrome_repack_locales") {
 
     # Each input pak file should also have a deps line.
     source_patterns = [
-      
-      "${root_gen_dir}/components/wootz_components_strings_", # Jai
-
       "${root_gen_dir}/chrome/generated_resources_",
       "${root_gen_dir}/chrome/locale_settings_",
       "${root_gen_dir}/chrome/platform_locale_settings_",
@@ -34,6 +31,7 @@ template("chrome_repack_locales") {
       "${root_gen_dir}/components/strings/components_locale_settings_",
       "${root_gen_dir}/components/strings/components_strings_",
       "${root_gen_dir}/components/strings/privacy_sandbox_strings_",
+      "${root_gen_dir}/components/wootz_components_strings_",
       "${root_gen_dir}/third_party/blink/public/strings/blink_accessibility_strings_",
       "${root_gen_dir}/third_party/blink/public/strings/blink_strings_",
       "${root_gen_dir}/device/bluetooth/strings/bluetooth_strings_",
@@ -48,14 +46,12 @@ template("chrome_repack_locales") {
       deps = []
     }
     deps += [
-
-      "//components/resources:strings", # Jai
-
       "//chrome/app:branded_strings",
       "//chrome/app:generated_resources",
       "//chrome/app/resources:locale_settings",
       "//chrome/app/resources:platform_locale_settings",
       "//components/omnibox/resources:omnibox_pedal_synonyms",
+      "//components/resources:strings",
       "//components/strings:components_branded_strings",
       "//components/strings:components_locale_settings",
       "//components/strings:components_strings",

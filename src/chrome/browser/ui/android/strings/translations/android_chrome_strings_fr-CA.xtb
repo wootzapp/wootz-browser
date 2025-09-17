@@ -96,6 +96,7 @@
 <translation id="1436784010935106834">Supprimés</translation>
 <translation id="1437543266176261764">En cours d'exécution dans <ph name="APP_NAME" /></translation>
 <translation id="1448440926884431741">Organisez vos produits suivis dans vos favoris</translation>
+<translation id="1460751212339734034">Gagnez du temps, tapez moins</translation>
 <translation id="1466383950273130737">Choisir la langue de Chrome</translation>
 <translation id="1477626028522505441">Échec du téléchargement de <ph name="FILE_NAME" /> en raison de problèmes au niveau du serveur.</translation>
 <translation id="1480287803138246127">Une partie de votre historique peut ne pas s'afficher ici. Pour consulter tout votre historique de Chrome, ouvrez l'historique complet.</translation>
@@ -120,6 +121,7 @@
 <translation id="1592864538817356322">Protection standard :</translation>
 <translation id="1594635596540195766"><ph name="SUGGESTIONS_COUNT" /> éléments suggérés dans la liste ci-dessous.</translation>
 <translation id="1598163867407640634">Utiliser <ph name="SITE_ETLD_PLUS_ONE" /> avec <ph name="IDENTITY_PROVIDER_ETLD_PLUS_ONE" /></translation>
+<translation id="160275202205869636">Activée : utilisez et enregistrez des données dans votre compte Google. Désactivée : les données sont enregistrées uniquement sur cet appareil.</translation>
 <translation id="1628019612362412531">{NUM_SELECTED,plural, =1{Supprimer 1 élément sélectionné}one{Supprimer # élément sélectionné}other{Supprimer # éléments sélectionnés}}</translation>
 <translation id="1641113438599504367">Navigation sécurisée</translation>
 <translation id="164269334534774161">Vous consultez une copie hors ligne de cette page qui a été créée le <ph name="CREATION_TIME" /></translation>
@@ -308,6 +310,7 @@ Seule une personne connaissant votre phrase de passe peut lire vos données chif
 <translation id="2650348088770008516">Explication du guide sur la confidentialité fermée</translation>
 <translation id="2650408372219180431">Exporter et supprimer les mots de passe enregistrés sur cet appareil</translation>
 <translation id="2650751991977523696">Télécharger de nouveau le fichier?</translation>
+<translation id="2651465929321991146">Historique et onglets</translation>
 <translation id="265156376773362237">Préchargement standard</translation>
 <translation id="2653659639078652383">Envoyer</translation>
 <translation id="2656405586795711023">Applications Web</translation>
@@ -830,6 +833,7 @@ D'autres formes d'historique de navigation, telles que les recherches et l'activ
 <translation id="5264813352784073502">dernières 24 heures</translation>
 <translation id="5271967389191913893">L'appareil ne peut pas ouvrir le contenu à télécharger.</translation>
 <translation id="5292796745632149097">Envoyer à</translation>
+<translation id="5301876394151419436">Vous êtes connecté en tant que <ph name="EMAIL" />. Vous pouvez arrêter la synchronisation en tout temps dans les paramètres. Google peut personnaliser la recherche et d'autres services en fonction de votre historique.</translation>
 <translation id="5304593522240415983">Ce champ ne peut être vide</translation>
 <translation id="5308380583665731573">Connecter</translation>
 <translation id="5316947901395241499">L'enregistrement des mots de passe est désactivé par votre administrateur</translation>
@@ -1106,7 +1110,6 @@ Par exemple, certains sites Web peuvent répondre à cette demande en diffusant 
 <translation id="6645629752388991326">Contrôlez les appareils qui peuvent se connecter en utilisant cet appareil en tant que clé de sécurité.</translation>
 <translation id="6646696210740573446">Envoie une partie brouillée de l'URL à Google à l'aide d'un serveur confidentiel qui masque votre adresse IP. Si un site tente de voler votre mot de passe ou si vous téléchargez un fichier dangereux, Chrome peut aussi envoyer les URL concernées, y compris des extraits du contenu de pages, à Google.</translation>
 <translation id="6647441008198474441">Les URL des pages que vous visitez sont envoyées à Google aux fins de prédiction des sites que vous êtes susceptible de visiter ultérieurement</translation>
-<translation id="6648459603387803038">Votre administrateur peut modifier la configuration de votre navigateur à distance. L'activité sur cet appareil peut aussi être gérée à l'extérieur de Chrome.</translation>
 <translation id="6648977384226967773">{CONTACT,plural, =1{<ph name="CONTACT_PREVIEW" />\u2026 et <ph name="NUMBER_OF_ADDITIONAL_CONTACTS" /> autre contact}one{<ph name="CONTACT_PREVIEW" />\u2026 et <ph name="NUMBER_OF_ADDITIONAL_CONTACTS" /> autre contact}other{<ph name="CONTACT_PREVIEW" />\u2026 et <ph name="NUMBER_OF_ADDITIONAL_CONTACTS" /> autres contacts}}</translation>
 <translation id="6649642165559792194">Prévisualiser l'image <ph name="BEGIN_NEW" />Nouveau<ph name="END_NEW" /></translation>
 <translation id="6657585470893396449">Mot de passe</translation>
@@ -1523,6 +1526,7 @@ Pour modifier ce paramètre, <ph name="BEGIN_LINK" />supprimez les données Chro
 <translation id="8526855376374973824">Flux d'autorisation des notifications</translation>
 <translation id="8540136935098276800">Entrez une URL au format correct</translation>
 <translation id="854522910157234410">Ouvrir cette page</translation>
+<translation id="8547025137714087639">{ARCHIVED_TAB_COUNT,plural, =1{Onglet inactif (1)}one{Onglet inactif (#)}other{Onglets inactifs (#)}}</translation>
 <translation id="8551513938758868521">Verrouiller les onglets de navigation privée en quittant Chrome</translation>
 <translation id="8551524210492420949">Choquant ou dangereux</translation>
 <translation id="8559961053328923750">Chrome limite la quantité totale de données que les sites peuvent transmettre au moyen du navigateur pour mesurer la performance des annonces</translation>
@@ -1626,6 +1630,7 @@ Pour modifier ce paramètre, <ph name="BEGIN_LINK" />supprimez les données Chro
 <translation id="9102803872260866941">L'onglet d'aperçu est ouvert</translation>
 <translation id="9102864637938129124">Les sites et les annonceurs peuvent mieux comprendre la performance des annonces. Ce paramètre est activé.</translation>
 <translation id="9104217018994036254">La liste d'appareils avec lesquels partager un onglet.</translation>
+<translation id="9104858485806491627">{INACTIVE_TIME_DAYS,plural, =1{Non utilisés pendant 1 jour ou plus}one{Non utilisés pendant # jour ou plus}other{Non utilisés pendant # jours ou plus}}</translation>
 <translation id="9106148373857059373">Flux d'enregistrement des favoris fermé</translation>
 <translation id="9108312223223904744">Assistance pour l'utilisation du téléphone comme clé de sécurité</translation>
 <translation id="9108808586816295166">Le DNS sécurisé pourrait ne pas être accessible en tout temps</translation>

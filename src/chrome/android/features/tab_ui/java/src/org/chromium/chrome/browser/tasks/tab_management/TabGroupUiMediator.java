@@ -47,6 +47,7 @@ import org.chromium.content_public.browser.LoadUrlParams;
 import org.chromium.ui.base.WindowAndroid;
 import org.chromium.ui.modelutil.PropertyModel;
 import org.chromium.url.GURL;
+
 import org.chromium.chrome.browser.theme.TopUiThemeColorProvider;
 import org.chromium.chrome.browser.tab.CurrentTabObserver;
 import org.chromium.chrome.browser.tab.EmptyTabObserver;
@@ -196,6 +197,7 @@ public class TabGroupUiMediator implements BackPressHandler {
             // showing on the Start surface homepage. See https://crbug.com/1239272.
             mIsShowingOverViewMode = true;
         }
+
         // Keep an observer attached to the visible tab (and only the visible tab) to update
         // properties including theme color.
         Callback<Tab> activityTabCallback = (tab) -> {
@@ -407,6 +409,7 @@ public class TabGroupUiMediator implements BackPressHandler {
         if (tab != null) {
             resetTabStripWithRelatedTabsForId(tab.getId());
         }
+
         mTabObserver.triggerWithCurrentTab();
         mBackPressStateSupplier = new ObservableSupplierImpl<>();
         if (mTabGridDialogControllerSupplier != null) {
@@ -429,6 +432,7 @@ public class TabGroupUiMediator implements BackPressHandler {
     void setupLeftButtonDrawable(int drawableId) {
         mModel.set(TabGroupUiProperties.LEFT_BUTTON_DRAWABLE_ID, drawableId);
     }
+
     /**
      * Update the colors of the layer based on the specified tab.
      * @param tab The tab to base the colors on.

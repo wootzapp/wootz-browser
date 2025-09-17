@@ -96,6 +96,7 @@
 <translation id="1436784010935106834">Odebráno</translation>
 <translation id="1437543266176261764">Spuštěno v aplikaci <ph name="APP_NAME" /></translation>
 <translation id="1448440926884431741">Sledované produkty můžete třídit v záložkách</translation>
+<translation id="1460751212339734034">Ušetřete čas, pište méně</translation>
 <translation id="1466383950273130737">Vyberte jazyk Chromu</translation>
 <translation id="1477626028522505441">Stažení souboru <ph name="FILE_NAME" /> se nezdařilo z důvodu problémů se serverem.</translation>
 <translation id="1480287803138246127">Část vaší historie se zde nemusí zobrazovat. Pokud chcete zobrazit celou historii Chromu, otevřete celou historii Chromu.</translation>
@@ -120,6 +121,7 @@
 <translation id="1592864538817356322">Standardní ochrana:</translation>
 <translation id="1594635596540195766">Seznam níže obsahuje navrhované položky (<ph name="SUGGESTIONS_COUNT" />).</translation>
 <translation id="1598163867407640634">Používejte web <ph name="SITE_ETLD_PLUS_ONE" /> pomocí služby <ph name="IDENTITY_PROVIDER_ETLD_PLUS_ONE" /></translation>
+<translation id="160275202205869636">Když je tato možnost zapnutá, používají a ukládají se data ve vašem účtu Google. Když je vypnutá, ukládají se data pouze do tohoto zařízení.</translation>
 <translation id="1628019612362412531">{NUM_SELECTED,plural, =1{Odstranit jednu vybranou položku}few{Odstranit # vybrané položky}many{Odstranit # vybrané položky}other{Odstranit # vybraných položek}}</translation>
 <translation id="1641113438599504367">Bezpečné prohlížení</translation>
 <translation id="164269334534774161">Prohlížíte si offline kopii této stránky z <ph name="CREATION_TIME" /></translation>
@@ -308,6 +310,7 @@ Vaše šifrovaná data mohou číst pouze uživatelé, kteří mají vaši heslo
 <translation id="2650348088770008516">Zavřené vysvětlení průvodce ochranou soukromí</translation>
 <translation id="2650408372219180431">Exportovat a smazat hesla uložená v tomto zařízení</translation>
 <translation id="2650751991977523696">Stáhnout soubor znovu?</translation>
+<translation id="2651465929321991146">Historie a karty</translation>
 <translation id="265156376773362237">Standardní předběžné načítání</translation>
 <translation id="2653659639078652383">Odeslat</translation>
 <translation id="2656405586795711023">Webové aplikace</translation>
@@ -830,6 +833,7 @@ Na stránce <ph name="BEGIN_LINK" />history.google.com<ph name="END_LINK" /> moh
 <translation id="5264813352784073502">posledních 24 hodin</translation>
 <translation id="5271967389191913893">Zařízení obsah ke stažení nemůže otevřít.</translation>
 <translation id="5292796745632149097">Odeslat do zařízení</translation>
+<translation id="5301876394151419436">Jste přihlášeni jako <ph name="EMAIL" />. Synchronizaci můžete v nastavení kdykoli zastavit. Google může personalizovat Vyhledávání a další služby na základě vaší historie.</translation>
 <translation id="5304593522240415983">Toto pole nesmí být prázdné</translation>
 <translation id="5308380583665731573">Připojení</translation>
 <translation id="5316947901395241499">Administrátor ukládání hesel vypnul</translation>
@@ -1106,7 +1110,6 @@ Některé weby mohou například na tento požadavek reagovat tak, že vám zobr
 <translation id="6645629752388991326">Určete, která zařízení se mohou přihlásit s použitím tohoto zařízení jako bezpečnostního klíče.</translation>
 <translation id="6646696210740573446">Odešle obfuskovanou část adresy URL do Googlu prostřednictvím serveru pro ochranu soukromí, který skryje vaši IP adresu. Pokud se web pokusí odcizit vám heslo nebo když stáhnete škodlivý soubor, může Chrome do Googlu odeslat také adresy URL, včetně částí obsahu stránky</translation>
 <translation id="6647441008198474441">Navštívené adresy URL se odesílají do Googlu, aby mohl předvídat, které weby byste mohli navštívit jako další</translation>
-<translation id="6648459603387803038">Administrátor může nastavení prohlížeče vzdáleně změnit. Aktivita na tomto zařízení může být spravována také mimo Chrome.</translation>
 <translation id="6648977384226967773">{CONTACT,plural, =1{<ph name="CONTACT_PREVIEW" /> a <ph name="NUMBER_OF_ADDITIONAL_CONTACTS" /> další}few{<ph name="CONTACT_PREVIEW" /> a <ph name="NUMBER_OF_ADDITIONAL_CONTACTS" /> další}many{<ph name="CONTACT_PREVIEW" /> a <ph name="NUMBER_OF_ADDITIONAL_CONTACTS" /> dalšího}other{<ph name="CONTACT_PREVIEW" /> a <ph name="NUMBER_OF_ADDITIONAL_CONTACTS" /> dalších}}</translation>
 <translation id="6649642165559792194">Zobrazit náhled obrázku <ph name="BEGIN_NEW" />Nové<ph name="END_NEW" /></translation>
 <translation id="6657585470893396449">Heslo</translation>
@@ -1523,6 +1526,7 @@ Pokud toto nastavení chcete změnit, <ph name="BEGIN_LINK" />vymažte data proh
 <translation id="8526855376374973824">Postup udělení oprávnění k zasílání oznámení</translation>
 <translation id="8540136935098276800">Zadejte správně formátovanou adresu URL</translation>
 <translation id="854522910157234410">Otevřít tuto stránku</translation>
+<translation id="8547025137714087639">{ARCHIVED_TAB_COUNT,plural, =1{Neaktivní karta (1)}few{Neaktivní karty (#)}many{Neaktivní karty (#)}other{Neaktivní karty (#)}}</translation>
 <translation id="8551513938758868521">Při zavření Chromu zamknout anonymní karty</translation>
 <translation id="8551524210492420949">Nevhodné nebo nebezpečné</translation>
 <translation id="8559961053328923750">Chrome omezuje celkové množství dat, které mohou weby prostřednictvím prohlížeče sdílet za účelem měření výkonu reklam.</translation>
@@ -1626,6 +1630,7 @@ Pokud toto nastavení chcete změnit, <ph name="BEGIN_LINK" />vymažte data proh
 <translation id="9102803872260866941">Je otevřená karta náhledu</translation>
 <translation id="9102864637938129124">Weby a inzerenti se mohou dozvědět, jak si reklamy vedou. Toto nastavení je zapnuté.</translation>
 <translation id="9104217018994036254">Seznam zařízení, se kterými se má karta sdílet.</translation>
+<translation id="9104858485806491627">{INACTIVE_TIME_DAYS,plural, =1{Nejméně 1 den nepoužito}few{Nejméně # dny nepoužito}many{Nejméně # dne nepoužito}other{Nejméně # dní nepoužito}}</translation>
 <translation id="9106148373857059373">Postup uložení záložky je zavřený</translation>
 <translation id="9108312223223904744">Telefon jako podpora bezpečnostního klíče</translation>
 <translation id="9108808586816295166">Zabezpečené DNS nemusí být vždy k dispozici</translation>

@@ -106,7 +106,6 @@ build_webui("build") {
     "people_page/page_content_page.ts",
     "people_page/people_page.ts",
     "people_page/signout_dialog.ts",
-    "people_page/sync_account_control.ts",
     "people_page/sync_controls.ts",
     "people_page/sync_encryption_options.ts",
     "people_page/sync_page.ts",
@@ -211,16 +210,12 @@ build_webui("build") {
     "site_settings/storage_access_site_list_entry.ts",
     "site_settings/storage_access_site_list.ts",
     "site_settings/zoom_levels.ts",
-    "wootz_wallet_page/add_wallet_network_dialog.ts",
-    "wootz_wallet_page/wootz_wallet_page.ts",
-    "wootz_wallet_page/wallet_networks_list.ts",
-    "wootz_wallet_page/wallet_networks_subpage.ts",
-
   ]
 
   if (!is_chromeos_ash) {
     web_component_files += [
       "people_page/manage_profile.ts",
+      "people_page/sync_account_control.ts",
       "relaunch_confirmation_dialog.ts",
       "languages_page/add_languages_dialog.ts",
       "languages_page/languages_page.ts",
@@ -337,7 +332,6 @@ build_webui("build") {
     "site_settings_page/site_settings_page_util.ts",
     "time.ts",
     "tooltip_mixin.ts",
-    "wootz_wallet_page/wootz_wallet_browser_proxy.ts",
   ]
 
   if (is_chromeos_ash) {

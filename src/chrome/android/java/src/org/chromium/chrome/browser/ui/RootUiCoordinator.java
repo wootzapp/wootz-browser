@@ -346,6 +346,7 @@ public class RootUiCoordinator
     private @Nullable BoardingPassController mBoardingPassController;
     private @Nullable ObservableSupplier<Integer> mOverviewColorSupplier;
     private @Nullable View mBaseChromeLayout;
+
     @Nullable protected Runnable mShowMyBottomSheet;
     private final FragmentManager mFragmentManager;
     private final Resources mResources;
@@ -1804,31 +1805,17 @@ public class RootUiCoordinator
                 };
         mLayoutStateProvider.addObserver(mLayoutStateObserver);
     }
+
     private int getMenuItemRowHeight() {
         Log.d(TAG, "Getting menu item row height");
         try {
-            // int resourceId = mResources.getIdentifier("app_menu_item_row_height", "dimen", mActivity.getPackageName());
-            // if (resourceId != 0) {
-            //     int height = mResources.getDimensionPixelSize(resourceId);
-            //     Log.d(TAG, "Menu item row height from resources: " + height);
-            //     return height;
-            // } else {
-            //     float density = mResources.getDisplayMetrics().density;
-            //     int height = Math.round(DEFAULT_MENU_ITEM_ROW_HEIGHT_DP * density);
-            //     Log.d(TAG, "Menu item row height calculated: " + height);
-            //     return height;
-            // }
-
-
-            // int rowHeight = mResources.getDimensionPixelSize(R.dimen.app_menu_item_row_height);
-            // return rowHeight;
-
             return DEFAULT_MENU_ITEM_ROW_HEIGHT_DP;
         } catch (Exception e) {
             Log.e(TAG, "Error getting menu item row height", e);
             return DEFAULT_MENU_ITEM_ROW_HEIGHT_DP;
         }
     }
+
     private void initAppMenu() {
         // TODO(crbug.com/40613711): Revisit this as part of the broader
         // discussion around activity-specific UI customizations.
@@ -1872,8 +1859,7 @@ public class RootUiCoordinator
                             this::getAppRectOnScreen,
                             mFragmentManager,
                             getMenuItemRowHeight(),
-                            mWindowAndroid
-                            );
+                            mWindowAndroid);
             AppMenuCoordinatorFactory.setExceptionReporter(
                     (throwable) ->
                             ChromePureJavaExceptionReporter.reportJavaException(

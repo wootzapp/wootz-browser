@@ -189,6 +189,7 @@ Browser::ValueSpecified GetOriginSpecified(const NavigateParams& params) {
 std::pair<Browser*, int> GetBrowserAndTabForDisposition(
     const NavigateParams& params) {
   Profile* profile = params.initiating_profile;
+
 #if 0
   if (params.open_pwa_window_if_possible) {
     std::optional<webapps::AppId> app_id =
@@ -279,7 +280,6 @@ std::pair<Browser*, int> GetBrowserAndTabForDisposition(
           return {params.browser, index};
         }
       }
-
       // If we don't have a a window, or if this window can't open tabs, then
       // it would load in a random window, potentially opening a second copy.
       // Instead, make an extra effort to see if there's an already open copy.
@@ -874,6 +874,7 @@ base::WeakPtr<content::NavigationHandle> Navigate(NavigateParams* params) {
 
   // Some dispositions need coercion to base types.
   NormalizeDisposition(params);
+
 #if 0
   // If a new window has been created, it needs to be shown.
   if (params->window_action == NavigateParams::NO_ACTION &&
@@ -894,6 +895,7 @@ base::WeakPtr<content::NavigationHandle> Navigate(NavigateParams* params) {
   bool user_initiated =
       params->transition & ui::PAGE_TRANSITION_FROM_ADDRESS_BAR ||
       !ui::PageTransitionIsWebTriggerable(params->transition);
+
 #endif
   base::WeakPtr<content::NavigationHandle> navigation_handle;
 

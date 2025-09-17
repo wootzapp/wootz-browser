@@ -89,7 +89,6 @@ class DocumentSubresourceFilter {
   std::unique_ptr<FirstPartyOrigin> document_origin_;
 
   mojom::DocumentLoadStatistics statistics_;
-
   BlockedResourceCallback blocked_resource_callback_;
 };
 

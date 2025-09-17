@@ -7340,7 +7340,7 @@ const FeatureEntry kFeatureEntries[] = {
 #if BUILDFLAG(IS_ANDROID)
     {"app-specific-history", flag_descriptions::kAppSpecificHistoryName,
      flag_descriptions::kAppSpecificHistoryDescription, kOsAndroid,
-     FEATURE_VALUE_TYPE(chrome::android::kAdaptiveButtonInTopToolbarTranslate)},
+     FEATURE_VALUE_TYPE(chrome::android::kAppSpecificHistory)},
 #endif
 
 #if BUILDFLAG(IS_ANDROID)

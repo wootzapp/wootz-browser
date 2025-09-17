@@ -156,7 +156,7 @@ public class TabListCoordinator
 
         TabListRecyclerView mRecyclerView;
 
-       final int MAX_TOP_PADDING = 99999;
+        final int MAX_TOP_PADDING = 99999;
         int mTopPadding = MAX_TOP_PADDING;
 
         int mLastPosition = -1;
@@ -169,7 +169,7 @@ public class TabListCoordinator
 
         public void setTabListRecyclerView(TabListRecyclerView recyclerView) {
             mRecyclerView = recyclerView;
-       }
+        }
 
         public void ResetTopPosition() {
             mIsFirstLayout = true;

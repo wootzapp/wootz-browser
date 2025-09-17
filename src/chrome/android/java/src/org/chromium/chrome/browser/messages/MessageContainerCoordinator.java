@@ -60,10 +60,8 @@ public class MessageContainerCoordinator implements BrowserControlsStateProvider
         }
         CoordinatorLayout.LayoutParams params =
                 (CoordinatorLayout.LayoutParams) mContainer.getLayoutParams();
-
-            params.gravity = Gravity.START | Gravity.BOTTOM;
-            params.bottomMargin = getContainerTopOffset();
-
+        params.gravity = Gravity.START | Gravity.BOTTOM;
+        params.bottomMargin = getContainerTopOffset();
         mContainer.setLayoutParams(params);
     }
 
@@ -136,7 +134,6 @@ public class MessageContainerCoordinator implements BrowserControlsStateProvider
 
     /** @return Offset of the message container from the top of the screen. */
     private int getContainerTopOffset() {
-        
         if(true){
             return mControlsManager.getContentOffset()
                      + (mControlsManager.getBottomControlsHeight() - mControlsManager.getBottomControlOffset())

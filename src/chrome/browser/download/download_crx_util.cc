@@ -8,7 +8,6 @@
 
 #include <memory>
 
-#include "chrome/browser/android/tab_android.h"
 #include "chrome/browser/extensions/crx_installer.h"
 #include "chrome/browser/extensions/extension_install_prompt.h"
 #include "chrome/browser/extensions/extension_management.h"
@@ -96,7 +95,8 @@ scoped_refptr<extensions::CrxInstaller> CreateCrxInstaller(
 
   scoped_refptr<extensions::CrxInstaller> installer(
       extensions::CrxInstaller::Create(
-          service, CreateExtensionInstallPrompt(profile, download_item),
+          service,
+          CreateExtensionInstallPrompt(profile, download_item),
           nullptr));  // woots exts patch
   // WebstoreInstaller::GetAssociatedApproval(download_item)));
 

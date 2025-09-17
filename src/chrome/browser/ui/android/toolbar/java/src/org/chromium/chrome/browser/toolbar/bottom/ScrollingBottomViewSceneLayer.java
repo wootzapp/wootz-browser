@@ -38,6 +38,7 @@ public class ScrollingBottomViewSceneLayer extends SceneOverlayLayer implements 
 
     /** The current Y offset of the bottom view in px. */
     private int mCurrentYOffsetPx;
+
     /** The min height of browser controls in px. */
     private int mTopControlsMinHeightOffset;
     /** The current X offset of the bottom view in px. */
@@ -86,6 +87,7 @@ public class ScrollingBottomViewSceneLayer extends SceneOverlayLayer implements 
     public void setXOffset(int offsetPx) {
         mCurrentXOffsetPx = offsetPx;
     }
+
     /**
      * @param offsetPx The min height of browser controls in px.
      */

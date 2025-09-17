@@ -8,7 +8,7 @@
 
 namespace segmentation_platform::features {
 
-BASE_FEATURE(kSegmentationPlatformFeature, "SegmentationPlatform"
+BASE_FEATURE(kSegmentationPlatformFeature,
              "SegmentationPlatform",
              base::FEATURE_DISABLED_BY_DEFAULT);
             //  base::FEATURE_ENABLED_BY_DEFAULT);

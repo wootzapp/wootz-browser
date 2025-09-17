@@ -37,20 +37,17 @@
 #include "chrome/browser/ui/webui/device_log/device_log_ui.h"
 #include "chrome/browser/ui/webui/download_internals/download_internals_ui.h"
 #include "chrome/browser/ui/webui/engagement/site_engagement_ui.h"
+#include "chrome/browser/ui/webui/extension_store/extension_store_ui.h"
 #include "chrome/browser/ui/webui/family_link_user_internals/family_link_user_internals_ui.h"
 #include "chrome/browser/ui/webui/flags/flags_ui.h"
 #include "chrome/browser/ui/webui/gcm_internals_ui.h"
 #include "chrome/browser/ui/webui/internals/internals_ui.h"
 #include "chrome/browser/ui/webui/interstitials/interstitial_ui.h"
 #include "chrome/browser/ui/webui/intro/intro_ui.h"
-#include "chrome/browser/ui/webui/log_web_ui_url.h"
 #include "chrome/browser/ui/webui/media/media_engagement_ui.h"
 #include "chrome/browser/ui/webui/media/webrtc_logs_ui.h"
 #include "chrome/browser/ui/webui/net_export_ui.h"
 #include "chrome/browser/ui/webui/net_internals/net_internals_ui.h"
-#include "chrome/browser/ui/webui/throttle/throttle_ui.h"
-#include "chrome/browser/ui/webui/extension_store/extension_store_ui.h"
-#include "chrome/browser/ui/webui/startup_crx_install/startup_crx_install.h"
 #include "chrome/browser/ui/webui/ntp_tiles_internals_ui.h"
 #include "chrome/browser/ui/webui/omnibox/omnibox_ui.h"
 #include "chrome/browser/ui/webui/policy/policy_ui.h"
@@ -58,8 +55,10 @@
 #include "chrome/browser/ui/webui/privacy_sandbox/privacy_sandbox_internals_ui.h"
 #include "chrome/browser/ui/webui/segmentation_internals/segmentation_internals_ui.h"
 #include "chrome/browser/ui/webui/signin_internals_ui.h"
+#include "chrome/browser/ui/webui/startup_crx_install/startup_crx_install.h"
 #include "chrome/browser/ui/webui/suggest_internals/suggest_internals_ui.h"
 #include "chrome/browser/ui/webui/sync_internals/sync_internals_ui.h"
+#include "chrome/browser/ui/webui/throttle/throttle_ui.h"
 #include "chrome/browser/ui/webui/translate_internals/translate_internals_ui.h"
 #include "chrome/browser/ui/webui/usb_internals/usb_internals_ui.h"
 #include "chrome/browser/ui/webui/user_actions/user_actions_ui.h"
@@ -175,12 +174,15 @@
 #include "ash/webui/file_manager/url_constants.h"
 #include "ash/webui/files_internals/url_constants.h"
 #include "ash/webui/help_app_ui/url_constants.h"
+#include "ash/webui/mall/url_constants.h"
 #include "ash/webui/multidevice_debug/url_constants.h"
 #include "ash/webui/print_preview_cros/url_constants.h"
 #include "ash/webui/vc_background_ui/url_constants.h"
 #include "chrome/browser/ash/extensions/url_constants.h"
 #include "chrome/browser/extensions/extension_keeplist_chromeos.h"
 #include "chrome/browser/ui/webui/ash/cellular_setup/mobile_setup_ui.h"
+#include "chromeos/ash/components/kiosk/vision/webui/constants.h"
+#include "chromeos/ash/components/kiosk/vision/webui/ui_controller.h"
 #include "chromeos/ash/components/scalable_iph/scalable_iph_constants.h"
 
 #if BUILDFLAG(GOOGLE_CHROME_BRANDING)
@@ -310,7 +312,6 @@ WebUIController* NewComponentUI(WebUI* web_ui, const GURL& url) {
   return new WEB_UI_CONTROLLER(web_ui, std::move(delegate));
 }
 
-
 #if !BUILDFLAG(IS_ANDROID)
 template <>
 WebUIController* NewWebUI<PageNotAvailableForGuestUI>(WebUI* web_ui,
@@ -324,6 +325,15 @@ template <>
 WebUIController* NewWebUI<AboutUI>(WebUI* web_ui, const GURL& url) {
   return new AboutUI(web_ui, url.host());
 }
+
+#if BUILDFLAG(IS_CHROMEOS_ASH)
+template <>
+WebUIController* NewWebUI<ash::kiosk_vision::UIController>(WebUI* web_ui,
+                                                           const GURL& url) {
+  return new ash::kiosk_vision::UIController(
+      web_ui, base::BindRepeating(webui::SetupWebUIDataSource));
+}
+#endif  // BUILDFLAG(IS_CHROMEOS_ASH)
 
 template <>
 WebUIController* NewWebUI<commerce::CommerceInternalsUI>(WebUI* web_ui,
@@ -441,6 +451,12 @@ WebUIFactoryFunction GetWebUIFactoryFunction(WebUI* web_ui,
       security_interstitials::kChromeUIConnectionMonitoringDetectedHost) {
     return &NewWebUI<security_interstitials::KnownInterceptionDisclosureUI>;
   }
+#if BUILDFLAG(IS_CHROMEOS_ASH)
+  if (url.host_piece() ==
+      ash::kiosk_vision::kChromeUIKioskVisionInternalsHost) {
+    return &NewWebUI<ash::kiosk_vision::UIController>;
+  }
+#endif  // BUILDFLAG(IS_CHROMEOS_ASH)
   if (url.host_piece() == chrome::kChromeUINetExportHost)
     return &NewWebUI<NetExportUI>;
   if (url.host_piece() == chrome::kChromeUINetInternalsHost)
@@ -554,7 +570,6 @@ WebUIFactoryFunction GetWebUIFactoryFunction(WebUI* web_ui,
   if (url.host_piece() == chrome::kChromeUIPerformanceSidePanelHost) {
     return &NewWebUI<PerformanceSidePanelUI>;
   }
- 
   // Settings are implemented with native UI elements on Android.
   if (url.host_piece() == chrome::kChromeUISettingsHost)
     return &NewWebUI<settings::SettingsUI>;
@@ -748,8 +763,6 @@ WebUIFactoryFunction GetWebUIFactoryFunction(WebUI* web_ui,
   if (url.host_piece() == chrome::kChromeUIFamilyLinkUserInternalsHost)
     return &NewWebUI<FamilyLinkUserInternalsUI>;
 
- 
-
 #if BUILDFLAG(ENABLE_DICE_SUPPORT)
   if (url.host_piece() == chrome::kChromeUIWelcomeHost &&
       welcome::IsEnabled(profile)) {
@@ -822,9 +835,6 @@ ChromeWebUIControllerFactory::CreateWebUIControllerForURL(WebUI* web_ui,
   WebUIFactoryFunction function = GetWebUIFactoryFunction(web_ui, profile, url);
   if (!function)
     return nullptr;
-
-  if (web_ui->GetWebContents()->GetPrimaryMainFrame())
-    webui::LogWebUIUrl(url);
 
   return base::WrapUnique((*function)(web_ui, url));
 }
@@ -1039,6 +1049,7 @@ ChromeWebUIControllerFactory::GetListOfAcceptableURLs() {
     GURL(ash::kChromeUICameraAppURL),
     GURL(ash::kChromeUIFilesInternalsURL),
     GURL(ash::kChromeUIHelpAppURL),
+    GURL(ash::kChromeUIMallUrl),
     GURL(ash::kChromeUIPrintPreviewCrosURL),
     GURL(ash::multidevice::kChromeUIProximityAuthURL),
     GURL(ash::vc_background_ui::kChromeUIVcBackgroundURL),
@@ -1085,6 +1096,7 @@ ChromeWebUIControllerFactory::GetListOfAcceptableURLs() {
     GURL(chrome::kChromeUIOSSettingsURL),
     GURL(chrome::kChromeUIPowerUrl),
     GURL(chrome::kChromeUIPrintManagementUrl),
+    GURL(chrome::kChromeUISanitizeAppURL),
     GURL(chrome::kChromeUIScanningAppURL),
     GURL(chrome::kChromeUISensorInfoURL),
     GURL(chrome::kChromeUISetTimeURL),
@@ -1102,8 +1114,6 @@ ChromeWebUIControllerFactory::GetListOfAcceptableURLs() {
     GURL(ash::kChromeUIConchURL),
 #endif  // BUILDFLAG(GOOGLE_CHROME_BRANDING)
 
-
-
 #elif BUILDFLAG(IS_CHROMEOS_LACROS)
     // Pages that only exist in Lacros, where they are reachable via chrome://.
     // TODO(neis): Some of these still exist in Ash (but are inaccessible) and
@@ -1116,9 +1126,6 @@ ChromeWebUIControllerFactory::GetListOfAcceptableURLs() {
   return *urls;
 }
 
-
-
-
 bool ChromeWebUIControllerFactory::CanHandleUrl(const GURL& url) {
 #if BUILDFLAG(IS_CHROMEOS_ASH)
   if (url.SchemeIs(extensions::kExtensionScheme) && url.has_host()) {
@@ -1129,6 +1136,5 @@ bool ChromeWebUIControllerFactory::CanHandleUrl(const GURL& url) {
   return crosapi::gurl_os_handler_utils::IsAshUrlInList(
       url, GetListOfAcceptableURLs());
 }
-
 
 #endif  // BUILDFLAG(IS_CHROMEOS)

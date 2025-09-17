@@ -19,11 +19,12 @@ import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
 import androidx.annotation.VisibleForTesting;
 import androidx.core.app.ActivityOptionsCompat;
+
 import android.view.Gravity;
 import androidx.coordinatorlayout.widget.CoordinatorLayout;
 import org.chromium.base.Callback;
 import org.chromium.base.IntentUtils;
-// import org.chromium.base.Log;
+import org.chromium.base.Log;
 import org.chromium.base.ResettersForTesting;
 import org.chromium.base.ThreadUtils;
 import org.chromium.base.metrics.RecordHistogram;
@@ -62,7 +63,6 @@ import org.chromium.chrome.browser.profiles.Profile;
 import org.chromium.chrome.browser.profiles.ProfileProvider;
 import org.chromium.chrome.browser.rlz.RevenueStats;
 import org.chromium.chrome.browser.search_engines.TemplateUrlServiceFactory;
-import org.chromium.chrome.browser.searchwidget.SearchActivity.TerminationReason;
 import org.chromium.chrome.browser.settings.SettingsLauncherImpl;
 import org.chromium.chrome.browser.tab.Tab;
 import org.chromium.chrome.browser.tab.TabBuilder;
@@ -85,8 +85,6 @@ import org.chromium.ui.base.ActivityWindowAndroid;
 import org.chromium.ui.base.WindowDelegate;
 import org.chromium.ui.modaldialog.ModalDialogManager;
 import org.chromium.url.GURL;
-// import org.w3c.dom.css.Rect;
-import android.graphics.Rect;
 
 import java.lang.annotation.Retention;
 import java.lang.annotation.RetentionPolicy;
@@ -96,11 +94,8 @@ import org.chromium.chrome.browser.omnibox.OmniboxSuggestionsDropdownEmbedderImp
 import android.view.ViewTreeObserver;
 import androidx.core.view.WindowInsetsCompat;
 import androidx.core.view.ViewCompat;
-import android.util.Log;
 import android.content.Context;
 import android.view.inputmethod.InputMethodManager;
-import android.os.Handler;
-//import java.util.logging.Handler;
 
 /** Queries the user's default search engine and shows autocomplete suggestions. */
 public class SearchActivity extends AsyncInitializationActivity
@@ -396,11 +391,11 @@ public class SearchActivity extends AsyncInitializationActivity
                         /* tabModelSelectorSupplier= */ null,
                         mLocationBarUiOverrides,
                         null,
-                        mCompositorViewHolder
-                        );
+                        mCompositorViewHolder);
         mLocationBarCoordinator.setUrlBarFocusable(true);
         mLocationBarCoordinator.setShouldShowMicButtonWhenUnfocused(true);
         mLocationBarCoordinator.getOmniboxStub().addUrlFocusChangeListener(this);
+
         mOmniboxDropdownEmbedderImpl = mLocationBarCoordinator.getOmniboxDropdownEmbedder();
         setupKeyboardVisibilityListener();
         // Kick off everything needed for the user to type into the box.
@@ -714,11 +709,6 @@ public class SearchActivity extends AsyncInitializationActivity
         }
     }
 
-    private void onSearchCompleted() {
-        updateWhitePatchVisibility(false);
-        recalculateOmniboxAlignment();
-    }
-
     /** Mark that the UMA session has ended. */
     private void umaSessionEnd() {
         mUmaActivityObserver.endUmaSession();
@@ -768,10 +758,6 @@ public class SearchActivity extends AsyncInitializationActivity
     public void onUrlFocusChange(boolean hasFocus) {
         if (hasFocus) {
             mLocationBarCoordinator.setUrlFocusChangeInProgress(false);
-        } else {
-            // TODO(crbug.com/329702834): Terminate SearchActivity on focus change:
-            // it's possible that we're running in a multi-window mode.
-            finish(TerminationReason.OMNIBOX_FOCUS_LOST);
         }
     }
 
@@ -785,7 +771,6 @@ public class SearchActivity extends AsyncInitializationActivity
         }
 
         finish(TerminationReason.NAVIGATION);
-        // onSearchCompleted();
         return true;
     }
 

@@ -5,7 +5,6 @@
 #include "chrome/browser/net/system_network_context_manager.h"
 
 #include <algorithm>
-#include <stdexcept>
 #include <unordered_map>
 #include <utility>
 
@@ -648,7 +647,6 @@ void SystemNetworkContextManager::RegisterPrefs(PrefRegistrySimple* registry) {
   StubResolverConfigReader::RegisterPrefs(registry);
 
   registry->RegisterStringPref(prefs::kAdBlockFiltersURL, std::string());
-  
   // Static auth params
   registry->RegisterStringPref(prefs::kAuthSchemes,
                                "basic,digest,ntlm,negotiate");
@@ -802,13 +800,11 @@ void SystemNetworkContextManager::OnNetworkServiceCreated(
   // process, send it the required key.
   if (content::IsOutOfProcessNetworkService()) {
 #if BUILDFLAG(IS_WIN)
-    // On Windows, if OSCrypt async is enabled, and DPAPI key provider is also
-    // enabled, then OSCrypt manages the encryption key, and there is no need to
-    // send the key separately to OSCrypt sync.
+    // On Windows, if OSCrypt Async is enabled then OSCrypt manages the
+    // encryption key via the DPAPI key provider, and there is no need to send
+    // the key separately to OSCrypt sync.
     if (!base::FeatureList::IsEnabled(
-            features::kUseOsCryptAsyncForCookieEncryption) ||
-        !base::FeatureList::IsEnabled(
-            features::kEnableDPAPIEncryptionProvider)) {
+            features::kUseOsCryptAsyncForCookieEncryption)) {
       network_service->SetEncryptionKey(OSCrypt::GetRawEncryptionKey());
     }
 #else

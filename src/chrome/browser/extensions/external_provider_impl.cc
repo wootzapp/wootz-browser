@@ -70,12 +70,12 @@
 #include "chrome/browser/ash/login/demo_mode/demo_extensions_external_loader.h"
 #include "chrome/browser/ash/login/demo_mode/demo_session.h"
 #include "chrome/browser/ash/policy/core/browser_policy_connector_ash.h"
-#include "chrome/browser/ash/policy/core/device_local_account.h"
 #include "chrome/browser/ash/policy/core/device_local_account_policy_service.h"
 #include "chrome/browser/ash/profiles/profile_helper.h"
 #include "chrome/browser/chromeos/extensions/device_local_account_external_policy_loader.h"
 #else
 #include "chrome/browser/extensions/preinstalled_apps.h"
+#include "components/policy/core/common/device_local_account_type.h"
 #endif
 
 #if BUILDFLAG(IS_WIN)

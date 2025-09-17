@@ -89,6 +89,7 @@ import org.chromium.ui.interpolators.Interpolators;
 import org.chromium.ui.resources.ResourceManager;
 import org.chromium.ui.util.ColorUtils;
 import org.chromium.url.GURL;
+
 import org.chromium.chrome.browser.fullscreen.BrowserControlsManager;
 import java.util.ArrayList;
 import java.util.List;
@@ -226,6 +227,7 @@ public class StripLayoutHelperManager
 
     // Drag-Drop
     @Nullable private TabDragSource mTabDragSource;
+
     private final Supplier<BrowserControlsManager> mBrowserControlsManagerSupplier;
     private final float mDpToPx;
     private class TabStripEventHandler implements MotionEventHandler {
@@ -772,6 +774,7 @@ public class StripLayoutHelperManager
                 LayoutManagerImpl.time(),
                 mLeftPadding,
                 mRightPadding);
+
         float top = mTopPadding;
         if( true && mBrowserControlsManagerSupplier.get() != null) {
             // move the rectangle to grab the touch events as the tab list (in tablet mode)

@@ -37,8 +37,6 @@ import org.chromium.chrome.browser.theme.ThemeColorProvider;
 import org.chromium.chrome.browser.theme.ThemeColorProvider.ThemeColorObserver;
 import org.chromium.chrome.browser.theme.TopUiThemeColorProvider;
 import org.chromium.chrome.browser.toolbar.ControlContainer;
-import org.chromium.chrome.browser.toolbar.top.ToolbarLayout;
-import org.chromium.chrome.browser.toolbar.top.ToolbarPhone;
 import org.chromium.chrome.browser.ui.desktop_windowing.DesktopWindowStateProvider;
 import org.chromium.chrome.browser.util.ChromeAccessibilityUtil;
 import org.chromium.chrome.features.start_surface.StartSurface;
@@ -51,8 +49,6 @@ import org.chromium.ui.resources.dynamics.DynamicResourceLoader;
 
 import java.util.List;
 import java.util.concurrent.Callable;
-
-import javax.swing.text.View;
 
 /**
  * A {@link Layout} controller for the more complicated Chrome browser. This is currently a superset
@@ -575,9 +571,9 @@ public class LayoutManagerChrome extends LayoutManagerImpl
         private final boolean mSupportSwipeUp;
 
         public ToolbarSwipeHandler(boolean supportSwipeDown, boolean supportSwipeUp) {
-             mSupportSwipeDown = supportSwipeDown;
+            mSupportSwipeDown = supportSwipeDown;
             mSupportSwipeUp = supportSwipeUp;
-         }
+        }
 
         @Override
         public void onSwipeStarted(@ScrollDirection int direction, MotionEvent ev) {
@@ -598,11 +594,13 @@ public class LayoutManagerChrome extends LayoutManagerImpl
             dy *= mPxToDp;
             tx *= mPxToDp;
             ty *= mPxToDp;
+
             // If scroll direction has been computed, send the event to super.
             if (mScrollDirection != ScrollDirection.UNKNOWN) {
                 mToolbarSwipeLayout.swipeUpdated(time(), x, y, dx, dy, tx, ty);
                 return;
             }
+
             mScrollDirection = computeScrollDirection(dx, dy);
             if (mScrollDirection == ScrollDirection.UNKNOWN) return;
             if (mScrollDirection == ScrollDirection.UP) { //enabled the swipe down feature by default - Sagar Jha
@@ -612,6 +610,7 @@ public class LayoutManagerChrome extends LayoutManagerImpl
                     || mScrollDirection == ScrollDirection.RIGHT) {
                 startShowing(mToolbarSwipeLayout, true);
             }
+
             mToolbarSwipeLayout.swipeStarted(time(), mScrollDirection, x, y);
         }
 

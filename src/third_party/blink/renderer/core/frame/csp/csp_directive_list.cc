@@ -658,14 +658,12 @@ bool CSPDirectiveListAllowInline(
     const String& context_url,
     const WTF::OrdinalNumber& context_line,
     ReportingDisposition reporting_disposition) {
-
-  return true;
+      return true;
 
   // CSPDirectiveName type = EffectiveDirectiveForInlineCheck(inline_type);
 
   // CSPOperativeDirective directive = OperativeDirective(csp, type);
   // if (IsMatchingNoncePresent(directive.source_list, nonce))
-  //   return true;
 
   // auto* html_script_element = DynamicTo<HTMLScriptElement>(element);
   // if (html_script_element &&

@@ -45,7 +45,6 @@ import org.chromium.ui.modelutil.PropertyModelChangeProcessor;
 import org.chromium.ui.resources.dynamics.DynamicResourceLoader;
 import org.chromium.chrome.browser.theme.TopUiThemeColorProvider;
 
-
 import java.util.List;
 
 /**

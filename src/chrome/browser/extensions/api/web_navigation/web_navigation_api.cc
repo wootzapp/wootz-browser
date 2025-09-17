@@ -42,6 +42,7 @@ namespace extensions {
 namespace web_navigation = api::web_navigation;
 
 // WebNavigtionEventRouter -------------------------------------------
+
 WebNavigationEventRouter::PendingWebContents::PendingWebContents() = default;
 WebNavigationEventRouter::PendingWebContents::~PendingWebContents() {}
 
@@ -384,7 +385,6 @@ void WebNavigationTabObserver::DidOpenRequestedURL(
       web_contents()->GetBrowserContext());
   if (!api)
     return;  // Possible in unit tests.
-
   WebNavigationEventRouter* router = api->web_navigation_event_router_.get();
   if (!router)
     return;

@@ -3,13 +3,11 @@
 // found in the LICENSE file.
 
 package org.chromium.chrome.browser.app;
-
 import static org.chromium.ui.base.ViewUtils.dpToPx;
 
 import android.annotation.SuppressLint;
 import android.app.Activity;
-import android.app.NotificationChannel;
-import android.app.NotificationManager;
+// import android.app.NotificationManager;
 import android.app.Fragment;
 import android.app.KeyguardManager;
 import android.app.assist.AssistContent;
@@ -34,6 +32,7 @@ import android.view.View;
 import android.view.ViewGroup;
 import android.view.ViewStub;
 import android.widget.FrameLayout;
+
 import android.widget.ImageView;
 import android.widget.PopupMenu;
 import android.widget.PopupWindow;
@@ -47,21 +46,20 @@ import androidx.annotation.Nullable;
 import androidx.annotation.RequiresApi;
 import androidx.annotation.VisibleForTesting;
 import androidx.appcompat.app.AlertDialog;
-import androidx.coordinatorlayout.widget.CoordinatorLayout;
-import androidx.core.content.ContextCompat;
+// import androidx.coordinatorlayout.widget.CoordinatorLayout;
+// import androidx.core.content.ContextCompat;
 import androidx.fragment.app.FragmentManager;
-import androidx.fragment.app.FragmentTransaction;
-import androidx.lifecycle.LiveData;
-import androidx.lifecycle.MutableLiveData;
+// import androidx.fragment.app.FragmentTransaction;
+// import androidx.lifecycle.LiveData;
+// import androidx.lifecycle.MutableLiveData;
 import android.widget.LinearLayout;
 import android.util.DisplayMetrics;
 import android.graphics.Color;
 import android.graphics.drawable.GradientDrawable;
 import android.view.LayoutInflater;
 import android.widget.ScrollView;
-
-import org.jni_zero.JNINamespace;
-import org.jni_zero.NativeMethods;
+// import org.jni_zero.JNINamespace;
+// import org.jni_zero.NativeMethods;
 
 import org.chromium.base.ActivityState;
 import org.chromium.base.ApplicationStatus;
@@ -70,8 +68,7 @@ import org.chromium.base.Callback;
 import org.chromium.base.CommandLine;
 import org.chromium.base.ContextUtils;
 import org.chromium.base.InputHintChecker;
-// import org.chromium.base.Log;
-import android.util.Log;
+import org.chromium.base.Log;
 import org.chromium.base.PowerMonitor;
 import org.chromium.base.SysUtils;
 import org.chromium.base.TraceEvent;
@@ -87,7 +84,7 @@ import org.chromium.base.supplier.OneshotSupplierImpl;
 import org.chromium.base.supplier.Supplier;
 import org.chromium.base.supplier.UnownedUserDataSupplier;
 import org.chromium.chrome.R;
-import org.chromium.chrome.browser.ApplicationLifetime;
+// import org.chromium.chrome.browser.ApplicationLifetime;
 import org.chromium.chrome.browser.ActivityTabProvider;
 import org.chromium.chrome.browser.ActivityUtils;
 import org.chromium.chrome.browser.extensions.ExtensionInfo;
@@ -202,8 +199,7 @@ import org.chromium.chrome.browser.tabmodel.TabCreator;
 import org.chromium.chrome.browser.tabmodel.TabCreatorManager;
 import org.chromium.chrome.browser.tabmodel.TabCreatorManagerSupplier;
 import org.chromium.chrome.browser.tabmodel.TabModel;
-import org.chromium.chrome.browser.tabmodel.TabList;
-import org.chromium.chrome.browser.tabmodel.TabModelUtils;
+// import org.chromium.chrome.browser.tabmodel.TabList;
 import org.chromium.chrome.browser.tabmodel.TabModelInitializer;
 import org.chromium.chrome.browser.tabmodel.TabModelSelector;
 import org.chromium.chrome.browser.tabmodel.TabModelSelectorProfileSupplier;
@@ -287,16 +283,16 @@ import org.chromium.webapk.lib.client.WebApkNavigationClient;
 
 import java.lang.ref.WeakReference;
 import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.Calendar;
-import java.util.Date;
+// import java.util.Arrays;
+// import java.util.Calendar;
+// import java.util.Date;
 import java.util.HashMap;
-import java.util.HashSet;
+// import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
-import java.util.Locale;
+// import java.util.Locale;
 import java.util.Set;
-import java.util.concurrent.CopyOnWriteArrayList;
+// import java.util.concurrent.CopyOnWriteArrayList;
 
 import androidx.annotation.MainThread;
 import org.chromium.wootz_wallet.mojom.AssetRatioService;
@@ -337,8 +333,8 @@ import org.chromium.chrome.browser.wootz_wallet.SwapServiceFactory;
 
 import android.os.Handler;
 import android.os.Looper;
-import android.graphics.Bitmap;
-import android.graphics.drawable.BitmapDrawable;
+// import android.graphics.Bitmap;
+// import android.graphics.drawable.BitmapDrawable;
 
 /**
  * A {@link AsyncInitializationActivity} that builds and manages a {@link CompositorViewHolder}
@@ -427,10 +423,10 @@ public abstract class ChromeActivity<C extends ChromeActivityComponent>
 
     private boolean mNativeInitialized;
     private boolean mRemoveWindowBackgroundDone;
+
     private WootzWalletService mWootzWalletService;
     private KeyringService mKeyringService;
-    private JsonRpcService mJsonRpcService;
-    // private MiscAndroidMetrics mMiscAndroidMetrics;
+    private JsonRpcService mJsonRpcService;;
     private SwapService mSwapService;
     @Nullable private WalletModel mWalletModel;
     private BlockchainRegistry mBlockchainRegistry;
@@ -1652,7 +1648,6 @@ public abstract class ChromeActivity<C extends ChromeActivityComponent>
         startActivity(wootzWalletIntent);
     }
 
-
     @Override
     public void initializeCompositor() {
         TraceEvent.begin("ChromeActivity:CompositorInitialization");
@@ -1876,14 +1871,6 @@ public abstract class ChromeActivity<C extends ChromeActivityComponent>
         getManualFillingComponent().onResume();
         checkForDeviceLockOnAutomotive();
         setViewForInputHint(inMultiWindowMode);
-
-        // if (mNativeInitialized) {
-        //     WootzToolbarLayoutImpl layout = getWootzToolbarLayout();
-        //     if (layout == null || !layout.isWalletIconVisible()) {
-        //         return;
-        //     }
-        //     updateWalletBadgeVisibility();
-        // }
     }
 
     private void setViewForInputHint(boolean inMultiWindowMode) {
@@ -2040,11 +2027,6 @@ public abstract class ChromeActivity<C extends ChromeActivityComponent>
                         tab.getWebContents().getLastCommittedUrl())) {
             return;
         }
-        // WootzToolbarLayoutImpl layout = getWootzToolbarLayout();
-        // if (layout != null) {
-        //     layout.showWalletIcon(true);
-        //     updateWalletBadgeVisibility();
-        // }
     }
 
     public Profile getCurrentProfile() {
@@ -2488,11 +2470,9 @@ public abstract class ChromeActivity<C extends ChromeActivityComponent>
      * by the {@link WindowAndroid}.
      */
     protected void onDestroyInternal() {
-
         if (mFabOpacityHandler != null && mFabOpacityRunnable != null) {
             mFabOpacityHandler.removeCallbacks(mFabOpacityRunnable);
         }
-
         cleanUpWalletNativeServices();
     }
 
@@ -2516,13 +2496,6 @@ public abstract class ChromeActivity<C extends ChromeActivityComponent>
             maybeShowSignTxRequestLayout();
         });
     }
-
-    // private void setWalletBadgeVisibility(boolean visibile) {
-    //     WootzToolbarLayoutImpl layout = getWootzToolbarLayout();
-    //     if (layout != null) {
-    //         layout.updateWalletBadgeVisibility(visibile);
-    //     }
-    // }
 
     private void maybeShowPendingTransactions() {
         if (mWalletModel != null) {
@@ -2656,50 +2629,6 @@ public abstract class ChromeActivity<C extends ChromeActivityComponent>
         // }
     }
 
-    // public void showWalletPanel(boolean ignoreWeb3NotificationPreference) {
-    //     WootzToolbarLayoutImpl layout = getWootzToolbarLayout();
-    //     if (layout != null) {
-    //         layout.showWalletIcon(true);
-    //     }
-    //     if (!ignoreWeb3NotificationPreference
-    //             && !WootzWalletPreferences.getPrefWeb3NotificationsEnabled()) {
-    //         return;
-    //     }
-    //     assert mKeyringService != null;
-    //     mKeyringService.isLocked(locked -> {
-    //         if (locked) {
-    //             layout.showWalletPanel();
-    //             return;
-    //         }
-    //         maybeHasPendingUnlockRequest();
-    //     });
-    // }
-
-    // public void showWalletOnboarding() {
-    //     WootzToolbarLayoutImpl layout = getWootzToolbarLayout();
-    //     if (layout != null) {
-    //         layout.showWalletIcon(true);
-    //         if (!WootzWalletPreferences.getPrefWeb3NotificationsEnabled()) {
-    //             return;
-    //         }
-    //         layout.showWalletPanel();
-    //     }
-    // }
-
-    // public void walletInteractionDetected(WebContents webContents) {
-    //     Tab tab = getActivityTab();
-    //     if (tab == null
-    //             || !webContents.getLastCommittedUrl().equals(
-    //                     tab.getWebContents().getLastCommittedUrl())) {
-    //         return;
-    //     }
-    //     WootzToolbarLayoutImpl layout = getWootzToolbarLayout();
-    //     if (layout != null) {
-    //         layout.showWalletIcon(true);
-    //         updateWalletBadgeVisibility();
-    //     }
-    // }
-
     public void showAccountCreation(@CoinType.EnumType int coinType) {
         if (mWalletModel != null) {
             mWalletModel.getDappsModel().addAccountCreationRequest(coinType);
@@ -2711,6 +2640,7 @@ public abstract class ChromeActivity<C extends ChromeActivityComponent>
             mWalletModel.getDappsModel().updateWalletBadgeVisibility();
         }
     }
+
     /**
      * @return The unified manager for all snackbar related operations.
      */
@@ -2791,8 +2721,6 @@ public abstract class ChromeActivity<C extends ChromeActivityComponent>
     @Override
     public void finishNativeInitialization() {
         mNativeInitialized = true;
-
-        // Log.e("WOOTZAPP ANKITANKITIVAN", "finishNativeInitializatioN");
         OfflineContentAggregatorNotificationBridgeUiFactory.instance();
         maybeRemoveWindowBackground();
         DownloadManagerService.getDownloadManagerService()
@@ -2803,10 +2731,8 @@ public abstract class ChromeActivity<C extends ChromeActivityComponent>
         super.finishNativeInitialization();
         
         Log.e("WOOTZAPP ANKITIVAN", "Wallet native services initialized successfully.");
-       
-            // Offload wallet initialization to Chromium's task scheduler
-            initWalletNativeServices();
-       
+        // Offload wallet initialization to Chromium's task scheduler
+        initWalletNativeServices();
         Log.e("WOOTZAPP ANKITIVAN", "Wallet native services initialized successfully.");
 
         getProfileProviderSupplier().runSyncOrOnAvailable(this::initializeManualFillingComponent);
@@ -2839,7 +2765,7 @@ public abstract class ChromeActivity<C extends ChromeActivityComponent>
         display.addObserver(mDisplayAndroidObserver);
     }
 
-        private void clearWalletModelServices() {
+    private void clearWalletModelServices() {
         if (mWalletModel == null) {
             return;
         }
@@ -3598,8 +3524,8 @@ public abstract class ChromeActivity<C extends ChromeActivityComponent>
 
         return handleBackPressed();
     }
-
-        private void initSwapService() {
+    
+    private void initSwapService() {
         if (mSwapService != null) {
             return;
         }
@@ -4137,7 +4063,6 @@ public abstract class ChromeActivity<C extends ChromeActivityComponent>
         return false;
     }
 
-    
     /**
      * Called when VR mode is entered using this activity. 2D UI components that steal focus or
      * draw over VR contents should be hidden in this call.

@@ -72,12 +72,10 @@ public class BottomContainer extends FrameLayout
     }
     @Override
     public void setTranslationY(float y) {
+        // the snackbar container is moved up because there is the top toolbar at the bottom
+        mBaseYOffset = -(mBrowserControlsStateProvider.getTopControlsHeight()
+                            + mBrowserControlsStateProvider.getTopControlOffset());
 
-       
-            // the snackbar container is moved up because there is the top toolbar at the bottom
-            mBaseYOffset = -(mBrowserControlsStateProvider.getTopControlsHeight()
-                             + mBrowserControlsStateProvider.getTopControlOffset());
-        
         float offsetFromControls =
                 mBrowserControlsStateProvider.getBottomControlOffset()
                         - mBrowserControlsStateProvider.getBottomControlsHeight();

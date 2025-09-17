@@ -136,8 +136,6 @@ class BASE_EXPORT JSONReader {
   static bool UsingRust();
 };
 
-
-
 // BASE_EXPORT JSONReader::Result DecodeJSONInRust(std::string_view json,
 //                                                 int options, size_t max_depth);
 

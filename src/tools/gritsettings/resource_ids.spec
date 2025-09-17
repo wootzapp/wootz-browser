@@ -1316,7 +1316,7 @@
   },
   
   "<(SHARED_INTERMEDIATE_DIR)/ui/webui/resources/webui_resources.grd": {
-    "META": {"sizes": {"includes": [500]}},
+    "META": {"sizes": {"includes": [1100]}},
     "includes": [8400],
   },
   "weblayer/weblayer_resources.grd": {

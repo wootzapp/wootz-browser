@@ -218,6 +218,7 @@ class HeaderParser:
     self._generator_directives = DirectiveSet()
     self._multi_line_generator_directive = None
     self._current_enum_entry = ''
+
     self._options = options
   def _ShouldIgnoreLine(self):
     return self._in_preprocessor_block and not self._in_buildflag_android
@@ -260,6 +261,7 @@ class HeaderParser:
     if HeaderParser.multi_line_comment_start_re.match(line):
       raise Exception('Multi-line comments in enums are not supported in ' +
                       self._path)
+
     # handles the management of #include files
     include_line = HeaderParser.include_re.match(line)
     if include_line:
@@ -473,6 +475,7 @@ def DoMain(argv):
   parser.add_option('--srcjar',
                     help='When specified, a .srcjar at the given path is '
                     'created instead of individual .java files.')
+
   parser.add_option('--gen_dir',
                     help='Indicates the path to the generated file')
   parser.add_option('--root_dir',

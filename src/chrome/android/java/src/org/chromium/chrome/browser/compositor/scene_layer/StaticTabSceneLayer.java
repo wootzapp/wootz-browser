@@ -15,7 +15,6 @@ import org.chromium.chrome.browser.tab.Tab;
 import org.chromium.chrome.browser.tab_ui.TabContentManager;
 import org.chromium.ui.modelutil.PropertyKey;
 import org.chromium.ui.modelutil.PropertyModel;
-import org.chromium.chrome.browser.flags.ChromeFeatureList;
 
 /** A SceneLayer to render a static tab. */
 @JNINamespace("android")
@@ -49,10 +48,9 @@ public class StaticTabSceneLayer extends SceneLayer {
         float y =
                 model.get(LayoutTab.CONTENT_OFFSET)
                         + model.get(LayoutTab.RENDER_Y) * LayoutTab.sDpToPx;
-        
+
         // the page content window never moves, it is fixed at the top
         y = 0;
-
         // Check isActiveLayout to prevent pushing a TAB_ID for a static layer that may already be
         // invalidated by the next layout.
         StaticTabSceneLayerJni.get()

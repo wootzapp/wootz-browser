@@ -13,12 +13,11 @@ import android.view.View.AccessibilityDelegate;
 import android.view.accessibility.AccessibilityEvent;
 import android.view.accessibility.AccessibilityNodeInfo;
 
-import android.util.Log;
-
 import org.chromium.base.metrics.RecordUserAction;
 
 /**
- * A helper class for a menu button to decide when to show the app menu.
+ * A helper class for a menu button to decide when to show the app menu and forward touch
+ * events.
  *
  * Simply construct this class and pass the class instance to a menu button as TouchListener.
  * Then this class will handle everything regarding showing app menu for you.
@@ -70,17 +69,17 @@ class AppMenuButtonHelperImpl extends AccessibilityDelegate implements AppMenuBu
 
         switch (event.getActionMasked()) {
             case MotionEvent.ACTION_DOWN:
-                isTouchEventConsumed = true;
+                isTouchEventConsumed |= true;
                 updateTouchEvent(view, true);
                 break;
             case MotionEvent.ACTION_UP:
-                isTouchEventConsumed = true;
+                isTouchEventConsumed |= true;
                 updateTouchEvent(view, false);
                 if (mOnClickRunnable != null) mOnClickRunnable.run();
                 showAppMenu(view);
                 break;
             case MotionEvent.ACTION_CANCEL:
-                isTouchEventConsumed = true;
+                isTouchEventConsumed |= true;
                 updateTouchEvent(view, false);
                 break;
             default:
@@ -118,7 +117,6 @@ class AppMenuButtonHelperImpl extends AccessibilityDelegate implements AppMenuBu
             if (mOnAppMenuShownListener != null) {
                 mOnAppMenuShownListener.run();
             }
-            Log.d("touched", "From AppMenuButtonHelperImpl, If you get this that means it will always be called.");
             return true;
         }
         return false;

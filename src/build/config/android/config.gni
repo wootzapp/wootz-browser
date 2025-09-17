@@ -96,8 +96,7 @@ if (is_android || is_chromeos) {
   # ASAN requires O MR1.
   # https://github.com/google/sanitizers/wiki/AddressSanitizerOnAndroid/01f8df1ac1a447a8475cdfcb03e8b13140042dbd#running-with-wrapsh-recommended
   if (is_asan) {
-    min_supported_sdk_version = 27 
-
+    min_supported_sdk_version = 27
   }
 
   assert(
@@ -224,8 +223,7 @@ if (is_android || is_chromeos) {
     android_default_version_name = "Developer Build"
 
     # Forced Android versionCode
-
-    android_override_version_code = "130"
+    android_override_version_code = "129"
 
     # Forced Android versionName
     android_override_version_name = "1.01"

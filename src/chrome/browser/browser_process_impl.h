@@ -423,7 +423,6 @@ class BrowserProcessImpl : public BrowserProcess,
   std::unique_ptr<component_updater::ComponentUpdateService> component_updater_;
 
   std::unique_ptr<adblock_updater::AdBlockUpdaterService> adblock_updater_;
-
 #if !BUILDFLAG(IS_ANDROID)
   // Used to create a singleton instance of SodaInstallerImpl, which can be
   // retrieved using speech::SodaInstaller::GetInstance().

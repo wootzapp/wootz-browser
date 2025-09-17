@@ -46,7 +46,6 @@ void ListAppendNone(ContextPointer& ctx) {
   value.GetList().Append(base::Value());
 }
 
-
 template <class T, class As = T>
 void ListAppendValue(ContextPointer& ctx, T v) {
   auto& value = reinterpret_cast<base::Value&>(ctx);
