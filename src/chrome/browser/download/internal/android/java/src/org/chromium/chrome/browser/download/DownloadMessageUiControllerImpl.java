@@ -51,6 +51,7 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+
 import android.util.Log;
 /** Message UI specific implementation of {@link DownloadMessageUiController}. */
 public class DownloadMessageUiControllerImpl implements DownloadMessageUiController {

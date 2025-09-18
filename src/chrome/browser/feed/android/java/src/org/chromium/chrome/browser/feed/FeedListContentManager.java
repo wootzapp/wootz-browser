@@ -18,6 +18,7 @@ import org.chromium.chrome.browser.xsurface.ListContentManager;
 import org.chromium.chrome.browser.xsurface.ListContentManagerObserver;
 import org.chromium.chrome.browser.xsurface.LoggingParameters;
 import org.chromium.ui.UiUtils;
+
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
@@ -141,7 +142,7 @@ public class FeedListContentManager implements ListContentManager {
             FrameLayout enclosingLayout = new FrameLayout(parent.getContext());
             FrameLayout.LayoutParams layoutParams =
                     new FrameLayout.LayoutParams(
-                            new LayoutParams(LayoutParams.MATCH_PARENT,LayoutParams.MATCH_PARENT));
+                            new LayoutParams(LayoutParams.MATCH_PARENT, LayoutParams.MATCH_PARENT));
             enclosingLayout.setLayoutParams(layoutParams);
 
             // Set the left and right paddings.

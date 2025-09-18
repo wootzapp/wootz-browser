@@ -248,10 +248,8 @@ public class CompositorViewHolder extends FrameLayout
                         @Override
                         public void setCurrentTouchEventOffsets(float top) {
                             EventForwarder forwarder = getEventForwarder();
-                            
                             // no need to adjust the touch offsets, since the content view is never moved
                             top = 0;
-
                             if (forwarder != null) forwarder.setCurrentTouchEventOffsets(0, top);
                         }
 
@@ -1060,7 +1058,6 @@ public class CompositorViewHolder extends FrameLayout
      * #updateWebContentsSize, this will make sure the renderer's properties are updated even if the
      * size didn't change.
      */
-
     // Browser Controls height never change in Wootzapp.
     private void onBrowserControlsHeightChanged() {
         final WebContents webContents = getWebContents();

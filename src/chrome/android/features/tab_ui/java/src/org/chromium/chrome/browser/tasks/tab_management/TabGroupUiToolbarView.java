@@ -176,6 +176,7 @@ public class TabGroupUiToolbarView extends FrameLayout {
         mFadingEdgeStart.setColorFilter(color, PorterDuff.Mode.SRC_IN);
         mFadingEdgeEnd.setColorFilter(color, PorterDuff.Mode.SRC_IN);
     }
+
     void setPrimaryColorAndApplyTint(int color) {
         if (false)
             return;

@@ -80,6 +80,7 @@ public class AccessibilitySettings extends PreferenceFragmentCompat
         mDelegate = delegate;
         mFontSizePrefs = FontSizePrefs.getInstance(delegate.getBrowserContextHandle());
     }
+
     public AccessibilitySettingsDelegate getDelegate() {
         return mDelegate;
     }

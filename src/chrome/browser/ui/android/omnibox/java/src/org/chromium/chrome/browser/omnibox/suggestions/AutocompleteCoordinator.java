@@ -56,7 +56,6 @@ import org.chromium.components.omnibox.action.OmniboxActionDelegate;
 import org.chromium.components.omnibox.suggestions.OmniboxSuggestionUiType;
 import org.chromium.ui.AsyncViewProvider;
 import org.chromium.ui.AsyncViewStub;
-import org.chromium.ui.UiUtils;
 import org.chromium.ui.ViewProvider;
 import org.chromium.ui.base.ViewUtils;
 import org.chromium.ui.base.WindowAndroid;
@@ -252,16 +251,6 @@ public class AutocompleteCoordinator
                         mDropdownEmbedder.getAnchorView().getMeasuredHeight();
                 }
                 mRecycledViewPool.ifPresent(p -> dropdown.setRecycledViewPool(p));
-
-                if (!OmniboxFeatures.sAsyncViewInflation.isEnabled()) {
-                    // NOTE: Old style Suggestions dropdown visibility management relies on adding
-                    // and removing the view from the view hierarchy. The view inflated from XML is
-                    // automatically added to the hierarchy, which changes the precondition assumed
-                    // by the old logic. The lines below ensure the initial condition is what the
-                    // logic expects it to be.
-                    UiUtils.removeViewFromParent(dropdown);
-                }
-
                 mHolder = new SuggestionListViewHolder(container, dropdown);
                 for (int i = 0; i < mCallbacks.size(); i++) {
                     mCallbacks.get(i).onResult(mHolder);

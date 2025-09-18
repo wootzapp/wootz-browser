@@ -246,7 +246,7 @@ class CrxInstaller : public base::RefCountedThreadSafe<CrxInstaller> {
   // location is unknown). Otherwise, it returns true.
   virtual bool IsWootzComponent() const;
   virtual bool GetInstalledFile(const std::string& file,
-                                base::FilePath* installed_file) = 0;                                
+                                base::FilePath* installed_file) = 0;
 
   // Called when a CRX has been unregistered and all versions should
   // be uninstalled from disk. Returns true if uninstallation is supported,

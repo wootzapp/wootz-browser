@@ -18,7 +18,7 @@ import android.util.Log;
 /** A factory for creating an {@link AppMenuCoordinator}. */
 public class AppMenuCoordinatorFactory {
     private static final String TAG = "AppMenuCoordinatorFactory";
-
+    
     private AppMenuCoordinatorFactory() {}
 
     /**
@@ -46,14 +46,8 @@ public class AppMenuCoordinatorFactory {
             Supplier<Rect> appRect,
             FragmentManager fragmentManager,
             int itemRowHeight,
-            WindowAndroid windowAndroid) {  // Add this parameter
-        Log.d(TAG, "Creating AppMenuCoordinator");
+            WindowAndroid windowAndroid) {
         try {
-            // Log each parameter
-            Log.d(TAG, "Context: " + (context != null ? context.getClass().getSimpleName() : "null"));
-            Log.d(TAG, "ActivityLifecycleDispatcher: " + (activityLifecycleDispatcher != null ? "not null" : "null"));
-            // ... log other parameters ...
-
             AppMenuCoordinator coordinator = new AppMenuCoordinatorImpl(
                     context,
                     activityLifecycleDispatcher,
@@ -64,12 +58,11 @@ public class AppMenuCoordinatorFactory {
                     appRect,
                     fragmentManager,
                     itemRowHeight,
-                    windowAndroid);  // Pass the itemRowHeight
-            Log.d(TAG, "AppMenuCoordinator created successfully");
+                    windowAndroid);
             return coordinator;
         } catch (Exception e) {
             Log.e(TAG, "Error creating AppMenuCoordinator", e);
-            throw e; // or handle the error appropriately
+            throw e;
         }
     }
 

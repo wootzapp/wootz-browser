@@ -531,6 +531,7 @@
 #include "chrome/browser/web_applications/isolated_web_apps/chrome_content_browser_client_isolated_web_apps_part.h"
 #include "chrome/browser/web_applications/locks/app_lock.h"
 #include "chrome/browser/web_applications/web_app_helpers.h"
+#include "chrome/browser/webid/digital_identity_provider_desktop.h"
 #include "third_party/blink/public/mojom/installedapp/related_application.mojom.h"
 #endif  // !BUILDFLAG(IS_ANDROID)
 
@@ -555,7 +556,6 @@
 #include "content/public/browser/chromeos/multi_capture_service.h"
 #include "third_party/cros_system_api/switches/chrome_switches.h"
 #endif
-#include "chrome/browser/chrome_content_browser_client.h"
 
 #if !BUILDFLAG(IS_ANDROID)
 #include "chrome/browser/apps/link_capturing/link_capturing_navigation_throttle.h"
@@ -567,6 +567,8 @@
 #include "chrome/browser/metrics/usage_scenario/chrome_responsiveness_calculator_delegate.h"
 #include "chrome/browser/new_tab_page/new_tab_page_util.h"
 #include "chrome/browser/page_info/about_this_site_side_panel_throttle.h"
+#include "chrome/browser/search/instant_service.h"
+#include "chrome/browser/search/instant_service_factory.h"
 #include "chrome/browser/serial/chrome_serial_delegate.h"
 #include "chrome/browser/task_manager/task_manager_interface.h"
 #include "chrome/browser/ui/browser.h"
@@ -1723,6 +1725,10 @@ void ChromeContentBrowserClient::RegisterProfilePrefs(
                                 false);
 
   registry->RegisterBooleanPref(
+      policy::policy_prefs::kCSSCustomStateDeprecatedSyntaxEnabled,
+      /*default_value=*/false);
+
+  registry->RegisterBooleanPref(
       policy::policy_prefs::kBeforeunloadEventCancelByPreventDefaultEnabled,
       true);
 
@@ -2803,6 +2809,11 @@ void ChromeContentBrowserClient::AppendExtraCommandLineSwitches(
               policy::policy_prefs::kKeyboardFocusableScrollersEnabled)) {
         command_line->AppendSwitch(
             blink::switches::kKeyboardFocusableScrollersOptOut);
+      }
+      if (prefs->GetBoolean(
+              policy::policy_prefs::kCSSCustomStateDeprecatedSyntaxEnabled)) {
+        command_line->AppendSwitch(
+            blink::switches::kCSSCustomStateDeprecatedSyntaxEnabled);
       }
 
       if (prefs->GetBoolean(policy::policy_prefs::
@@ -6331,7 +6342,7 @@ void AddChromeSchemeFactories(
   // URL is chrome-search://remote-ntp. This is to allow the use of the NTP
   // public api and to embed most-visited tiles
   // (chrome-search://most-visited/title.html).
-
+  //
   // InstantService might be null for some irregular profiles, e.g. the System
   // Profile.
   if (instant_service && instant_service->IsInstantProcess(render_process_id)) {
@@ -8202,12 +8213,16 @@ void ChromeContentBrowserClient::ShowDigitalIdentityInterstitialIfNeeded(
       base::BindOnce(&RunDigitalIdentityCallback, std::move(bridge),
                      std::move(callback)));
 }
+#endif
 
 std::unique_ptr<content::DigitalIdentityProvider>
 ChromeContentBrowserClient::CreateDigitalIdentityProvider() {
+#if BUILDFLAG(IS_ANDROID)
   return std::make_unique<DigitalIdentityProviderAndroid>();
-}
+#else
+  return std::make_unique<DigitalIdentityProviderDesktop>();
 #endif
+}
 
 bool ChromeContentBrowserClient::SuppressDifferentOriginSubframeJSDialogs(
     content::BrowserContext* browser_context) {

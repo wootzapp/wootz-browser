@@ -177,6 +177,7 @@ def _CollectAllowedImportsFromBuildMetadata(build_metadata_filename):
   collect(build_metadata_filename)
   return allowed_imports
 
+
 def _ResolveInclude(mojom_abspath, input_root_paths):
   mojom_abspath = _ResolveRelativeImportPath(mojom_abspath, input_root_paths)
   with codecs.open(mojom_abspath, encoding='utf-8') as f:
@@ -316,7 +317,6 @@ def _ParseMojoms(mojom_files,
 
   logging.info('Parsing %d .mojom into ASTs', len(mojom_files_to_parse))
   map_args = ((mojom_abspath, enabled_features, input_root_paths)
-
               for mojom_abspath in mojom_files_to_parse)
   for mojom_abspath, ast in _Shard(_ParseAstHelper, map_args):
     loaded_mojom_asts[mojom_abspath] = ast

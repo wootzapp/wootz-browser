@@ -193,7 +193,7 @@
 #include "components/wootz_wallet/browser/keyring_service.h"
 #include "components/wootz_wallet/browser/keyring_service_migrations.h"
 #include "components/wootz_wallet/browser/pref_names.h"
-#include "content/public/browser/blocked_domains_prefs.h"
+#include "chrome/browser/prefs/blocked_domains_prefs.h"
 #include "chrome/browser/prefs/content_privacy_prefs.h"
 #include "content/public/browser/render_process_host.h"
 #include "chrome/browser/prefs/saml_prefs.h"

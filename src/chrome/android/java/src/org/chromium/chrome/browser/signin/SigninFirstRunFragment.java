@@ -61,7 +61,6 @@ public class SigninFirstRunFragment extends Fragment
     private DeviceLockCoordinator mDeviceLockCoordinator;
     private boolean mExitFirstRunCalled;
     private boolean mDelayedExitFirstRunCalledForTesting;
-    private static final String GMS_PREFS = "chrome_gms_prefs";
     private static final String TAG = "SigninFirstRun";
     private boolean mGooglePlayServicesChecked = false;
 

@@ -10,7 +10,6 @@ import org.chromium.chrome.browser.toolbar.R;
 import org.chromium.ui.modelutil.PropertyKey;
 import org.chromium.ui.modelutil.PropertyModel;
 import org.chromium.ui.resources.dynamics.DynamicResourceReadyOnceCallback;
-import org.chromium.chrome.browser.flags.ChromeFeatureList;
 
 class BottomControlsViewBinder {
     /**

@@ -25,6 +25,6 @@ source_set("views") {
     "//skia",
     "//ui/gfx",
     "//ui/strings",
-    # "//ui/views",
+    "//ui/views",
   ]
 }

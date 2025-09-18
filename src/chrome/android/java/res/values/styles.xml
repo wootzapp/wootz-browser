@@ -93,8 +93,6 @@ found in the LICENSE file.
         <item name="android:backgroundDimEnabled">false</item>
     </style>
 
-
-
     <style name="WootzWalletAlertDialogTheme" parent="ThemeOverlay.MaterialComponents.MaterialAlertDialog">
         <item name="android:background">@color/wallet_bg</item>
         <item name="android:colorBackground">@color/wallet_bg</item>
@@ -170,7 +168,6 @@ found in the LICENSE file.
         <item name="actionBarStyle">@style/ManageSpaceActionBarModern</item>
         <item name="actionBarTheme">@style/ManageSpaceActionBarTheme</item>
     </style>
-
 
     <!-- Wootz Wallet -->
     <style name="WootzWalletTextView" parent="Widget.AppCompat.TextView">

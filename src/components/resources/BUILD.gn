@@ -115,8 +115,7 @@ grit("components_scaled_resources") {
 }
 
 action("about_credits") {
-  script = "//tools/licenses/licenses.py" 
-  # script = "//chrome/script/check_npm_licenses.py"
+  script = "//tools/licenses/licenses.py"
   depfile = "$target_gen_dir/$target_name.d"
 
   inputs = [
@@ -126,9 +125,7 @@ action("about_credits") {
     "//package.json"
   ]
 
-  outputs = [ about_credits_file, 
-  # "$root_gen_dir/npm_licenses.checked"
-   ]
+  outputs = [ about_credits_file ]
 
   args = [
     "--target-os=$target_os",
@@ -136,7 +133,6 @@ action("about_credits") {
     rebase_path(depfile, root_build_dir),
     "credits",
     rebase_path(about_credits_file, root_build_dir),
-    # rebase_path("$root_gen_dir/npm_licenses.checked"),
   ]
 
   # Defined by downstream projects.

@@ -24,6 +24,7 @@ import android.view.View.OnLayoutChangeListener;
 import android.view.ViewGroup;
 import android.view.ViewStub;
 import android.widget.FrameLayout;
+
 import android.view.Gravity;
 import androidx.activity.BackEventCompat;
 import androidx.annotation.NonNull;
@@ -54,7 +55,6 @@ import org.chromium.chrome.browser.bookmarks.BookmarkModelObserver;
 import org.chromium.chrome.browser.browser_controls.BrowserControlsSizer;
 import org.chromium.chrome.browser.browser_controls.BrowserControlsStateProvider;
 import org.chromium.chrome.browser.browser_controls.BrowserStateBrowserControlsVisibilityDelegate;
-import org.chromium.chrome.browser.compositor.CompositorView;
 import org.chromium.chrome.browser.compositor.CompositorViewHolder;
 import org.chromium.chrome.browser.compositor.bottombar.OverlayPanelManager.OverlayPanelManagerObserver;
 import org.chromium.chrome.browser.compositor.bottombar.ephemeraltab.EphemeralTabCoordinator;
@@ -201,9 +201,7 @@ import org.chromium.ui.modaldialog.ModalDialogManager;
 import org.chromium.ui.util.TokenHolder;
 import org.chromium.url.GURL;
 
-import android.util.Log;
 import java.util.List;
-import org.chromium.base.ContextUtils;
 
 /**
  * Contains logic for managing the toolbar visual component. This class manages the interactions
@@ -607,8 +605,7 @@ public class ToolbarManager
             @Nullable View baseChromeLayout,
             ObservableSupplier<ReadAloudController> readAloudControllerSupplier,
             @Nullable DesktopWindowStateProvider desktopWindowStateProvider,
-            @Nullable Runnable showMyBottomSheet
-            ) {
+            @Nullable Runnable showMyBottomSheet) {
         TraceEvent.begin("ToolbarManager.ToolbarManager");
         mActivity = activity;
         mWindowAndroid = windowAndroid;
@@ -641,6 +638,7 @@ public class ToolbarManager
         mEphemeralTabCoordinatorSupplier = ephemeralTabCoordinatorSupplier;
         mUserEducationHelper = new UserEducationHelper(mActivity, profileSupplier, mHandler);
         mDesktopWindowStateProvider = desktopWindowStateProvider;
+
         mShowMyBottomSheet = showMyBottomSheet;
         ToolbarLayout toolbarLayout = mActivity.findViewById(R.id.toolbar);
         NewTabPageDelegate ntpDelegate = createNewTabPageDelegate(toolbarLayout);
@@ -765,11 +763,8 @@ public class ToolbarManager
                 };
         Runnable onMenuButtonClicked = mShowMyBottomSheet;
                 // () -> {
-                //     // if (mUpdateMenuItemHelper == null) return;
-                //     if(mShowMyBottomSheet == null) return;
-                //     Log.d("touched","Message from toolbarmanger " + ContextUtils.getApplicationContext().getClass().toString());
-                //     // mUpdateMenuItemHelper.onMenuButtonClicked();
-                //     mShowMyBottomSheet.run();
+                //     if (mUpdateMenuItemHelper == null) return;
+                //     mUpdateMenuItemHelper.onMenuButtonClicked();
                 // };
 
         mMenuButtonCoordinator =
@@ -922,8 +917,7 @@ public class ToolbarManager
                             tabModelSelectorSupplier,
                             new LocationBarEmbedderUiOverrides(),
                             baseChromeLayout,
-                            mCompositorViewHolder
-                            );
+                            mCompositorViewHolder);
             toolbarLayout.setLocationBarCoordinator(locationBarCoordinator);
             toolbarLayout.setBrowserControlsVisibilityDelegate(mControlsVisibilityDelegate);
             mLocationBar = locationBarCoordinator;

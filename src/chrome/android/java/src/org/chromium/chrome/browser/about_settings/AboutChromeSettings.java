@@ -9,7 +9,6 @@ import android.content.pm.PackageInfo;
 import android.content.pm.PackageManager.NameNotFoundException;
 import android.os.Bundle;
 import android.text.format.DateUtils;
-import android.text.TextUtils;
 import android.util.Log;
 
 import androidx.preference.Preference;

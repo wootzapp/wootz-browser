@@ -287,7 +287,6 @@ bool CleanupDirectorySync(const base::FilePath&);
 namespace enterprise_connectors {
 class LinuxKeyRotationCommand;
 }  // namespace enterprise_connectors
-
 namespace extensions {
 class InstalledLoader;
 class UnpackedInstaller;

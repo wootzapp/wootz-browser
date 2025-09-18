@@ -5,6 +5,7 @@
 package org.chromium.chrome.browser.toolbar.bottom;
 
 import android.app.Activity;
+
 import org.chromium.base.supplier.ObservableSupplier;
 import org.chromium.chrome.browser.theme.TopUiThemeColorProvider;
 import org.chromium.chrome.browser.tab.CurrentTabObserver;
@@ -36,7 +37,8 @@ public interface BottomControlsContentDelegate extends BackPressHandler {
             Activity activity,
             BottomControlsCoordinator.BottomControlsVisibilityController visibilityController,
             Callback<Object> onModelTokenChange,
-            TopUiThemeColorProvider topUiThemeColorProvider, ObservableSupplier<Tab> tabSupplier);
+            TopUiThemeColorProvider topUiThemeColorProvider,
+            ObservableSupplier<Tab> tabSupplier);
 
     /** Destroy the delegate. */
     void destroy();

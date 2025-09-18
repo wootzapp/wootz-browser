@@ -455,6 +455,7 @@ ExtensionService::ExtensionService(
   }
 
   ExtensionManagementFactory::GetForBrowserContext(profile_)->AddObserver(this);
+
 #if 0
   // Set up the ExtensionUpdater.
   if (autoupdate_enabled) {
@@ -465,8 +466,10 @@ ExtensionService::ExtensionService(
         base::BindRepeating(ChromeExtensionDownloaderFactory::CreateForProfile,
                             profile));
   }
+
 #endif
   component_loader_ = std::make_unique<ComponentLoader>(system_, profile);
+
 #if 0 
   if (extensions_enabled_) {
     ExternalProviderImpl::CreateExternalProviders(
@@ -1231,7 +1234,7 @@ void ExtensionService::PostActivateExtension(
                       profile_, chrome::FaviconUrlFormat::kFaviconLegacy));
   }
 
-  Same for chrome://theme/ resources.
+  // Same for chrome://theme/ resources.
   if (permissions_data->HasHostPermission(GURL(chrome::kChromeUIThemeURL))) {
     content::URLDataSource::Add(profile_,
                                 std::make_unique<ThemeSource>(profile_));
@@ -1357,6 +1360,7 @@ void ExtensionService::CheckManagementPolicy() {
   // is mutually exclusive to |to_disable|.
   for (const std::string& id : to_enable)
     EnableExtension(id);
+
 #if 0
   if (updater_.get()) {
     // Find all extensions disabled due to minimum version requirement from
@@ -1374,6 +1378,7 @@ void ExtensionService::CheckManagementPolicy() {
     if (!to_recheck.ids.empty())
       updater_->CheckNow(std::move(to_recheck));
   }
+
 #endif
   // Check the disabled extensions to see if any should be force uninstalled.
   std::vector<ExtensionId> remove_list;
@@ -1476,6 +1481,7 @@ void ExtensionService::OnAllExternalProvidersReady() {
   } else if (external_updates_finished_callback_) {
     std::move(external_updates_finished_callback_).Run();
   }
+
 #endif
   // Uninstall all the unclaimed extensions.
   ExtensionPrefs::ExtensionsInfo extensions_info =
@@ -2221,7 +2227,7 @@ int ExtensionService::GetDisableReasonsOnInstalled(const Extension* extension) {
                ? disable_reason::DISABLE_USER_ACTION
                : disable_reasons;
   }
-  
+
   if (ExternalInstallManager::IsPromptingEnabled()) {
     // External extensions are initially disabled. We prompt the user before
     // enabling them. Hosted apps are excepted because they are not dangerous
@@ -2237,6 +2243,7 @@ int ExtensionService::GetDisableReasonsOnInstalled(const Extension* extension) {
       return disable_reason::DISABLE_EXTERNAL_EXTENSION;
     }
   }
+
 #endif
   return disable_reason::DISABLE_NONE;
 }

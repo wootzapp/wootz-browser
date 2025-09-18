@@ -25,6 +25,7 @@
 #include "base/trace_event/traced_value.h"
 #include "components/subresource_filter/core/common/common_features.h"
 #include "components/subresource_filter/core/mojom/subresource_filter.mojom.h"
+
 namespace subresource_filter {
 
 namespace {
@@ -150,6 +151,7 @@ std::vector<Configuration> FillEnabledPresetConfigurations() {
       enabled_configurations.push_back(available_preset.factory_method());
     }
   }
+
   return enabled_configurations;
 }
 

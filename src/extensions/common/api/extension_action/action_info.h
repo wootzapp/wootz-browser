@@ -67,11 +67,11 @@ struct ActionInfo {
   ExtensionIconSet default_icon;
   std::string default_title;
   GURL default_popup_url;
+
   GURL default_widget_url;
   // Specifies if the action applies to all web pages ("enabled") or
   // only specific pages ("disabled"). Only applies to the "action" key.
   DefaultState default_state;
-
   std::vector<std::string> features;
   // Whether or not this action was synthesized to force visibility.
   bool synthesized;

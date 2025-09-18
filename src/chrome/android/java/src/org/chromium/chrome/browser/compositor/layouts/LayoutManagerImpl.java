@@ -59,7 +59,6 @@ import org.chromium.chrome.browser.tabmodel.TabModelSelector;
 import org.chromium.chrome.browser.tabmodel.TabModelSelectorObserver;
 import org.chromium.chrome.browser.tabmodel.TabModelSelectorTabObserver;
 import org.chromium.chrome.browser.tabmodel.TabModelUtils;
-import org.chromium.chrome.browser.theme.ThemeColorProvider;
 import org.chromium.chrome.browser.theme.ThemeUtils;
 import org.chromium.chrome.browser.theme.TopUiThemeColorProvider;
 import org.chromium.chrome.browser.toolbar.ControlContainer;
@@ -83,7 +82,6 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.logging.Handler;
 import android.util.Log;
 
 /**
@@ -1208,7 +1206,6 @@ public class LayoutManagerImpl
      * @param layout  The new {@link Layout} to show.
      * @param animate Whether or not {@code layout} should animate as it shows.
      */
-
     protected void startShowing(Layout layout, boolean animate) {
         assert layout != null : "Can't show a null layout.";
 
@@ -1320,7 +1317,7 @@ public class LayoutManagerImpl
     /**
      * Creates a {@link SwipeHandler} instance.
      * @param supportSwipeDown Whether or not to the handler should support swipe down gesture.
-     * @return The {@link SwipeHandler} created.
+     * @return The {@link SwipeHandler} cerated.
      */
     public SwipeHandler createToolbarSwipeHandler(boolean supportSwipeDown) {
         return null;

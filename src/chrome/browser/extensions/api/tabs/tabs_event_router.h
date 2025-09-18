@@ -77,6 +77,7 @@ class TabsEventRouter : public TabStripModelObserver,
   void TabGroupedStateChanged(std::optional<tab_groups::TabGroupId> group,
                               content::WebContents* contents,
                               int index) override;
+
 */
   // ZoomObserver:
   void OnZoomControllerDestroyed(

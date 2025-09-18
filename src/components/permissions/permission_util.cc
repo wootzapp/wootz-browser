@@ -334,7 +334,6 @@ ContentSettingsType PermissionUtil::PermissionTypeToContentSettingTypeSafe(
       return ContentSettingsType::WOOTZ_ETHEREUM;
     case PermissionType::WOOTZ_SOLANA:
       return ContentSettingsType::WOOTZ_SOLANA;
-
     case PermissionType::SMART_CARD:
       return ContentSettingsType::SMART_CARD_DATA;
     case PermissionType::STORAGE_ACCESS_GRANT:

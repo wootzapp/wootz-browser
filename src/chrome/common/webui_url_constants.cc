@@ -151,23 +151,15 @@ const char kChromeUINetInternalsHost[] = "net-internals";
 const char kChromeUINetInternalsURL[] = "wootzapp://net-internals/";
 const char kChromeUIThrottleHost[] = "throttle";
 const char kChromeUIThrottleURL[] = "wootzapp://throttle/";
-const char kChromeUIReactHost[] = "react";
-const char kChromeUIReactURL[] = "wootzapp://react/";
 const char kChromeUINewTabHost[] = "newtab";
 const char kChromeUINewTabPageHost[] = "new-tab-page";
 const char kChromeUINewTabPageURL[] = "wootzapp://new-tab-page/";
 const char kChromeUINewTabPageThirdPartyHost[] = "new-tab-page-third-party";
 const char kChromeUINewTabPageThirdPartyURL[] =
-    "wootzapp://new-tab-page-third-party/";
-
-
-
+"wootzapp://new-tab-page-third-party/";
+const char kChromeUINewTabURL[] = "wootzapp://newtab/";
 const char kChromeUIHelloWorldURL[] = "wootzapp://rewards/";
 const char kChromeUIHelloWorldHost[] = "rewards";
-
-
-
-const char kChromeUINewTabURL[] = "wootzapp://newtab/";
 const char kChromeUIProfileInternalsHost[] = "profile-internals";
 const char kChromeUIOmniboxHost[] = "omnibox";
 const char kChromeUIOmniboxURL[] = "chrome://omnibox/";
@@ -425,6 +417,7 @@ const char kChromeUIPrintManagementUrl[] = "chrome://print-management";
 const char kChromeUIPowerHost[] = "power";
 const char kChromeUIPowerUrl[] = "chrome://power";
 const char kChromeUIRemoteManagementCurtainHost[] = "security-curtain";
+const char kChromeUISanitizeAppURL[] = "chrome://sanitize";
 const char kChromeUIScanningAppURL[] = "chrome://scanning";
 const char kChromeUISetTimeHost[] = "set-time";
 const char kChromeUISetTimeURL[] = "chrome://set-time/";

@@ -160,7 +160,6 @@ const base::Feature* const kFeaturesExposedToJava[] = {
     &kAdaptiveButtonInTopToolbarTranslate,
     &kAdaptiveButtonInTopToolbarAddToBookmarks,
     &kAdaptiveButtonInTopToolbarCustomizationV2,
-    &kAdBlockFeature,
     &kAddToHomescreenIPH,
     &kRedirectExplicitCTAIntentsToExistingActivity,
     &kAllowNewIncognitoTabIntents,
@@ -423,10 +422,6 @@ BASE_FEATURE(kAdaptiveButtonInTopToolbarAddToBookmarks,
 
 BASE_FEATURE(kAdaptiveButtonInTopToolbarCustomizationV2,
              "AdaptiveButtonInTopToolbarCustomizationV2",
-             base::FEATURE_ENABLED_BY_DEFAULT);
-
-BASE_FEATURE(kAdBlockFeature,
-             "AdBlockFeature",
              base::FEATURE_ENABLED_BY_DEFAULT);
 
 BASE_FEATURE(kAddToHomescreenIPH,

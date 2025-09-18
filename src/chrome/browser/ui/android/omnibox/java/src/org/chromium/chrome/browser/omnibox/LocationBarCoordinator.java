@@ -491,7 +491,7 @@ public class LocationBarCoordinator
     public OmniboxSuggestionsDropdownEmbedderImpl getOmniboxDropdownEmbedder() {
         return mOmniboxDropdownEmbedderImpl;
     }
-    
+
     @Override
     public void addOmniboxSuggestionsDropdownScrollListener(
             OmniboxSuggestionsDropdownScrollListener listener) {

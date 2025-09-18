@@ -18,7 +18,6 @@
 #include "components/keyed_service/core/keyed_service_base_factory.h"
 #include "components/keyed_service/core/keyed_service_factory.h"
 #include "components/keyed_service/core/refcounted_keyed_service_factory.h"
-#include "base/debug/stack_trace.h"
 
 #ifndef NDEBUG
 #include "base/files/file_path.h"

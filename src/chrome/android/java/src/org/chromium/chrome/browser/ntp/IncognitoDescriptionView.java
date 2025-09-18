@@ -38,7 +38,6 @@ import org.chromium.ui.text.SpanApplier;
 import org.chromium.ui.text.SpanApplier.SpanInfo;
 import org.chromium.ui.widget.ChromeBulletSpan;
 import org.chromium.base.ContextUtils;
-// import log
 import android.util.Log;
 
 /** The view to describle incognito mode. */

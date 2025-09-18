@@ -124,6 +124,11 @@ struct SchemeRegistry {
   std::vector<std::string> opaque_non_special_schemes = {
       // See https://crrev.com/c/5465607 for the reason.
       kAndroidScheme,
+      // Temporarily opted-out. See https://crrev.com/c/5539140.
+      kChromiumXCallback,
+      // Temporarily opted-out. See https://crrev.com/c/5547181.
+      kAlmanac,
+      kCrosApps,
   };
 
   // Schemes with a predefined default custom handler.

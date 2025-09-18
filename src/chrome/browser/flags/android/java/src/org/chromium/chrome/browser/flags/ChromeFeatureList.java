@@ -15,12 +15,8 @@ import org.chromium.base.cached_flags.DoubleCachedFieldTrialParameter;
 import org.chromium.base.cached_flags.IntCachedFieldTrialParameter;
 import org.chromium.base.cached_flags.StringCachedFieldTrialParameter;
 import org.jni_zero.NativeMethods;
-import org.jni_zero.CalledByNative;
 import org.jni_zero.JNINamespace;
-import android.content.Context;
-import android.content.SharedPreferences;
 import android.util.Log;
-import org.chromium.base.ContextUtils;
 
 import java.util.List;
 import java.util.Map;
@@ -192,7 +188,6 @@ public class ChromeFeatureList {
             "AdaptiveButtonInTopToolbarAddToBookmarks";
     public static final String ADAPTIVE_BUTTON_IN_TOP_TOOLBAR_CUSTOMIZATION_V2 =
             "AdaptiveButtonInTopToolbarCustomizationV2";
-    public static final String AD_BLOCK_FEATURE = "AdBlockFeature";
     public static final String ADD_TO_HOMESCREEN_IPH = "AddToHomescreenIPH";
     public static final String ALLOW_NEW_INCOGNITO_TAB_INTENTS = "AllowNewIncognitoTabIntents";
     public static final String ANDROID_APP_INTEGRATION = "AndroidAppIntegration";
@@ -557,7 +552,6 @@ public class ChromeFeatureList {
     /* Alphabetical: */
     public static final CachedFlag sAccountReauthenticationRecentTimeWindow =
             newCachedFlag(ACCOUNT_REAUTHENTICATION_RECENT_TIME_WINDOW, true);
-    public static final CachedFlag sAdBlockFeature = newCachedFlag(AD_BLOCK_FEATURE, true);
     public static final CachedFlag sAndroidAppIntegration =
             newCachedFlag(ANDROID_APP_INTEGRATION, false);
     public static final CachedFlag sAndroidElegantTextHeight =
@@ -721,7 +715,6 @@ public class ChromeFeatureList {
 
     public static final List<CachedFlag> sFlagsCachedFullBrowser =
             List.of(
-                    sAdBlockFeature,
                     sAccountReauthenticationRecentTimeWindow,
                     sAndroidAppIntegration,
                     sAndroidElegantTextHeight,

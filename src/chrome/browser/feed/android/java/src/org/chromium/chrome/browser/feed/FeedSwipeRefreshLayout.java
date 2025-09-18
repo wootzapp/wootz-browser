@@ -3,7 +3,7 @@
 // found in the LICENSE file.
 
 package org.chromium.chrome.browser.feed;
-import android.util.Log;
+
 import android.annotation.SuppressLint;
 import android.app.Activity;
 import android.util.DisplayMetrics;
@@ -202,7 +202,6 @@ public class FeedSwipeRefreshLayout extends SwipeRefreshLayout implements Scroll
 
     @Override
     protected void onLayout(boolean changed, int left, int top, int right, int bottom) {
-
         super.onLayout(changed, left, top, right, bottom);
         ensureTarget();
         if (mTarget == null) {
@@ -215,9 +214,7 @@ public class FeedSwipeRefreshLayout extends SwipeRefreshLayout implements Scroll
         final int childTop = getPaddingTop();
         final int childWidth = width - getPaddingLeft() - getPaddingRight();
         final int childHeight = height - getPaddingTop() - getPaddingBottom();
-
         child.layout(childLeft, childTop, childLeft + childWidth, childTop + childHeight);
-
     }
 
     @Override
@@ -326,7 +323,6 @@ public class FeedSwipeRefreshLayout extends SwipeRefreshLayout implements Scroll
 
     @Override
     public void onHeaderOffsetChanged(int headerOffset) {
-
         mHeaderOffset = headerOffset;
     }
 }

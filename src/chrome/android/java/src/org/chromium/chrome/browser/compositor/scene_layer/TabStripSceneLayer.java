@@ -18,6 +18,7 @@ import org.chromium.chrome.browser.compositor.overlays.strip.StripLayoutTab;
 import org.chromium.chrome.browser.layouts.scene_layer.SceneLayer;
 import org.chromium.chrome.browser.layouts.scene_layer.SceneOverlayLayer;
 import org.chromium.ui.resources.ResourceManager;
+
 import org.chromium.ui.base.DeviceFormFactor;
 import org.chromium.base.ContextUtils;
 /**

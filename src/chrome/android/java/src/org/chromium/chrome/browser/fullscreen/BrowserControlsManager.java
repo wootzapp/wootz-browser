@@ -501,9 +501,7 @@ public class BrowserControlsManager implements ActivityStateListener, BrowserCon
 
     @Override
     public float getTopVisibleContentOffset() {
-
         return 0;
-        
     }
 
     @Override

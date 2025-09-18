@@ -2508,8 +2508,6 @@ class CONTENT_EXPORT WebContentsImpl : public WebContents,
 
   // Indicates accessibility had an unrecoverable error.
   bool unrecoverable_accessibility_error_ = false;
-
-  
   void ShowUploadBlockedSnackbar(const std::string& action);
   void HideToast();
   base::WeakPtrFactory<WebContentsImpl> toast_weak_factory_{this};

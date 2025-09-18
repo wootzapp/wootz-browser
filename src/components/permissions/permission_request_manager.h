@@ -30,6 +30,7 @@
 #include "ui/gfx/geometry/rect.h"
 
 class GURL;
+
 class WidevinePermissionAndroidTest;
 namespace content {
 class RenderFrameHost;

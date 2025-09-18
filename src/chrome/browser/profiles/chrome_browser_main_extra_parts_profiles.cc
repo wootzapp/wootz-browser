@@ -705,7 +705,7 @@ void ChromeBrowserMainExtraPartsProfiles::
 #endif
   ChromeBrowsingDataLifetimeManagerFactory::GetInstance();
   if (full_init)
-  ChromeBrowsingDataRemoverDelegateFactory::GetInstance();
+    ChromeBrowsingDataRemoverDelegateFactory::GetInstance();
 #if BUILDFLAG(IS_WIN) || BUILDFLAG(IS_MAC) || BUILDFLAG(IS_ANDROID) || \
     BUILDFLAG(IS_CHROMEOS)
   ChromeDeviceAuthenticatorFactory::GetInstance();
@@ -1277,9 +1277,13 @@ void ChromeBrowserMainExtraPartsProfiles::
   TurnSyncOnHelper::EnsureFactoryBuilt();
 #endif
   UnifiedConsentServiceFactory::GetInstance();
-#if !BUILDFLAG(IS_ANDROID)
+#if BUILDFLAG(IS_ANDROID)
+  if (base::FeatureList::IsEnabled(features::kSafetyHub)) {
+    UnusedSitePermissionsServiceFactory::GetInstance();
+  }
+#else   // BUILDFLAG(IS_ANDROID)
   UnusedSitePermissionsServiceFactory::GetInstance();
-#endif
+#endif  // BUILDFLAG(IS_ANDROID)
   UrlLanguageHistogramFactory::GetInstance();
   UsbChooserContextFactory::GetInstance();
 #if !BUILDFLAG(IS_ANDROID)

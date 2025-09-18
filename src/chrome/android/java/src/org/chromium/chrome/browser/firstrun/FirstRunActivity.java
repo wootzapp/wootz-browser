@@ -18,7 +18,6 @@ import org.chromium.chrome.browser.IntentHandler;
 import android.text.TextUtils;
 import android.content.Intent;
 import org.chromium.chrome.browser.ChromeTabbedActivity;
-import org.chromium.content_public.browser.LoadUrlParams;
 
 import androidx.annotation.CallSuper;
 import androidx.annotation.Nullable;
@@ -106,7 +105,6 @@ public class FirstRunActivity extends FirstRunActivityBase implements FirstRunPa
     @Nullable private static FirstRunActivityObserver sObserver;
 
     private boolean mPostNativeAndPolicyPagesCreated;
-    public static String ext_utm_source = "";
 
     private static final String TAG = "FirstRunActivity";
 

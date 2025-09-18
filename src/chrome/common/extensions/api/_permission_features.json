@@ -1097,8 +1097,4 @@
     "channel": "stable",
     "extension_types": ["extension"]
   }
-  // "helloWorld": {
-  //   "channel": "stable",
-  //   "extension_types": ["extension"]
-  // }
 }

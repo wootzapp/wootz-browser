@@ -51,7 +51,6 @@ import org.chromium.ui.resources.dynamics.DynamicResourceLoader;
 import org.chromium.ui.resources.dynamics.DynamicResourceReadyOnceCallback;
 import org.chromium.ui.resources.dynamics.ViewResourceAdapter;
 import org.chromium.ui.widget.ViewLookupCachingFrameLayout;
-import org.chromium.chrome.browser.flags.ChromeFeatureList;
 
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -69,6 +68,7 @@ class TabListRecyclerView extends RecyclerView
 
     public static final long BASE_ANIMATION_DURATION_MS = 218;
     public static final long FINAL_FADE_IN_DURATION_MS = 50;
+
     private boolean mIsVisible;
     /** An interface to listen to visibility related changes on this {@link RecyclerView}. */
     interface VisibilityListener {
@@ -334,9 +334,7 @@ class TabListRecyclerView extends RecyclerView
     }
 
     void setShadowVisibility(boolean shouldShowShadow) {
-
-        if(true
-                && mIsVisible) {
+        if(true && mIsVisible) {
             // always show shadow
             shouldShowShadow = true;
         }
@@ -382,8 +380,7 @@ class TabListRecyclerView extends RecyclerView
 
     void setShadowTopOffset(int shadowTopOffset) {
         mShadowTopOffset = shadowTopOffset;
-        
-            // invert the offset since Gravity is set to BOTTOM
+        // invert the offset since Gravity is set to BOTTOM
         mShadowTopOffset = -mShadowTopOffset;
 
         if (mShadowImageView != null && getParent() instanceof FrameLayout) {

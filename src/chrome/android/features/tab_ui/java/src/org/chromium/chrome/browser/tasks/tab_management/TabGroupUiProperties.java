@@ -8,7 +8,6 @@ import android.view.View.OnClickListener;
 
 import org.chromium.ui.modelutil.PropertyKey;
 import org.chromium.ui.modelutil.PropertyModel;
-import android.content.res.ColorStateList;
 
 /** {@link PropertyKey} list for the TabGroupUi. */
 class TabGroupUiProperties {
@@ -36,6 +35,7 @@ class TabGroupUiProperties {
             LEFT_BUTTON_CONTENT_DESCRIPTION = new PropertyModel.WritableObjectPropertyKey<>();
     public static final PropertyModel.WritableObjectPropertyKey<String>
             RIGHT_BUTTON_CONTENT_DESCRIPTION = new PropertyModel.WritableObjectPropertyKey<>();
+
     public static final PropertyModel.WritableIntPropertyKey PRIMARY_COLOR =
             new PropertyModel.WritableIntPropertyKey();
     public static final PropertyKey[] ALL_KEYS =

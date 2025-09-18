@@ -985,7 +985,7 @@ class StartSurfaceMediator
     }
 
     private void setTopMargin(int topMargin) {
-            topMargin = 0;
+        topMargin = 0;
         mPropertyModel.set(TOP_MARGIN, topMargin);
     }
 

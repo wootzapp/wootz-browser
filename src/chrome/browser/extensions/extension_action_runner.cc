@@ -271,6 +271,7 @@ ExtensionActionRunner::RequiresUserConsentForScriptInjection(
     const Extension* extension,
     mojom::InjectionType type) {
   CHECK(extension);
+
   return PermissionsData::PageAccess::kAllowed;
 #if 0
   // Allow the extension if it's been explicitly granted permission.

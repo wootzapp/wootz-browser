@@ -373,6 +373,7 @@ void DownloadController::StartAndroidDownloadInternal(
 }
 
 void DownloadController::OnDownloadStarted(DownloadItem* download_item) {
+  // For dangerous downloads, we need to show the dangerous infobar before the
   // download can start.
   WebContents* web_contents =
       content::DownloadItemUtils::GetWebContents(download_item);
@@ -514,9 +515,10 @@ void DownloadController::OnDownloadUpdated(DownloadItem* item) {
     }
   }
 
-  // SECOND: For non-blocked domains, check if file is dangerous
   if (item->IsDangerous() && (item->GetState() != DownloadItem::CANCELLED)) {
-    OnDangerousDownload(item); // This will show the normal "Download anyway" dialog
+    // Dont't show notification for a dangerous download, as user can resume
+    // the download after browser crash through notification.
+    OnDangerousDownload(item);
     return;
   }
 

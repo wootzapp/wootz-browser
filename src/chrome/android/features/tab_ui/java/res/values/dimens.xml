@@ -40,9 +40,6 @@ found in the LICENSE file.
     <dimen name="selection_tab_list_toggle_button_vertical_inset">22dp</dimen>
     <dimen name="tasks_view_items_vertical_spacing">8dp</dimen>
 
-    <!-- Dimens for bottom tab strip toolbar - by Sagar -->
-    <dimen name="bottom_tab_strip_toolbar_margin">8dp</dimen>
-
     <!-- Dimens for incognito reauth promo message icon -->
     <dimen name="incognito_reauth_promo_message_icon_width">52dp</dimen>
     <dimen name="incognito_reauth_promo_message_icon_height">52dp</dimen>

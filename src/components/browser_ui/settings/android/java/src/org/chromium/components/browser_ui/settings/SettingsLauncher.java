@@ -52,7 +52,7 @@ public interface SettingsLauncher {
         /// Manage sync.
         int MANAGE_SYNC = 9;
         /// Extension developer settings.
-        int EXTENSION_DEVELOPER_MODE = 9;
+        int EXTENSION_DEVELOPER_MODE = 10;
     }
 
     /**

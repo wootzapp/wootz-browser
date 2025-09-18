@@ -9,10 +9,12 @@ import android.view.View;
 import android.view.ViewGroup;
 import android.widget.ImageView;
 import android.widget.TextView;
+
 import android.widget.FrameLayout;
 import org.chromium.chrome.tab_ui.R;
 import org.chromium.ui.modelutil.ListObservable;
 import org.chromium.ui.modelutil.ListObservable.ListObserver;
+
 import org.chromium.chrome.browser.browser_controls.BrowserControlsStateProvider;
 /**
  * Empty coordinator that is responsible for showing an empty state view in tab switcher when we are
