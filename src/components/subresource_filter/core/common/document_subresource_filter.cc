@@ -97,7 +97,7 @@ LoadPolicy DocumentSubresourceFilter::GetLoadPolicy(
   if (result == LoadPolicy::DISALLOW) {
     ++statistics_.num_loads_matching_rules;
     if (activation_state_.activation_level ==
-        mojom::ActivationLevel::kEnabled) {
+        mojom::ActivationLevel::kDryRun) {
       ++statistics_.num_loads_disallowed;
       // Add callback notification for blocked resource
       if (!blocked_resource_callback_.is_null()) {
@@ -105,10 +105,12 @@ LoadPolicy DocumentSubresourceFilter::GetLoadPolicy(
       }
       
       return LoadPolicy::DISALLOW;
-    } else if (activation_state_.activation_level ==
-               mojom::ActivationLevel::kDryRun) {
-      return LoadPolicy::WOULD_DISALLOW;
-    }
+    } 
+    // else if (activation_state_.activation_level ==
+    //            mojom::ActivationLevel::kDryRun) {
+    //   LOG(INFO) << "AdBlock: Load policy: WOULD_DISALLOW";
+    //   return LoadPolicy::WOULD_DISALLOW;
+    // }
   }
   return result;
 }
