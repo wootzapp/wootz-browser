@@ -205,6 +205,103 @@ public class WootzEnrollmentUtils {
     }
     
     /**
+     * Create a CSR-based enrollment request JSON payload.
+     * This is the new format expected by the backend: {csr, nounce, attestationChain[]}
+     * 
+     * @param csr The PEM-formatted Certificate Signing Request
+     * @param nonce The base64-encoded nonce from the server
+     * @param attestationChainPem The PEM-formatted attestation certificate chain
+     * @return JSON request payload string
+     */
+    public static String createCSREnrollmentRequestJson(String csr, String nonce, String attestationChainPem) {
+        try {
+            // Convert PEM attestation chain to array of individual certificates
+            String[] attestationChainArray = convertPemChainToArray(attestationChainPem);
+            
+            // Build JSON manually to ensure proper formatting
+            StringBuilder json = new StringBuilder();
+            json.append("{");
+            json.append("\"csr\":\"").append(escapeJsonString(csr)).append("\",");
+            json.append("\"nounce\":\"").append(escapeJsonString(nonce)).append("\",");
+            json.append("\"attestationChain\":[");
+            
+            // Add attestation chain certificates
+            for (int i = 0; i < attestationChainArray.length; i++) {
+                json.append("\"").append(escapeJsonString(attestationChainArray[i])).append("\"");
+                if (i < attestationChainArray.length - 1) {
+                    json.append(",");
+                }
+            }
+            
+            json.append("]}");
+            return json.toString();
+            
+        } catch (Exception e) {
+            // Fallback: create basic structure with full chain as single element
+            return String.format(
+                "{\"csr\":\"%s\",\"nounce\":\"%s\",\"attestationChain\":[\"%s\"]}",
+                escapeJsonString(csr),
+                escapeJsonString(nonce),
+                escapeJsonString(attestationChainPem)
+            );
+        }
+    }
+    
+    /**
+     * Convert a PEM certificate chain to an array of individual PEM certificates.
+     * 
+     * @param pemChain The concatenated PEM certificate chain
+     * @return Array of individual PEM certificate strings
+     */
+    public static String[] convertPemChainToArray(String pemChain) {
+        if (pemChain == null || pemChain.trim().isEmpty()) {
+            return new String[0];
+        }
+        
+        // Split by certificate boundaries
+        String[] certificates = pemChain.split("-----END CERTIFICATE-----");
+        java.util.List<String> certList = new java.util.ArrayList<>();
+        
+        for (String cert : certificates) {
+            String trimmedCert = cert.trim();
+            if (!trimmedCert.isEmpty()) {
+                // Add back the END boundary and ensure proper formatting
+                if (!trimmedCert.startsWith("-----BEGIN CERTIFICATE-----")) {
+                    // Find and preserve the BEGIN boundary if it exists
+                    int beginIndex = trimmedCert.indexOf("-----BEGIN CERTIFICATE-----");
+                    if (beginIndex >= 0) {
+                        trimmedCert = trimmedCert.substring(beginIndex);
+                    }
+                }
+                certList.add(trimmedCert + "-----END CERTIFICATE-----");
+            }
+        }
+        
+        return certList.toArray(new String[0]);
+    }
+    
+    /**
+     * Escape special characters in a string for JSON encoding.
+     * 
+     * @param input The input string to escape
+     * @return JSON-safe escaped string
+     */
+    public static String escapeJsonString(String input) {
+        if (input == null) {
+            return "";
+        }
+        
+        return input
+            .replace("\\", "\\\\")  // Escape backslashes first
+            .replace("\"", "\\\"")  // Escape quotes
+            .replace("\n", "\\n")   // Escape newlines
+            .replace("\r", "\\r")   // Escape carriage returns
+            .replace("\t", "\\t")   // Escape tabs
+            .replace("\b", "\\b")   // Escape backspaces
+            .replace("\f", "\\f");  // Escape form feeds
+    }
+    
+    /**
      * Find the closing quote for a JSON string value, handling escaped quotes.
      * 
      * @param json The JSON string

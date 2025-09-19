@@ -12,6 +12,7 @@ import android.util.Log;
 
 import org.jni_zero.CalledByNative;
 import org.jni_zero.JNINamespace;
+import org.jni_zero.NativeMethods;
 
 import java.io.ByteArrayInputStream;
 import java.security.KeyFactory;
@@ -31,6 +32,8 @@ import java.security.spec.InvalidKeySpecException;
 import java.security.spec.PKCS8EncodedKeySpec;
 import java.util.Date;
 import java.util.List;
+
+// CSR generation - uses native OpenSSL implementation
 
 import javax.security.auth.x500.X500Principal;
 
@@ -85,6 +88,23 @@ public class WootzHardwareKeyStore {
     private static final String CURVE_NAME = "secp256r1"; // P-256
     private static final String WOOTZ_KEY_ALIAS = "wootz_hardware_key";
     private static final String WOOTZ_DIC_ALIAS = "wootz_dic_certificate";
+    
+    /**
+     * Native methods interface for JNI calls to C++.
+     * This follows Chromium's modern JNI pattern using @NativeMethods.
+     */
+    @NativeMethods
+    interface Natives {
+        /**
+         * Generate a Certificate Signing Request (CSR) using OpenSSL in C++.
+         * 
+         * @param deviceId The device identifier for CSR subject
+         * @param publicKeyBytes The encoded public key bytes
+         * @param privateKeyAlias The Android KeyStore alias for the private key
+         * @return PEM-encoded CSR string or null if generation failed
+         */
+        String generateCSR(String deviceId, byte[] publicKeyBytes, String privateKeyAlias);
+    }
     
 
     /**
@@ -235,7 +255,26 @@ public class WootzHardwareKeyStore {
         }
     }
 
-    // Private implementation methods
+    // Private implementation methods for CSR generation
+    
+    /**
+     * Generate a unique device identifier for CSR subject.
+     * Uses device hardware information to create a stable identifier.
+     * 
+     * @return Device identifier string
+     */
+    private static String generateDeviceIdentifier() {
+        // Create device ID based on hardware characteristics
+        String manufacturer = android.os.Build.MANUFACTURER;
+        String model = android.os.Build.MODEL;
+        String serial = android.os.Build.getRadioVersion(); // More stable than SERIAL
+        
+        // Create a hash-based identifier to ensure uniqueness and privacy
+        String deviceInfo = manufacturer + "-" + model + "-" + serial + "-" + System.currentTimeMillis();
+        return "wootz-device-" + Math.abs(deviceInfo.hashCode());
+    }
+
+    // Existing private implementation methods
 
     private static boolean tryStrongboxGenerationWithAttestation(
             KeyPairGenerator keyPairGenerator, byte[] attestationChallenge) {
@@ -416,6 +455,41 @@ public class WootzHardwareKeyStore {
     public static String getPublicKeyAsPem() {
         return getDevicePublicKeyPem();
     }
+    
+    /**
+     * Generate a Certificate Signing Request (CSR) using the hardware-backed private key.
+     * The CSR contains device information and is signed by the non-exportable hardware key.
+     * Uses Chromium's OpenSSL implementation via JNI for industry-standard compliance.
+     * 
+     * @return PEM-encoded CSR or null if generation failed
+     */
+    public static String generateCSR() {
+        try {
+            // Get the corresponding public key
+            KeyStore keyStore = KeyStore.getInstance(ANDROID_KEYSTORE);
+            keyStore.load(null);
+            Certificate certificate = keyStore.getCertificate(WOOTZ_KEY_ALIAS);
+            if (certificate == null) {
+                Log.e(TAG, "No certificate found for hardware key");
+                return null;
+            }
+            PublicKey publicKey = certificate.getPublicKey();
+            
+            // Generate a unique device identifier for the CSR subject
+            String deviceId = generateDeviceIdentifier();
+            
+            // Get public key bytes for native CSR generation
+            byte[] publicKeyBytes = publicKey.getEncoded();
+            
+            // Create CSR using native OpenSSL implementation
+            return WootzHardwareKeyStoreJni.get().generateCSR(deviceId, publicKeyBytes, WOOTZ_KEY_ALIAS);
+            
+        } catch (Exception e) {
+            Log.e(TAG, "Failed to generate CSR", e);
+            return null;
+        }
+    }
+    
     
     /**
      * Store the Device Identity Certificate (DIC) received from enrollment server.

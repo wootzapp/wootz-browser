@@ -27,28 +27,29 @@ import java.nio.charset.StandardCharsets;
 @JNINamespace("net::android")
 public class WootzDeviceEnrollment {
     private static final String TAG = "WootzDeviceEnrollment";
-    private static final String ENROLLMENT_CHALLENGE_URL = "https://testingserver-production-776b.up.railway.app/api/attestation/get-enroll-nonce";
-    private static final String ENROLLMENT_SUBMIT_URL = "https://testingserver-production-776b.up.railway.app/api/enrollment/enroll";
+    private static final String NONCE_URL = "https://rfxzqjgv-3000.inc1.devtunnels.ms/nounce";
+    private static final String ENROLLMENT_URL = "https://rfxzqjgv-3000.inc1.devtunnels.ms/enroll";
+    private static final String BEARER_TOKEN = "Aoi3dkgpE905nvSiec";
 
     /**
-     * Starts the device enrollment process by requesting a challenge from the server.
+     * Starts the device enrollment process by requesting a nonce from the server.
      * This method runs asynchronously and can be called from Java code.
      */
     public static void startDeviceEnrollment() {
         Log.i(TAG, "Starting device enrollment process");
-        new EnrollmentChallengeTask().execute();
+        new EnrollmentNonceTask().execute();
     }
 
     /**
-     * AsyncTask to handle the enrollment challenge request in the background.
+     * AsyncTask to handle the nonce request in the background.
      */
-    private static class EnrollmentChallengeTask extends AsyncTask<Void, Void, String> {
+    private static class EnrollmentNonceTask extends AsyncTask<Void, Void, String> {
         @Override
         protected String doInBackground(Void... voids) {
             try {
-                return requestEnrollmentChallenge();
+                return requestNonce();
             } catch (Exception e) {
-                Log.e(TAG, "Failed to request enrollment challenge: " + e.getClass().getSimpleName() + ": " + e.getMessage(), e);
+                Log.e(TAG, "Failed to request nonce: " + e.getClass().getSimpleName() + ": " + e.getMessage(), e);
                 if (e.getCause() != null) {
                     Log.e(TAG, "Caused by: " + e.getCause().getClass().getSimpleName() + ": " + e.getCause().getMessage());
                 }
@@ -59,27 +60,27 @@ public class WootzDeviceEnrollment {
         @Override
         protected void onPostExecute(String response) {
             if (response != null) {
-                Log.i(TAG, "Received enrollment challenge response: " + response);
-                handleChallengeResponse(response);
+                Log.i(TAG, "Received nonce response: " + response);
+                handleNonceResponse(response);
             } else {
-                Log.e(TAG, "Failed to get enrollment challenge response");
+                Log.e(TAG, "Failed to get nonce response");
             }
         }
     }
 
     /**
-     * Makes HTTP POST request to the enrollment challenge endpoint.
+     * Makes HTTP GET request to the nonce endpoint with Bearer token authentication.
      * 
      * @return The response body as a string, or null if the request failed
      */
-    private static String requestEnrollmentChallenge() throws IOException {
-        URL url = new URL(ENROLLMENT_CHALLENGE_URL);
+    private static String requestNonce() throws IOException {
+        URL url = new URL(NONCE_URL);
         HttpURLConnection connection = (HttpURLConnection) url.openConnection();
 
         try {
             // Configure the connection
-            connection.setRequestMethod("POST");
-            connection.setRequestProperty("Content-Type", "application/json");
+            connection.setRequestMethod("GET");
+            connection.setRequestProperty("Authorization", "Bearer " + BEARER_TOKEN);
             connection.setRequestProperty("User-Agent", "Wootz-Browser/1.0");
             connection.setConnectTimeout(10000); // 10 seconds
             connection.setReadTimeout(30000);    // 30 seconds
@@ -88,7 +89,7 @@ public class WootzDeviceEnrollment {
             int responseCode = connection.getResponseCode();
             
             if (responseCode != HttpURLConnection.HTTP_OK) {
-                Log.e(TAG, "Enrollment challenge request failed: " + responseCode);
+                Log.e(TAG, "Nonce request failed: " + responseCode);
                 return null;
             }
 
@@ -111,25 +112,18 @@ public class WootzDeviceEnrollment {
     }
 
     /**
-     * Handles the challenge response from the enrollment server.
+     * Handles the nonce response from the enrollment server.
      * Parses the nonce and initiates hardware key generation with attestation.
      * 
-     * @param response The JSON response from the challenge endpoint
+     * @param response The JSON response from the nonce endpoint
      */
-    private static void handleChallengeResponse(String response) {
+    private static void handleNonceResponse(String response) {
         try {
-            // Parse the JSON response
-            String success = WootzEnrollmentUtils.extractJsonValue(response, "status");
-            String nonceId = WootzEnrollmentUtils.extractJsonValue(response, "nonceId");
-            String nonceBase64 = WootzEnrollmentUtils.extractJsonValue(response, "nonceBase64");
+            // Parse the JSON response - expecting {"nonce": "base64-encoded-nonce"}
+            String nonceBase64 = WootzEnrollmentUtils.extractJsonValue(response, "nonce");
             
-            if (!"success".equals(success)) {
-                Log.e(TAG, "Server returned failure in challenge response");
-                return;
-            }
-            
-            if (nonceId == null || nonceBase64 == null) {
-                Log.e(TAG, "Missing nonce data in response");
+            if (nonceBase64 == null || nonceBase64.isEmpty()) {
+                Log.e(TAG, "Missing nonce in response");
                 return;
             }
             
@@ -142,38 +136,42 @@ public class WootzDeviceEnrollment {
                 return;
             }
             
-            // Generate hardware-backed key with attestation
+            // Generate hardware-backed key with attestation using the nonce
             boolean keyGenSuccess = WootzHardwareKeyStore.generateKeyWithAttestation(nonce);
             
             if (keyGenSuccess) {
-                // Get the PEM certificate chain
-                String pemChain = WootzHardwareKeyStore.getAttestationChainAsPem();
+                // Generate CSR using the hardware key
+                String csr = WootzHardwareKeyStore.generateCSR();
                 
-                if (pemChain != null && !pemChain.isEmpty()) {
-                    // Submit the enrollment with PEM certificate chain
-                    submitEnrollmentWithPem(pemChain, nonceId);
+                // Get the attestation certificate chain
+                String attestationChain = WootzHardwareKeyStore.getAttestationChainAsPem();
+                
+                if (csr != null && !csr.isEmpty() && attestationChain != null && !attestationChain.isEmpty()) {
+                    // Submit the enrollment with CSR
+                    submitEnrollmentWithCSR(csr, nonceBase64, attestationChain);
                 } else {
-                    Log.e(TAG, "Failed to retrieve certificate chain");
+                    Log.e(TAG, "Failed to generate CSR or retrieve attestation chain");
                 }
             } else {
                 Log.e(TAG, "Hardware key generation failed");
             }
             
         } catch (Exception e) {
-            Log.e(TAG, "Error handling challenge response", e);
+            Log.e(TAG, "Error handling nonce response", e);
         }
     }
     
 
     /**
-     * Submits the device enrollment with the generated attestation certificate chain in PEM format.
-     * This is called after successful key generation and attestation.
+     * Submits the device enrollment with CSR and attestation chain.
+     * This is called after successful key generation and CSR creation.
      * 
-     * @param pemChain The PEM-formatted attestation certificate chain
-     * @param nonceId The nonce ID from the challenge response
+     * @param csr The PEM-formatted Certificate Signing Request
+     * @param nonce The base64-encoded nonce from the server
+     * @param attestationChain The PEM-formatted attestation certificate chain
      */
-    private static void submitEnrollmentWithPem(String pemChain, String nonceId) {
-        new EnrollmentSubmitTask().execute(pemChain, nonceId);
+    private static void submitEnrollmentWithCSR(String csr, String nonce, String attestationChain) {
+        new EnrollmentSubmitTask().execute(csr, nonce, attestationChain);
     }
 
     /**
@@ -183,11 +181,13 @@ public class WootzDeviceEnrollment {
         @Override
         protected Boolean doInBackground(Object... params) {
             try {
-                if (params.length >= 2 && params[0] instanceof String && params[1] instanceof String) {
-                    // New PEM format submission
-                    String pemChain = (String) params[0];
-                    String nonceId = (String) params[1];
-                    return submitEnrollmentRequestWithPem(pemChain, nonceId);
+                if (params.length >= 3 && params[0] instanceof String && 
+                    params[1] instanceof String && params[2] instanceof String) {
+                    // CSR-based enrollment submission
+                    String csr = (String) params[0];
+                    String nonce = (String) params[1];
+                    String attestationChain = (String) params[2];
+                    return submitEnrollmentRequestWithCSR(csr, nonce, attestationChain);
                 } else {
                     Log.e(TAG, "Invalid parameters for enrollment submission");
                     return false;
@@ -209,39 +209,30 @@ public class WootzDeviceEnrollment {
     }
    
     /**
-     * Makes HTTP POST request to submit the device enrollment with PEM certificate chain.
+     * Makes HTTP POST request to submit the device enrollment with CSR.
      * 
-     * @param pemChain The PEM-formatted attestation certificate chain
-     * @param nonceId The nonce ID from the challenge response
+     * @param csr The PEM-formatted Certificate Signing Request
+     * @param nonce The base64-encoded nonce from the server
+     * @param attestationChain The PEM-formatted attestation certificate chain
      * @return true if the submission was successful, false otherwise
      */
-    private static boolean submitEnrollmentRequestWithPem(String pemChain, String nonceId) throws IOException {
-        URL url = new URL(ENROLLMENT_SUBMIT_URL);
+    private static boolean submitEnrollmentRequestWithCSR(String csr, String nonce, String attestationChain) throws IOException {
+        URL url = new URL(ENROLLMENT_URL);
         HttpURLConnection connection = (HttpURLConnection) url.openConnection();
 
         try {
             // Configure the connection
             connection.setRequestMethod("POST");
             connection.setRequestProperty("Content-Type", "application/json");
+            connection.setRequestProperty("Authorization", "Bearer " + BEARER_TOKEN);
             connection.setRequestProperty("User-Agent", "Wootz-Browser/1.0");
             connection.setDoOutput(true);
             connection.setConnectTimeout(10000); // 10 seconds
             connection.setReadTimeout(30000);    // 30 seconds
 
-            // Get device public key PEM
-            String devicePublicKeyPem = WootzHardwareKeyStore.getPublicKeyAsPem();
-            if (devicePublicKeyPem == null) {
-                Log.e(TAG, "Failed to get device public key PEM");
-                return false;
-            }
-
-            // Create JSON request body using utility method
-            String requestBody = WootzEnrollmentUtils.createEnrollmentRequestJson(
-                nonceId, pemChain, devicePublicKeyPem,
-                android.os.Build.MANUFACTURER,
-                android.os.Build.MODEL,
-                android.os.Build.VERSION.RELEASE
-            );
+            // Create JSON request body for CSR-based enrollment
+            String requestBody = WootzEnrollmentUtils.createCSREnrollmentRequestJson(
+                csr, nonce, attestationChain);
 
             // Send the request body
             try (OutputStream os = connection.getOutputStream()) {
