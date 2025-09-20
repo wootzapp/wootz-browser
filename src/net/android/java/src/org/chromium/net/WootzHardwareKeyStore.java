@@ -229,10 +229,11 @@ public class WootzHardwareKeyStore {
 
     /**
      * Sign data using the non-exportable hardware private key.
+     * Uses SHA256withECDSA which handles SHA-256 hashing internally.
      * The private key never leaves the secure hardware.
      * 
-     * @param data Data to sign
-     * @return Signature bytes or null if signing failed
+     * @param data Raw data to sign (e.g., TBS bytes for CSR generation)
+     * @return DER-encoded ECDSA signature bytes or null if signing failed
      */
     @CalledByNative
     private static byte[] signWithHardwareKey(byte[] data) {
@@ -247,7 +248,11 @@ public class WootzHardwareKeyStore {
             signature.initSign(privateKey);
             signature.update(data);
             
-            return signature.sign();
+            byte[] signatureBytes = signature.sign();
+            Log.d(TAG, "Signed " + data.length + " bytes with SHA256withECDSA, signature length: " + 
+                  (signatureBytes != null ? signatureBytes.length : 0));
+            
+            return signatureBytes;
             
         } catch (Exception e) {
             Log.e(TAG, "Failed to sign with hardware key", e);

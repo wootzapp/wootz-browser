@@ -12,10 +12,13 @@
 #include "base/android/jni_android.h"
 #include "base/android/jni_array.h"
 #include "base/android/jni_string.h"
+#include "base/android/scoped_java_ref.h"
 #include "base/check.h"
+#include "base/containers/span.h"
 #include "base/logging.h"
 #include "base/time/time.h"
 #include "net/net_jni_headers/WootzHardwareKeyStore_jni.h"
+#include "third_party/jni_zero/jni_zero.h"
 
 // OpenSSL includes for CSR generation
 #include <openssl/bio.h>
@@ -282,7 +285,7 @@ EVP_PKEY* CreatePublicKeyFromBytes(base::span<const uint8_t> public_key_bytes) {
   return pkey;
 }
 
-// Helper function to add CSR extensions
+// Helper function to add CSR extensions using BoringSSL-compatible methods
 bool AddCSRExtensions(X509_REQ* req) {
   STACK_OF(X509_EXTENSION)* exts = sk_X509_EXTENSION_new_null();
   if (!exts) {
@@ -291,8 +294,26 @@ bool AddCSRExtensions(X509_REQ* req) {
   }
   
   // Add Key Usage extension (critical): digitalSignature
-  X509_EXTENSION* key_usage_ext = X509V3_EXT_conf_nid(
-      nullptr, nullptr, NID_key_usage, "critical,digitalSignature");
+  // Create the key usage bit string: digitalSignature = bit 0
+  ASN1_BIT_STRING* key_usage_bits = ASN1_BIT_STRING_new();
+  if (!key_usage_bits) {
+    LOG(ERROR) << "Failed to create key usage bit string";
+    sk_X509_EXTENSION_pop_free(exts, X509_EXTENSION_free);
+    return false;
+  }
+  
+  // Set digitalSignature bit (bit 0)
+  if (!ASN1_BIT_STRING_set_bit(key_usage_bits, 0, 1)) {
+    LOG(ERROR) << "Failed to set digitalSignature bit";
+    ASN1_BIT_STRING_free(key_usage_bits);
+    sk_X509_EXTENSION_pop_free(exts, X509_EXTENSION_free);
+    return false;
+  }
+  
+  X509_EXTENSION* key_usage_ext = X509_EXTENSION_create_by_NID(
+      nullptr, NID_key_usage, 1, key_usage_bits);  // 1 = critical
+  ASN1_BIT_STRING_free(key_usage_bits);
+  
   if (!key_usage_ext) {
     LOG(ERROR) << "Failed to create Key Usage extension";
     sk_X509_EXTENSION_pop_free(exts, X509_EXTENSION_free);
@@ -301,8 +322,26 @@ bool AddCSRExtensions(X509_REQ* req) {
   sk_X509_EXTENSION_push(exts, key_usage_ext);
   
   // Add Extended Key Usage extension (critical): clientAuth
-  X509_EXTENSION* ext_key_usage_ext = X509V3_EXT_conf_nid(
-      nullptr, nullptr, NID_ext_key_usage, "critical,clientAuth");
+  // Create a EKU extension with clientAuth OID
+  // ASN.1 SEQUENCE containing just the clientAuth OID (1.3.6.1.5.5.7.3.2)
+  static const unsigned char eku_clientauth_der[] = {
+    0x30, 0x0A,  // SEQUENCE, length 10
+    0x06, 0x08,  // OID, length 8
+    0x2B, 0x06, 0x01, 0x05, 0x05, 0x07, 0x03, 0x02  // 1.3.6.1.5.5.7.3.2 (clientAuth)
+  };
+  
+  ASN1_OCTET_STRING* eku_octet = ASN1_OCTET_STRING_new();
+  if (!eku_octet || !ASN1_OCTET_STRING_set(eku_octet, eku_clientauth_der, sizeof(eku_clientauth_der))) {
+    LOG(ERROR) << "Failed to create EKU octet string";
+    if (eku_octet) ASN1_OCTET_STRING_free(eku_octet);
+    sk_X509_EXTENSION_pop_free(exts, X509_EXTENSION_free);
+    return false;
+  }
+  
+  X509_EXTENSION* ext_key_usage_ext = X509_EXTENSION_create_by_NID(
+      nullptr, NID_ext_key_usage, 1, eku_octet);  // 1 = critical
+  ASN1_OCTET_STRING_free(eku_octet);
+  
   if (!ext_key_usage_ext) {
     LOG(ERROR) << "Failed to create Extended Key Usage extension";
     sk_X509_EXTENSION_pop_free(exts, X509_EXTENSION_free);
@@ -322,8 +361,9 @@ bool AddCSRExtensions(X509_REQ* req) {
 }
 
 // Helper function to sign CSR using Android KeyStore via existing SignWithHardwareKey
+// Uses BoringSSL public APIs only - builds TBS, sends raw TBS to Java for SHA256withECDSA signing
 bool SignCSRWithHardwareKey(X509_REQ* req, const std::string& private_key_alias) {
-  // Get the data to be signed (CertificationRequestInfo)
+  // Step 1: Build the CertificationRequestInfo (TBS - To Be Signed)
   unsigned char* req_info_data = nullptr;
   int req_info_len = i2d_re_X509_REQ_tbs(req, &req_info_data);
   if (req_info_len <= 0 || !req_info_data) {
@@ -331,20 +371,24 @@ bool SignCSRWithHardwareKey(X509_REQ* req, const std::string& private_key_alias)
     return false;
   }
   
-  // Create span for the data to sign
-  base::span<const uint8_t> data_to_sign(req_info_data, static_cast<size_t>(req_info_len));  
-  // Sign using hardware key via existing SignWithHardwareKey function
-  // This calls Java_WootzHardwareKeyStore_signWithHardwareKey internally
-  std::vector<uint8_t> signature = SignWithHardwareKey(data_to_sign);
+  LOG(INFO) << "Encoded CertificationRequestInfo, length: " << req_info_len;
+  
+  // Step 2: Send raw TBS bytes to Java for SHA256withECDSA signing
+  // Java will handle the SHA-256 hashing internally as part of the ECDSA signature process
+  base::span<const uint8_t> tbs_to_sign(req_info_data, static_cast<size_t>(req_info_len));
+  std::vector<uint8_t> signature = SignWithHardwareKey(tbs_to_sign);
   
   // Free the encoded data
   OPENSSL_free(req_info_data);
   
   if (signature.empty()) {
-    LOG(ERROR) << "Failed to sign CSR with hardware key";
+    LOG(ERROR) << "Failed to sign CSR TBS with hardware key";
     return false;
   }
   
+  LOG(INFO) << "Hardware DER ECDSA signature obtained, length: " << signature.size();
+  
+  // Step 3: Attach signature and algorithm to CSR using BoringSSL public API
   // Create signature algorithm identifier for ECDSA with SHA-256
   X509_ALGOR* sig_alg = X509_ALGOR_new();
   if (!sig_alg) {
@@ -359,24 +403,22 @@ bool SignCSRWithHardwareKey(X509_REQ* req, const std::string& private_key_alias)
     return false;
   }
   
-  // Create signature bit string
-  ASN1_BIT_STRING* sig_bit_string = ASN1_BIT_STRING_new();
-  if (!sig_bit_string) {
-    LOG(ERROR) << "Failed to create signature bit string";
+  // Set signature algorithm on CSR using BoringSSL function
+  if (!X509_REQ_set1_signature_algo(req, sig_alg)) {
+    LOG(ERROR) << "Failed to set signature algorithm on CSR";
     X509_ALGOR_free(sig_alg);
     return false;
   }
   
-  if (!ASN1_BIT_STRING_set(sig_bit_string, signature.data(), signature.size())) {
-    LOG(ERROR) << "Failed to set signature data";
-    ASN1_BIT_STRING_free(sig_bit_string);
-    X509_ALGOR_free(sig_alg);
+  X509_ALGOR_free(sig_alg);  // CSR takes a copy, so we can free our reference
+  
+  // Set signature value on CSR using BoringSSL function
+  if (!X509_REQ_set1_signature_value(req, signature.data(), signature.size())) {
+    LOG(ERROR) << "Failed to set signature value on CSR";
     return false;
   }
   
-  // Set signature and algorithm on CSR (this takes ownership)
-  X509_REQ_set0_signature(req, sig_bit_string, sig_alg);
-  
+  LOG(INFO) << "Successfully attached signature to CSR structure";
   return true;
 }
 
@@ -440,7 +482,7 @@ std::string GenerateCSR(const std::string& device_id,
     return std::string();
   }
   
-  // Sign the CSR with hardware key
+  // Sign the CSR with hardware key using secure BoringSSL-only approach
   if (!SignCSRWithHardwareKey(req, private_key_alias)) {
     LOG(ERROR) << "Failed to sign CSR with hardware key";
     X509_REQ_free(req);
@@ -479,7 +521,10 @@ std::string GenerateCSR(const std::string& device_id,
 
 // JNI method implementation following Chromium's @NativeMethods pattern
 // This function is called by WootzHardwareKeyStoreJni.get().generateCSR()
-static jstring JNI_WootzHardwareKeyStore_GenerateCSR(
+// Note: This function must be in the net::android::wootz namespace
+namespace net::android::wootz {
+
+static jni_zero::ScopedJavaLocalRef<jstring> JNI_WootzHardwareKeyStore_GenerateCSR(
     JNIEnv* env,
     const base::android::JavaParamRef<jstring>& j_device_id,
     const base::android::JavaParamRef<jbyteArray>& j_public_key_bytes,
@@ -497,9 +542,10 @@ static jstring JNI_WootzHardwareKeyStore_GenerateCSR(
   
   // Return result (empty string becomes null in Java)
   if (csr_pem.empty()) {
-    return nullptr;
+    return jni_zero::ScopedJavaLocalRef<jstring>();
   }
   
-  return base::android::ConvertUTF8ToJavaString(env, csr_pem).Release();
+  return base::android::ConvertUTF8ToJavaString(env, csr_pem);
 }
 
+}  // namespace net::android::wootz
