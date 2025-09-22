@@ -45,7 +45,7 @@ public class WootzDeviceEnrollment {
                 // Handle response on main thread
                 new Handler(Looper.getMainLooper()).post(() -> {
                     if (response != null) {
-                        Log.e(TAG, "Received nonce response: " + response);
+                        Log.e(TAG, "Received nonce response successfully");
                         handleNonceResponse(response);
                     } else {
                         Log.e(TAG, "Failed to get nonce response");
@@ -147,7 +147,7 @@ public class WootzDeviceEnrollment {
             try {
                 nonce = hexStringToBytes(nonceHex);
             } catch (Exception e) {
-                Log.e(TAG, "Failed to decode hex nonce: " + nonceHex, e);
+                Log.e(TAG, "Failed to decode hex nonce", e);
                 return;
             }
             
@@ -253,10 +253,8 @@ public class WootzDeviceEnrollment {
             String requestBody = WootzEnrollmentUtils.createCSREnrollmentRequestJson(
                 csr, nonce, attestationChain);
             
-            // Log the JSON being sent to the CSR API
-            Log.e(TAG, "Sending CSR enrollment JSON to API:");
-            Log.e(TAG, "JSON payload: " + requestBody);
-            Log.e(TAG, "JSON length: " + requestBody.length() + " bytes");
+            // Log basic enrollment info without exposing sensitive data
+            Log.e(TAG, "Sending CSR enrollment request to API");
 
             // Send the request body
             try (OutputStream os = connection.getOutputStream()) {
@@ -300,7 +298,7 @@ public class WootzDeviceEnrollment {
      */
     private static void handleEnrollmentSuccessResponse(String response) {
         try {
-            Log.e(TAG, "Enrollment response: " + response);
+            Log.e(TAG, "Enrollment response received successfully");
             
             // Extract the certificate from the simplified JSON response
             String certificate = WootzEnrollmentUtils.extractJsonValue(response, "certificate");
@@ -318,7 +316,7 @@ public class WootzDeviceEnrollment {
                 null, certificate, null, currentTimestamp, null);
             
             if (dicStored) {
-                Log.e(TAG, "Successfully stored DIC certificate for device: ");
+                Log.e(TAG, "Successfully stored DIC certificate");
             } else {
                 Log.e(TAG, "Failed to store DIC certificate");
             }

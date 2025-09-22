@@ -249,8 +249,7 @@ public class WootzHardwareKeyStore {
             signature.update(data);
             
             byte[] signatureBytes = signature.sign();
-            Log.d(TAG, "Signed " + data.length + " bytes with SHA256withECDSA, signature length: " + 
-                  (signatureBytes != null ? signatureBytes.length : 0));
+            Log.d(TAG, "Data signed successfully with SHA256withECDSA");
             
             return signatureBytes;
             
@@ -509,10 +508,7 @@ public class WootzHardwareKeyStore {
      */
     public static boolean storeDicCertificate(String deviceId, String dicCertificatePem, 
             String expiresAt, String issuedAt, String stepCaUrl) {
-        Log.d(TAG, "Storing DIC certificate for device: " + deviceId);
-        Log.d(TAG, "Expires at: " + expiresAt);
-        Log.d(TAG, "Issued at: " + issuedAt);
-        Log.d(TAG, "Step CA URL: " + stepCaUrl);
+        Log.d(TAG, "Storing DIC certificate for device enrollment");
         try {
             // Parse and validate the DIC certificate
             X509Certificate dicCert = WootzCertificateUtils.parsePemCertificate(dicCertificatePem);
@@ -831,7 +827,7 @@ public class WootzHardwareKeyStore {
             
             return String.format(
                 "{\"strongbox\":%b,\"hardware\":%b,\"deviceId\":\"%s\"}",
-                isStrongbox, isHardware, deviceId != null ? deviceId : "unknown"
+                isStrongbox, isHardware, deviceId != null ? "present" : "unknown"
             );
             
         } catch (Exception e) {
