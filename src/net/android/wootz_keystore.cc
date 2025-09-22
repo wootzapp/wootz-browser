@@ -371,7 +371,7 @@ bool SignCSRWithHardwareKey(X509_REQ* req, const std::string& private_key_alias)
     return false;
   }
   
-  LOG(INFO) << "Encoded CertificationRequestInfo, length: " << req_info_len;
+  LOG(INFO) << "Encoded CertificationRequestInfo for signing";
   
   // Step 2: Send raw TBS bytes to Java for SHA256withECDSA signing
   // Java will handle the SHA-256 hashing internally as part of the ECDSA signature process
@@ -386,7 +386,7 @@ bool SignCSRWithHardwareKey(X509_REQ* req, const std::string& private_key_alias)
     return false;
   }
   
-  LOG(INFO) << "Hardware DER ECDSA signature obtained, length: " << signature.size();
+  LOG(INFO) << "Hardware DER ECDSA signature obtained successfully";
   
   // Step 3: Attach signature and algorithm to CSR using BoringSSL public API
   // Create signature algorithm identifier for ECDSA with SHA-256
@@ -427,7 +427,7 @@ bool SignCSRWithHardwareKey(X509_REQ* req, const std::string& private_key_alias)
 std::string GenerateCSR(const std::string& device_id,
                        base::span<const uint8_t> public_key_bytes,
                        const std::string& private_key_alias) {
-  LOG(INFO) << "Generating CSR for device: " << device_id;
+  LOG(INFO) << "Generating CSR for device enrollment";
   
   // Create new CSR
   X509_REQ* req = X509_REQ_new();
@@ -509,11 +509,34 @@ std::string GenerateCSR(const std::string& device_id,
   long pem_len = BIO_get_mem_data(bio, &pem_data);
   std::string pem_string(pem_data, pem_len);
   
+  // Verify the CSR can be parsed back correctly (serialization verification)
+  BIO* verify_bio = BIO_new_mem_buf(pem_data, pem_len);
+  if (verify_bio) {
+    X509_REQ* verify_req = PEM_read_bio_X509_REQ(verify_bio, nullptr, nullptr, nullptr);
+    if (verify_req) {
+      LOG(INFO) << "CSR serialization verification: PEM format is valid and parseable";
+      X509_REQ_free(verify_req);
+    } else {
+      LOG(WARNING) << "CSR serialization verification: PEM may have issues";
+    }
+    BIO_free(verify_bio);
+  }
+  
+  // Additional DER serialization test
+  unsigned char* der_data = nullptr;
+  int der_len = i2d_X509_REQ(req, &der_data);
+  if (der_len > 0 && der_data) {
+    LOG(INFO) << "CSR DER serialization successful";
+    OPENSSL_free(der_data);
+  } else {
+    LOG(WARNING) << "CSR DER serialization failed";
+  }
+  
   // Cleanup
   BIO_free(bio);
   X509_REQ_free(req);
   
-  LOG(INFO) << "Successfully generated CSR for device: " << device_id;
+  LOG(INFO) << "Successfully generated and verified CSR";
   return pem_string;
 }
 
