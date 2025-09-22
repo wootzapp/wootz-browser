@@ -222,7 +222,6 @@ public class WootzEnrollmentUtils {
             StringBuilder json = new StringBuilder();
             json.append("{");
             json.append("\"csr\":\"").append(escapeJsonString(csr)).append("\",");
-            json.append("\"nounce\":\"").append(escapeJsonString(nonce)).append("\",");
             json.append("\"attestationChain\":[");
             
             // Add attestation chain certificates
@@ -232,17 +231,19 @@ public class WootzEnrollmentUtils {
                     json.append(",");
                 }
             }
+            json.append("],");
+            json.append("\"nonce\":\"").append(escapeJsonString(nonce)).append("\"");
             
-            json.append("]}");
+            json.append("}");
             return json.toString();
             
         } catch (Exception e) {
             // Fallback: create basic structure with full chain as single element
             return String.format(
-                "{\"csr\":\"%s\",\"nounce\":\"%s\",\"attestationChain\":[\"%s\"]}",
+                "{\"csr\":\"%s\",\"attestationChain\":[\"%s\"],\"nonce\":\"%s\"}",
                 escapeJsonString(csr),
-                escapeJsonString(nonce),
-                escapeJsonString(attestationChainPem)
+                escapeJsonString(attestationChainPem),
+                escapeJsonString(nonce)
             );
         }
     }
