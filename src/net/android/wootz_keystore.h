@@ -123,6 +123,22 @@ std::vector<std::vector<uint8_t>> GetMTLSCertificateChain();
  */
 std::string GetMTLSSecurityInfo();
 
+// CSR Generation Functions
+
+/**
+ * Generate a Certificate Signing Request (CSR) using the hardware-backed private key.
+ * The CSR contains device information and is signed by the non-exportable hardware key.
+ * Uses OpenSSL for industry-standard PKCS#10 compliance.
+ * 
+ * @param device_id The device identifier for CSR subject
+ * @param public_key_bytes The encoded public key bytes
+ * @param private_key_alias The Android KeyStore alias for the private key
+ * @return PEM-encoded CSR string or empty if generation failed
+ */
+std::string GenerateCSR(const std::string& device_id,
+                       base::span<const uint8_t> public_key_bytes,
+                       const std::string& private_key_alias);
+
 }  // namespace net::android::wootz
 
 #endif  // NET_ANDROID_WOOTZ_KEYSTORE_H_
