@@ -547,18 +547,6 @@ public class FirstRunActivity extends FirstRunActivityBase implements FirstRunPa
 
     @Override
     public void completeFirstRunExperience() {
-        // Launch default extension installation WebUI after FRE completion
-        try {
-            Log.e(TAG, "Launching default extension install WebUI after FRE completion");
-            Intent extensionIntent = new Intent(this, ChromeTabbedActivity.class);
-            extensionIntent.setAction(Intent.ACTION_VIEW);
-            extensionIntent.setData(Uri.parse("wootzapp://startup-crx-install/?install_default_extensions=true"));
-            extensionIntent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_CLEAR_TASK);
-            startActivity(extensionIntent);
-            Log.e(TAG, "Successfully launched default extension install WebUI after FRE completion");
-        } catch (Exception e) {
-            Log.e(TAG, "Error launching default extension install WebUI after FRE completion", e);
-        }
         RecordHistogram.recordMediumTimesHistogram(
                 "MobileFre.FromLaunch.FreCompleted",
                 SystemClock.elapsedRealtime() - mIntentCreationElapsedRealtimeMs);

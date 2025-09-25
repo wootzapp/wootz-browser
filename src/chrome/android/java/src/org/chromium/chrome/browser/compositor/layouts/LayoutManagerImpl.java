@@ -854,12 +854,10 @@ public class LayoutManagerImpl
         
         GURL url = tab.getUrl();
         Log.d("LayoutManagerImpl", "URL: " + url.getSpec());
-        
-        // Define the URL that should trigger toolbar hiding
-        String hideToolbarUrl = "wootzapp://startup-crx-install/";
-        String hideToolbarUrl2 = "wootzapp://startup-crx-install/?install_default_extensions=true";
 
-        if (url != null && (hideToolbarUrl.equals(url.getSpec()) || hideToolbarUrl2.equals(url.getSpec()))) {
+        // Hide toolbar for any URL that starts with this base
+        String baseUrl = "wootzapp://startup-crx-install/";
+        if (url != null && url.getSpec().startsWith(baseUrl)) {
             Log.d("LayoutManagerImpl", "Hiding toolbar");
             hideToolbar();
         } else {

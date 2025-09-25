@@ -39,7 +39,7 @@ class StartupCrxInstallMessageHandler : public content::WebUIMessageHandler {
   void HandleFetchInstalledExtensions(const base::Value::List& args);
 
   // Handles the message for downloading an extension.
-  void HandleDownloadArtifactExtension(const base::Value::List& args);
+  void HandleDownloadExtension(const base::Value::List& args);
   
   void SendUtmToFrontend(const std::string& utm_source);
 

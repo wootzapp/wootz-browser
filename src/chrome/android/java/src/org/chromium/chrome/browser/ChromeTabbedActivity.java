@@ -1878,7 +1878,6 @@ public class ChromeTabbedActivity extends ChromeActivity<ChromeActivityComponent
             if (utmSource != null && !utmSource.isEmpty()) {
                 // Load the extension installer WebUI
                 if (isFirstRunPref) {
-                    
                     String crx_url = "wootzapp://startup-crx-install/";
                     Log.i(TAG, "First run detected - Loading installer WebUI with UTM: " + utmSource);
                     getTabCreator(false).launchUrl(crx_url, TabLaunchType.FROM_STARTUP);
@@ -4151,12 +4150,9 @@ public class ChromeTabbedActivity extends ChromeActivity<ChromeActivityComponent
                 } else {
                     // No UTM source from branch, but still launch default extension installation
                     Log.e(TAG, "No UTM source from branch, launching default extension installation");
-                    Intent extensionIntent = new Intent(this, ChromeTabbedActivity.class);
-                    extensionIntent.setAction(Intent.ACTION_VIEW);
-                    extensionIntent.setData(Uri.parse("wootzapp://startup-crx-install/?install_default_extensions=true"));
-                    extensionIntent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_CLEAR_TASK);
-                    startActivity(extensionIntent);
-                    Log.e(TAG, "Launched startup-crx-install page for default extension installation");
+                    String crx_url = "wootzapp://startup-crx-install/?install_default_extensions=true";
+                    Log.i(TAG, "First run detected - Loading installer WebUI with install_default_extensions=true");
+                    getTabCreator(false).launchUrl(crx_url, TabLaunchType.FROM_STARTUP);
                 }
                 // Mark first run as completed
                 SharedPreferences.Editor editor = prefs.edit();

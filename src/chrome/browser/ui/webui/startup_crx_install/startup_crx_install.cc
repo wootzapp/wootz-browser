@@ -64,7 +64,7 @@ void StartupCrxInstallMessageHandler::RegisterMessages() {
 
   web_ui_->RegisterMessageCallback(
       "downloadArtifactExtension",
-      base::BindRepeating(&StartupCrxInstallMessageHandler::HandleDownloadArtifactExtension,
+      base::BindRepeating(&StartupCrxInstallMessageHandler::HandleDownloadExtension,
                          weak_factory_.GetWeakPtr()));
   LOG(INFO) << "Registered downloadArtifactExtension handler";
 
@@ -242,7 +242,7 @@ void StartupCrxInstallMessageHandler::InstallNextDefaultExtension() {
   install_args.Append(current_ext.version);
   install_args.Append(current_ext.icon_url);
   
-  this->HandleDownloadArtifactExtension(install_args);
+  this->HandleDownloadExtension(install_args);
   
   // Move to next extension after a delay to allow current one to install
   // The completion callback will handle moving to the next extension
@@ -406,7 +406,7 @@ void StartupCrxInstallMessageHandler::HandleFetchInstalledExtensions(const base:
   LOG(INFO) << "Sent installed extensions info to frontend";
 }
 
-void StartupCrxInstallMessageHandler::HandleDownloadArtifactExtension(const base::Value::List& args) {
+void StartupCrxInstallMessageHandler::HandleDownloadExtension(const base::Value::List& args) {
   LOG(INFO) << "Handling downloadArtifactExtension";
   if (is_destroyed_) {
     return;
