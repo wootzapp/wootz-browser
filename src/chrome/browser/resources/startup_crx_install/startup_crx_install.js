@@ -134,26 +134,29 @@ class BrowserBridge {
       const extensionName = progressData.extensionName;
       const state = progressData.state;
       
-      // Update the progress text
+      // Hide the main progress text since we have progress in the card
       const progressText = document.getElementById('progress-text');
       if (progressText) {
-        progressText.textContent = `Installing ${currentIndex} of ${totalCount}: ${extensionName}`;
+        progressText.style.display = 'none';
       }
       
       // Update the UI to show progress
       const progressElement = document.getElementById('default-extension-progress');
       if (progressElement) {
-        progressElement.innerHTML = `
-          <div class="progress-container">
-            <h3>Installing Default Extensions</h3>
-            <div class="progress-bar">
-              <div class="progress-fill" style="width: ${(currentIndex / totalCount) * 100}%"></div>
-            </div>
-            <p>Installing ${currentIndex} of ${totalCount}: ${extensionName}</p>
-            <p class="status">${state}</p>
-          </div>
-        `;
-        progressElement.style.display = 'block';
+        const progressFill = progressElement.querySelector('.progress-fill');
+        if (progressFill) {
+          progressFill.style.width = `${(currentIndex / totalCount) * 100}%`;
+        }
+        
+        const statusText = progressElement.querySelector('p:not(.status)');
+        if (statusText) {
+          statusText.textContent = `Installing ${currentIndex} of ${totalCount}: ${extensionName}`;
+        }
+        
+        const statusElement = progressElement.querySelector('.status');
+        if (statusElement) {
+          statusElement.textContent = state;
+        }
       }
     };
 
@@ -161,30 +164,58 @@ class BrowserBridge {
     window.handleDefaultExtensionsComplete = () => {
       console.log('All default extensions have been processed');
       
-      // Update the progress text
+      // Hide the main progress text since we have progress in the card
       const progressText = document.getElementById('progress-text');
       if (progressText) {
-        progressText.textContent = 'All extensions installed successfully!';
+        progressText.style.display = 'none';
       }
       
       // Update the progress UI to show completion
       const progressElement = document.getElementById('default-extension-progress');
       if (progressElement) {
-        progressElement.innerHTML = `
-          <div class="progress-container">
-            <h3>Default Extensions Installed Successfully!</h3>
-            <div class="progress-bar">
-              <div class="progress-fill" style="width: 100%"></div>
-            </div>
-            <p>All default extensions have been installed.</p>
-            <p class="status">Complete</p>
-          </div>
-        `;
+        const progressFill = progressElement.querySelector('.progress-fill');
+        if (progressFill) {
+          progressFill.style.width = '100%';
+        }
+        
+        const titleElement = progressElement.querySelector('h3');
+        if (titleElement) {
+          titleElement.textContent = 'Default Extensions Installed Successfully!';
+        }
+        
+        const statusText = progressElement.querySelector('p:not(.status)');
+        if (statusText) {
+          statusText.textContent = 'All default extensions have been installed.';
+        }
+        
+        const statusElement = progressElement.querySelector('.status');
+        if (statusElement) {
+          statusElement.textContent = 'Complete';
+        }
       }
       
-      // Navigate to new tab immediately after completion
+      // Navigate to new tab after a short delay to show completion message
       console.log('Navigating to new tab after default extensions completion');
-      window.location.href = 'wootzapp://newtab';
+      setTimeout(() => {
+        try {
+          // Notify C++ that default extensions are complete
+          chrome.send('onDefaultExtensionsComplete', []);
+          
+          // Try multiple approaches to ensure navigation works
+          window.location.href = 'wootzapp://newtab';
+          
+          // Fallback: try to close the window if navigation doesn't work
+          setTimeout(() => {
+            console.log('Attempting to close window as fallback');
+            window.close();
+          }, 1000);
+          
+        } catch (error) {
+          console.error('Error navigating to new tab:', error);
+          // Fallback: try to close the window
+          window.close();
+        }
+      }, 2000); // 2 second delay to show completion message
     };
   }
 
@@ -288,6 +319,13 @@ document.addEventListener('DOMContentLoaded', function() {
     showDefaultExtensionsUI();
     
     chrome.send('installDefaultExtensions', []);
+  } else {
+    console.log('No install_default_extensions parameter, showing default UI');
+    // Ensure the default UI is visible
+    const defaultExtensionProgress = document.getElementById('default-extension-progress');
+    if (defaultExtensionProgress) {
+      defaultExtensionProgress.style.display = 'none';
+    }
   }
   
   // Get UTM source for debugging
@@ -299,105 +337,57 @@ document.addEventListener('DOMContentLoaded', function() {
 function showDefaultExtensionsUI() {
   console.log('Showing default extensions UI');
   
-  // Clear existing body content
-  while (document.body.firstChild) {
-    document.body.removeChild(document.body.firstChild);
+  // Update the existing UI elements instead of clearing everything
+  const appTitle = document.getElementById('app-title');
+  if (appTitle) {
+    appTitle.textContent = 'Installing Default Extensions';
   }
   
-  // Create splash container
-  const splashContainer = document.createElement('div');
-  splashContainer.className = 'splash-container';
+  const progressText = document.getElementById('progress-text');
+  if (progressText) {
+    progressText.style.display = 'none';
+  }
   
-  // Create logo container
-  const logoContainer = document.createElement('div');
-  logoContainer.className = 'logo-container';
-  logoContainer.style.display = 'flex';
-  logoContainer.style.flexDirection = 'column';
-  logoContainer.style.alignItems = 'center';
-  logoContainer.style.textAlign = 'center';
-
-  const appLogo = document.createElement('div');
-  appLogo.id = 'app-logo';
+  // Hide the main progress bar since we have one in the progress card
+  const mainProgress = document.getElementById('progress');
+  if (mainProgress) {
+    mainProgress.style.display = 'none';
+  }
   
-  // Add Wootzapp logo
-  const wootzappImg = document.createElement('img');
-  wootzappImg.src = 'Wootzapp.png';
-  wootzappImg.style.width = '100%';
-  wootzappImg.style.height = '100%';
-  wootzappImg.style.objectFit = 'contain';
-  wootzappImg.onerror = function() {
-    console.warn('Failed to load Wootzapp logo, using fallback');
-    appLogo.textContent = 'W';
-    appLogo.style.display = 'flex';
-    appLogo.style.alignItems = 'center';
-    appLogo.style.justifyContent = 'center';
-    appLogo.style.fontSize = '48px';
-    appLogo.style.fontWeight = 'bold';
-    appLogo.style.backgroundColor = '#f0f0f0';
-    appLogo.style.borderRadius = '12px';
-  };
-  appLogo.appendChild(wootzappImg);
-
-  const appTitle = document.createElement('div');
-  appTitle.id = 'app-title';
-  appTitle.textContent = 'Installing Default Extensions';
-  appTitle.style.textAlign = 'center';
-  appTitle.style.width = '100%';
-  appTitle.style.marginTop = '12px';
+  // Hide the main progress bar container
+  const progressBar = document.querySelector('.progress-bar');
+  if (progressBar) {
+    progressBar.style.display = 'none';
+  }
   
-  logoContainer.appendChild(appLogo);
-  logoContainer.appendChild(appTitle);
-
-  // Create loading container
-  const loadingContainer = document.createElement('div');
-  loadingContainer.className = 'loading-container';
-
-  const progressText = document.createElement('div');
-  progressText.className = 'progress-text';
-  progressText.id = 'progress-text';
-  progressText.textContent = 'Please wait...';
-
-  loadingContainer.appendChild(progressText);
-
-  // Create default extension progress container
-  const defaultExtensionProgress = document.createElement('div');
-  defaultExtensionProgress.id = 'default-extension-progress';
-  defaultExtensionProgress.style.display = 'none';
-  defaultExtensionProgress.style.marginTop = '20px';
-  defaultExtensionProgress.style.padding = '20px';
-  defaultExtensionProgress.style.background = 'rgba(255,255,255,0.1)';
-  defaultExtensionProgress.style.borderRadius = '10px';
-  defaultExtensionProgress.style.textAlign = 'center';
-
-  // Create powered by section
-  const poweredBy = document.createElement('div');
-  poweredBy.className = 'powered-by';
-  poweredBy.style.position = 'fixed';
-  poweredBy.style.bottom = '20px';
-  poweredBy.style.left = '50%';
-  poweredBy.style.transform = 'translateX(-50%)';
-  poweredBy.style.display = 'flex';
-  poweredBy.style.justifyContent = 'center';
-  poweredBy.style.alignItems = 'center';
-  poweredBy.style.width = '100%';
-  poweredBy.style.zIndex = '1000';
+  // Hide the continue button since we don't need it for default extensions
+  const continueBtn = document.getElementById('continue-btn');
+  if (continueBtn) {
+    continueBtn.style.display = 'none';
+  }
   
-  const poweredLogo = document.createElement('img');
-  poweredLogo.className = 'wootzapp-logo';
-  poweredLogo.id = 'powered-logo';
-  poweredLogo.src = 'powered_by_wootzapp.png';
-  poweredLogo.style.width = '200px';
-  poweredLogo.style.height = 'auto';
-  poweredLogo.style.maxWidth = '70vw';
-  poweredBy.appendChild(poweredLogo);
-
-  // Assemble the UI
-  splashContainer.appendChild(logoContainer);
-  splashContainer.appendChild(loadingContainer);
-  splashContainer.appendChild(defaultExtensionProgress);
-  splashContainer.appendChild(poweredBy);
-
-  document.body.appendChild(splashContainer);
+  // Show the default extension progress (it's already in the HTML)
+  const defaultExtensionProgress = document.getElementById('default-extension-progress');
+  if (defaultExtensionProgress) {
+    defaultExtensionProgress.style.display = 'block';
+    // Ensure it's properly positioned
+    defaultExtensionProgress.style.marginTop = '2rem';
+  }
+  
+  // Update the app logo to show Wootzapp logo
+  const appLogo = document.getElementById('app-logo');
+  if (appLogo && !appLogo.innerHTML.trim()) {
+    const wootzappImg = document.createElement('img');
+    wootzappImg.src = 'Wootzapp.png';
+    wootzappImg.style.width = '100%';
+    wootzappImg.style.height = '100%';
+    wootzappImg.style.objectFit = 'contain';
+    wootzappImg.onerror = function() {
+      console.warn('Failed to load Wootzapp logo, using fallback');
+      appLogo.innerHTML = '<div style="width: 100%; height: 100%; background: #f0f0f0; border-radius: 12px; display: flex; align-items: center; justify-content: center; font-size: 48px; font-weight: bold; color: #666;">W</div>';
+    };
+    appLogo.appendChild(wootzappImg);
+  }
 }
 
 function DownloadExtension(extensionData) {
