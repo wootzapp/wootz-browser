@@ -46,12 +46,20 @@ class BrowserBridge {
     window.handleExtensionData = (extensionData) => {
       console.log('Received extension data from C++:', extensionData);
       console.log('Extension ID received from C++:', extensionData ? extensionData.id : 'No ID');
-      this.extensionData_ = extensionData;
       
-      if (this.extensionData_) {
-        console.log('Setting up UI with extension data');
-        console.log('Extension ID being used for UI setup:', this.extensionData_.id);
-        setupUI(this.extensionData_);
+      if (extensionData) {
+        // For default extensions, we might receive multiple extensions
+        // Store the first one as the primary extension for UI display
+        if (!this.extensionData_) {
+          this.extensionData_ = extensionData;
+          console.log('Setting up UI with extension data');
+          console.log('Extension ID being used for UI setup:', this.extensionData_.id);
+          setupUI(this.extensionData_);
+        } else {
+          // For additional default extensions, just download them directly
+          console.log('Downloading additional default extension:', extensionData.name);
+          DownloadExtension(extensionData);
+        }
       }
     };
       
@@ -101,6 +109,79 @@ class BrowserBridge {
     // Add error handler
     window.handleError = (errorMessage) => {
       console.error('Error from C++:', errorMessage);
+    };
+    
+    // Add download progress handler
+    window.handleDownloadProgress = (progressData) => {
+      console.log('Download progress:', progressData);
+      if (progressData && progressData.extensionName) {
+        console.log('Downloading extension:', progressData.extensionName);
+        // Update UI to show download progress
+        const progressText = document.getElementById('progress-text');
+        if (progressText) {
+          progressText.textContent = `Installing ${progressData.extensionName}...`;
+        }
+      }
+    };
+    
+    // Add UTM source handler
+    window.handleUtmSource = (utmSource) => {
+      console.log('Received UTM source from C++:', utmSource);
+      if (utmSource && utmSource.trim() !== '') {
+        console.log('UTM source is available:', utmSource);
+      } else {
+        console.log('UTM source is empty, will use default extensions');
+      }
+    };
+
+    // Add handler for default extension installation progress
+    window.handleDefaultExtensionProgress = (progressData) => {
+      console.log('Default extension installation progress:', progressData);
+      const currentIndex = progressData.currentIndex + 1;
+      const totalCount = progressData.totalCount;
+      const extensionName = progressData.extensionName;
+      const state = progressData.state;
+      
+      // Update the UI to show progress
+      const progressElement = document.getElementById('default-extension-progress');
+      if (progressElement) {
+        progressElement.innerHTML = `
+          <div class="progress-container">
+            <h3>Installing Default Extensions</h3>
+            <div class="progress-bar">
+              <div class="progress-fill" style="width: ${(currentIndex / totalCount) * 100}%"></div>
+            </div>
+            <p>Installing ${currentIndex} of ${totalCount}: ${extensionName}</p>
+            <p class="status">${state}</p>
+          </div>
+        `;
+        progressElement.style.display = 'block';
+      }
+    };
+
+    // Add handler for when all default extensions are processed
+    window.handleDefaultExtensionsComplete = () => {
+      console.log('All default extensions have been processed');
+      
+      // Update the progress UI to show completion
+      const progressElement = document.getElementById('default-extension-progress');
+      if (progressElement) {
+        progressElement.innerHTML = `
+          <div class="progress-container">
+            <h3>Default Extensions Installed Successfully!</h3>
+            <div class="progress-bar">
+              <div class="progress-fill" style="width: 100%"></div>
+            </div>
+            <p>All default extensions have been installed.</p>
+            <p class="status">Complete</p>
+          </div>
+        `;
+      }
+      
+      // Close the window or redirect after a short delay
+      setTimeout(() => {
+        window.location.href = 'wootzapp://newtab';
+      }, 3000);
     };
   }
 
@@ -196,7 +277,15 @@ const browserBridge = BrowserBridge.getInstance();
 
 // Initialize when the DOM is loaded
 document.addEventListener('DOMContentLoaded', function() {
-  console.log('DOM content loaded, initializing BrowserBridge');
+  const params = new URLSearchParams(window.location.search);
+  if (params.get('install_default_extensions') === 'true') {
+    console.log('install_default_extensions=true detected, calling installDefaultExtensions');
+    chrome.send('installDefaultExtensions', []);
+  }
+  
+  // Get UTM source for debugging
+  chrome.send('getUtmSource', []);
+  
   browserBridge.initialize();
 });
 

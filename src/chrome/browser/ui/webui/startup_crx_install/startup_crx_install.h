@@ -4,9 +4,11 @@
 #include <memory>
 #include <optional>
 #include <string>
+#include <vector>
 
 #include "base/memory/raw_ptr.h"
 #include "base/memory/weak_ptr.h"
+#include "base/values.h"
 #include "content/public/browser/web_ui_controller.h"
 #include "content/public/browser/web_ui_message_handler.h"
 #include "services/network/public/cpp/simple_url_loader.h"
@@ -19,7 +21,7 @@ namespace network {
 class SimpleURLLoader;
 }
 
-// The message handler for chrome://startup-crx-install
+// The message handler for wootzapp://startup-crx-install
 class StartupCrxInstallMessageHandler : public content::WebUIMessageHandler {
  public:
   explicit StartupCrxInstallMessageHandler(content::WebUI* web_ui);
@@ -43,6 +45,34 @@ class StartupCrxInstallMessageHandler : public content::WebUIMessageHandler {
 
   void HandleGetUtmSource(const base::Value::List& args);
   void HandleGetExtensionData(const base::Value::List& args);
+
+  // Handles the message for installing default extensions.
+  void HandleInstallDefaultExtensions(const base::Value::List& args);
+
+  // Checks if this is a first run and should install default extensions
+  void CheckForDefaultExtensionInstall();
+
+  // Fetches extensions.json and filters for default_extension = true
+  void FetchExtensionsDataForDefaultInstall();
+
+  // Structure to hold default extension information
+  struct DefaultExtensionInfo {
+    std::string id;
+    std::string download_url;
+    std::string name;
+    std::string description;
+    std::string version;
+    std::string icon_url;
+  };
+
+  // Installs the next default extension in the queue
+  void InstallNextDefaultExtension();
+
+  // Callback when an extension installation is complete
+  void OnExtensionInstallComplete();
+
+  // Callback for when default extensions data is fetched
+  void OnDefaultExtensionsDataFetched(std::optional<std::string> response_body);
 
   // Fetches extensions data from GitHub API
   void FetchExtensionsData();
@@ -77,10 +107,17 @@ class StartupCrxInstallMessageHandler : public content::WebUIMessageHandler {
   bool is_destroyed_ = false;
   std::unique_ptr<network::SimpleURLLoader> extensions_loader_;
   std::unique_ptr<network::SimpleURLLoader> icon_loader_;
+  
+  // Queue of default extensions to install
+  std::vector<DefaultExtensionInfo> default_extensions_queue_;
+  
+  // Current extension index being installed
+  size_t current_extension_index_ = 0;
+  
   base::WeakPtrFactory<StartupCrxInstallMessageHandler> weak_factory_;
 };
 
-// The WebUI controller for chrome://startup-crx-install
+// The WebUI controller for wootzapp://startup-crx-install
 class StartupCrxInstallUI : public content::WebUIController {
  public:
   explicit StartupCrxInstallUI(content::WebUI* web_ui);

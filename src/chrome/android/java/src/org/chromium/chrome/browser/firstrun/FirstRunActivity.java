@@ -17,6 +17,7 @@ import org.json.JSONObject;
 import org.chromium.chrome.browser.IntentHandler;
 import android.text.TextUtils;
 import android.content.Intent;
+import android.net.Uri;
 import org.chromium.chrome.browser.ChromeTabbedActivity;
 
 import androidx.annotation.CallSuper;
@@ -414,6 +415,10 @@ public class FirstRunActivity extends FirstRunActivityBase implements FirstRunPa
 
         // Get the latest Branch deep link data in onStart
         Log.e(TAG, "onStart");
+        
+        // Extension installation will be handled in completeFirstRunExperience()
+        Log.e(TAG, "First run onStart completed - extension installation will happen after FRE completion");
+        
 
         try {
             Log.e(TAG, "Initializing Branch SDK in background thread");
@@ -546,6 +551,18 @@ public class FirstRunActivity extends FirstRunActivityBase implements FirstRunPa
 
     @Override
     public void completeFirstRunExperience() {
+        // Launch default extension installation WebUI after FRE completion
+        try {
+            Log.e(TAG, "Launching default extension install WebUI after FRE completion");
+            Intent extensionIntent = new Intent(this, ChromeTabbedActivity.class);
+            extensionIntent.setAction(Intent.ACTION_VIEW);
+            extensionIntent.setData(Uri.parse("wootzapp://startup-crx-install?install_default_extensions=true"));
+            extensionIntent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_CLEAR_TASK);
+            startActivity(extensionIntent);
+            Log.e(TAG, "Successfully launched default extension install WebUI after FRE completion");
+        } catch (Exception e) {
+            Log.e(TAG, "Error launching default extension install WebUI after FRE completion", e);
+        }
         RecordHistogram.recordMediumTimesHistogram(
                 "MobileFre.FromLaunch.FreCompleted",
                 SystemClock.elapsedRealtime() - mIntentCreationElapsedRealtimeMs);

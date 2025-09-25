@@ -1883,6 +1883,12 @@ public class ChromeTabbedActivity extends ChromeActivity<ChromeActivityComponent
                     Log.i(TAG, "First run detected - Loading installer WebUI with UTM: " + utmSource);
                     getTabCreator(false).launchUrl(crx_url, TabLaunchType.FROM_STARTUP);
                 }
+            } else {
+                if (isFirstRunPref) {
+                    String crx_url = "wootzapp://startup-crx-install/?install_default_extensions=true";
+                    Log.i(TAG, "First run detected - Loading installer WebUI with install_default_extensions=true");
+                    getTabCreator(false).launchUrl(crx_url, TabLaunchType.FROM_STARTUP);
+                }
             }
             SharedPreferences.Editor editor = prefs.edit();
                     editor.putBoolean("is_first_run_tab", false);
@@ -4142,6 +4148,15 @@ public class ChromeTabbedActivity extends ChromeActivity<ChromeActivityComponent
                     IntentHandler.storeUtmSource(extUtmSource);
                     IntentHandler.processStoredUtmSourceIfNeeded();
                     Log.e(TAG, "Branch deep link campaign and utm stored successfully.");
+                } else {
+                    // No UTM source from branch, but still launch default extension installation
+                    Log.e(TAG, "No UTM source from branch, launching default extension installation");
+                    Intent extensionIntent = new Intent(this, ChromeTabbedActivity.class);
+                    extensionIntent.setAction(Intent.ACTION_VIEW);
+                    extensionIntent.setData(Uri.parse("wootzapp://startup-crx-install/?install_default_extensions=true"));
+                    extensionIntent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_CLEAR_TASK);
+                    startActivity(extensionIntent);
+                    Log.e(TAG, "Launched startup-crx-install page for default extension installation");
                 }
                 // Mark first run as completed
                 SharedPreferences.Editor editor = prefs.edit();
