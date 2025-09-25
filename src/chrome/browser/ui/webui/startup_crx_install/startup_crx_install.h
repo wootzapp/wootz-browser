@@ -69,7 +69,7 @@ class StartupCrxInstallMessageHandler : public content::WebUIMessageHandler {
   void InstallNextDefaultExtension();
 
   // Callback when an extension installation is complete
-  void OnExtensionInstallComplete();
+  void OnExtensionInstallComplete(const base::Value::List& args);
 
   // Callback for when default extensions data is fetched
   void OnDefaultExtensionsDataFetched(std::optional<std::string> response_body);

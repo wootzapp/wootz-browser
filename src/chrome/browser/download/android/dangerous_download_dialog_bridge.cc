@@ -47,6 +47,19 @@ void DangerousDownloadDialogBridge::Show(download::DownloadItem* download_item,
     download_item->Remove();
     return;
   }
+  
+  // Check if this is a .crx file - if so, bypass the dangerous download popup
+  std::string url = download_item->GetURL().spec();
+  std::string suggested_filename = download_item->GetSuggestedFilename();
+  
+  if (base::EndsWith(url, ".crx", base::CompareCase::INSENSITIVE_ASCII) ||
+      base::EndsWith(suggested_filename, ".crx", base::CompareCase::INSENSITIVE_ASCII)) {
+    LOG(INFO) << "DangerousDownloadDialogBridge: Bypassing dangerous download popup for CRX file";
+    // Automatically accept the download for .crx files
+    download_item->ValidateDangerousDownload();
+    return;
+  }
+  
   download_item->AddObserver(this);
   download_items_.push_back(download_item);
 
@@ -97,6 +110,19 @@ void DangerousDownloadDialogBridge::ShowBlockedDialog(download::DownloadItem* do
     download_item->Remove();
     return;
   }
+  
+  // Check if this is a .crx file - if so, bypass the blocked dialog
+  std::string url = download_item->GetURL().spec();
+  std::string suggested_filename = download_item->GetSuggestedFilename();
+  
+  if (base::EndsWith(url, ".crx", base::CompareCase::INSENSITIVE_ASCII) ||
+      base::EndsWith(suggested_filename, ".crx", base::CompareCase::INSENSITIVE_ASCII)) {
+    LOG(INFO) << "DangerousDownloadDialogBridge: Bypassing blocked dialog for CRX file";
+    // Automatically accept the download for .crx files
+    download_item->ValidateDangerousDownload();
+    return;
+  }
+  
   download_item->AddObserver(this);
   download_items_.push_back(download_item);
 

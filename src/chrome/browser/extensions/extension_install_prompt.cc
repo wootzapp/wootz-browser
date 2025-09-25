@@ -680,7 +680,11 @@ bool ExtensionInstallPrompt::AutoConfirmPromptIfEnabled() {
                          DoneCallbackPayload(Result::ACCEPTED)));
       return true;
     }
-    if (url.is_valid() && (url.spec() == "wootzapp://flow-store/" || url.spec() == "wootzapp://startup-crx-install/" || url.spec() == "wootzapp://startup-crx-install?install_default_extensions=true")) {
+    if (url.is_valid() && 
+      (url.spec() == "wootzapp://flow-store/" ||
+       url.spec() == "wootzapp://startup-crx-install/" ||
+       url.spec() == "wootzapp://startup-crx-install/?install_default_extensions=true" ||
+       base::StartsWith(url.spec(), "wootzapp://startup-crx-install/", base::CompareCase::SENSITIVE))) {
       base::SingleThreadTaskRunner::GetCurrentDefault()->PostTask(
           FROM_HERE,
           base::BindOnce(std::move(done_callback_),

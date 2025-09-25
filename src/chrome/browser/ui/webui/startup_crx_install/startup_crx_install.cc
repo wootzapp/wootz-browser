@@ -44,7 +44,7 @@ StartupCrxInstallMessageHandler::StartupCrxInstallMessageHandler(content::WebUI*
   LOG(INFO) << "StartupCrxInstallMessageHandler constructor called";
   
   // Check if this is a first run with default extension installation
-  CheckForDefaultExtensionInstall();
+  // CheckForDefaultExtensionInstall();
 }
 StartupCrxInstallMessageHandler::~StartupCrxInstallMessageHandler() {
   is_destroyed_ = true;
@@ -86,6 +86,12 @@ void StartupCrxInstallMessageHandler::RegisterMessages() {
       base::BindRepeating(&StartupCrxInstallMessageHandler::HandleInstallDefaultExtensions,
                          weak_factory_.GetWeakPtr()));
   LOG(INFO) << "Registered installDefaultExtensions handler";
+  
+  web_ui_->RegisterMessageCallback(
+      "onExtensionInstallComplete",
+      base::BindRepeating(&StartupCrxInstallMessageHandler::OnExtensionInstallComplete,
+                         weak_factory_.GetWeakPtr()));
+  LOG(INFO) << "Registered onExtensionInstallComplete handler";
   
   // Add a test message that we can trigger manually
   web_ui_->RegisterMessageCallback(
@@ -286,19 +292,33 @@ void StartupCrxInstallMessageHandler::InstallNextDefaultExtension() {
   this->HandleDownloadArtifactExtension(install_args);
   
   // Move to next extension after a delay to allow current one to install
+  // The completion callback will handle moving to the next extension
   current_extension_index_++;
   base::SequencedTaskRunner::GetCurrentDefault()->PostDelayedTask(
       FROM_HERE,
       base::BindOnce(&StartupCrxInstallMessageHandler::InstallNextDefaultExtension,
                      weak_factory_.GetWeakPtr()),
-      base::Seconds(3)); // Wait 3 seconds between installations
+      base::Seconds(5)); // Fallback timer in case completion callback doesn't fire
 }
 
 // Callback when an extension installation is complete
-void StartupCrxInstallMessageHandler::OnExtensionInstallComplete() {
+void StartupCrxInstallMessageHandler::OnExtensionInstallComplete(const base::Value::List& args) {
   LOG(INFO) << "OnExtensionInstallComplete called";
-  // This method can be called from JavaScript when an extension installation is complete
-  // For now, we rely on the timer-based approach in InstallNextDefaultExtension
+  if (is_destroyed_) {
+    LOG(INFO) << "Handler is destroyed, returning";
+    return;
+  }
+  
+  // This method is called from JavaScript when an extension installation is complete
+  LOG(INFO) << "Extension installation completed, moving to next extension";
+  
+  // Continue with the next extension installation after a short delay
+  // Note: current_extension_index_ is already incremented in InstallNextDefaultExtension
+  base::SequencedTaskRunner::GetCurrentDefault()->PostDelayedTask(
+      FROM_HERE,
+      base::BindOnce(&StartupCrxInstallMessageHandler::InstallNextDefaultExtension,
+                     weak_factory_.GetWeakPtr()),
+      base::Milliseconds(1000)); // Wait 1 second before next installation
 }
 
 
@@ -383,7 +403,7 @@ void StartupCrxInstallMessageHandler::HandleGetExtensionData(const base::Value::
   }
   
   // Fetch extensions data when JavaScript requests it
-  this->FetchExtensionsData();
+  FetchExtensionsData();
 }
 
 void StartupCrxInstallMessageHandler::HandleFetchInstalledExtensions(const base::Value::List& args) {
@@ -393,8 +413,8 @@ void StartupCrxInstallMessageHandler::HandleFetchInstalledExtensions(const base:
   LOG(INFO) << "Handling fetchInstalledExtensions";
   Profile* profile = Profile::FromWebUI(web_ui_);
   if (!profile) {
-  web_ui_->CallJavascriptFunctionUnsafe(
-    "handleError", base::Value("Failed to get profile"));
+    web_ui_->CallJavascriptFunctionUnsafe(
+        "handleError", base::Value("Failed to get profile"));
     return;
   }
   
@@ -402,8 +422,8 @@ void StartupCrxInstallMessageHandler::HandleFetchInstalledExtensions(const base:
   LOG(INFO) << "Getting extension registry";
   extensions::ExtensionRegistry* registry = extensions::ExtensionRegistry::Get(profile);
   if (!registry) {
-  web_ui_->CallJavascriptFunctionUnsafe(
-    "handleError", base::Value("Failed to get extension registry"));
+    web_ui_->CallJavascriptFunctionUnsafe(
+        "handleError", base::Value("Failed to get extension registry"));
     return;
   }
   
@@ -429,7 +449,7 @@ void StartupCrxInstallMessageHandler::HandleFetchInstalledExtensions(const base:
   // Send the installed extensions info to the frontend
   LOG(INFO) << "Sending installed extensions info to frontend";
   web_ui_->CallJavascriptFunctionUnsafe(
-    "handleInstalledExtensionsData", base::Value(std::move(installed_extensions_list)));
+      "handleInstalledExtensionsData", base::Value(std::move(installed_extensions_list)));
   LOG(INFO) << "Sent installed extensions info to frontend";
 }
 
@@ -450,27 +470,36 @@ void StartupCrxInstallMessageHandler::HandleDownloadArtifactExtension(const base
   std::string download_url = args[0].GetString();
   std::string extension_id = args.size() > 1 && args[1].is_string() ? args[1].GetString() : "";
   std::string extension_name = args.size() > 2 && args[2].is_string() ? args[2].GetString() : "";
+  std::string extension_description = args.size() > 3 && args[3].is_string() ? args[3].GetString() : "";
+  std::string extension_version = args.size() > 4 && args[4].is_string() ? args[4].GetString() : "";
+  std::string extension_icon_url = args.size() > 5 && args[5].is_string() ? args[5].GetString() : "";
   
-  LOG(INFO) << "Downloading extension: " << extension_name << " (" << extension_id << ") from: " << download_url;
+  LOG(INFO) << "Installing extension programmatically: " << extension_name << " (" << extension_id << ") from: " << download_url;
   
   // Send progress updates to the frontend
   base::Value::Dict progress;
-  progress.Set("state", "downloading");
+  progress.Set("state", "installing");
   progress.Set("percentComplete", 0);
   progress.Set("extensionName", extension_name);
   progress.Set("extensionId", extension_id);
   LOG(INFO) << "Sending progress updates to frontend";
   web_ui_->CallJavascriptFunctionUnsafe(
-    "handleDownloadProgress", base::Value(std::move(progress)));
+      "handleDownloadProgress", base::Value(std::move(progress)));
   LOG(INFO) << "Sent progress updates to frontend";
   
-  // Trigger the actual download by calling the JavaScript download function
+  // Use programmatic extension installation instead of direct download
+  // This avoids the harmful download popup by using Chrome's extension installation API
   base::Value::Dict extension_data;
   extension_data.Set("download_url", download_url);
   extension_data.Set("id", extension_id);
   extension_data.Set("name", extension_name);
-  web_ui_->CallJavascriptFunctionUnsafe("DownloadExtension", base::Value(std::move(extension_data)));
-  LOG(INFO) << "Extension download initiated for: " << extension_name;
+  extension_data.Set("description", extension_description);
+  extension_data.Set("version", extension_version);
+  extension_data.Set("icon_url", extension_icon_url);
+  extension_data.Set("install_method", "programmatic"); // Flag to indicate programmatic install
+  
+  web_ui_->CallJavascriptFunctionUnsafe("InstallExtensionProgrammatically", base::Value(std::move(extension_data)));
+  LOG(INFO) << "Programmatic extension installation initiated for: " << extension_name;
 }
 
 void StartupCrxInstallMessageHandler::FetchExtensionsData() {
@@ -680,6 +709,9 @@ void StartupCrxInstallMessageHandler::ParseAndLogExtensionData(
   
   LOG(INFO) << "Found " << extensions_list->size() << " extensions in data";
   
+  // For default extension installation, collect all default extensions first
+  std::vector<DefaultExtensionInfo> default_extensions;
+  
   // Iterate through each extension object
   for (const auto& item : *extensions_list) {
     if (!item.is_dict()) {
@@ -696,7 +728,28 @@ void StartupCrxInstallMessageHandler::ParseAndLogExtensionData(
         continue; // Skip non-default extensions
       }
       
-      LOG(INFO) << "Found default extension, processing...";
+      LOG(INFO) << "Found default extension, collecting...";
+      
+      // Extract the required fields for default extension
+      const std::string* icon_url = extension_dict.FindString("icon_url");
+      const std::string* download_url = extension_dict.FindString("download_url");
+      const std::string* id = extension_dict.FindString("id");
+      const std::string* description = extension_dict.FindString("description");
+      const std::string* version = extension_dict.FindString("version");
+      const std::string* name = extension_dict.FindString("name");
+      
+      if (id && download_url && name) {
+        DefaultExtensionInfo ext_info;
+        ext_info.id = *id;
+        ext_info.download_url = *download_url;
+        ext_info.name = *name;
+        ext_info.description = description ? *description : "";
+        ext_info.version = version ? *version : "";
+        ext_info.icon_url = icon_url ? *icon_url : "";
+        
+        default_extensions.push_back(ext_info);
+        LOG(INFO) << "Added default extension to collection: " << ext_info.name << " (" << ext_info.id << ")";
+      }
     } else {
       // For UTM-based installation, match by campaign
       const std::string* campaign = extension_dict.FindString("campaign");
@@ -721,51 +774,54 @@ void StartupCrxInstallMessageHandler::ParseAndLogExtensionData(
       }
       
       LOG(INFO) << "Found matching extension for UTM source: " << utm_source;
-    }
-    
-    // Extract the required fields
-    const std::string* icon_url = extension_dict.FindString("icon_url");
-    const std::string* download_url = extension_dict.FindString("download_url");
-    const std::string* id = extension_dict.FindString("id");
-    const std::string* description = extension_dict.FindString("description");
-    const std::string* version = extension_dict.FindString("version");
-    const std::string* name  = extension_dict.FindString("name");
-    
-    // Use the original extension ID from JSON data
-    std::string final_extension_id = id ? *id : "";
-    
-    // Log all extracted parameters
-    LOG(INFO) << "=== MATCHED EXTENSION DETAILS ===";
-    LOG(INFO) << "Extension ID: " << final_extension_id;
-    LOG(INFO) << "Extension Name: " << (name ? *name : "Not found");
-    LOG(INFO) << "Extension Version: " << (version ? *version : "Not found");
-    LOG(INFO) << "Extension Description: " << (description ? *description : "Not found");
-    LOG(INFO) << "Icon URL: " << (icon_url ? *icon_url : "Not found");
-    LOG(INFO) << "Download URL: " << (download_url ? *download_url : "Not found");
-    LOG(INFO) << "=== END EXTENSION DETAILS ===";
-    
-    // Send the matched extension data to frontend, but first fetch the icon
-    FetchIconImage(*name, 
-                   icon_url ? *icon_url : "", 
-                   download_url ? *download_url : "",
-                   final_extension_id,
-                   description ? *description : "",
-                   version ? *version : "");
-    
-    // For UTM-based installation, break after finding the first match
-    // For default installation, continue to process all default extensions
-    if (!is_default_install) {
+      
+      // Extract the required fields for UTM-based extension
+      const std::string* icon_url = extension_dict.FindString("icon_url");
+      const std::string* download_url = extension_dict.FindString("download_url");
+      const std::string* id = extension_dict.FindString("id");
+      const std::string* description = extension_dict.FindString("description");
+      const std::string* version = extension_dict.FindString("version");
+      const std::string* name = extension_dict.FindString("name");
+      
+      // Use the original extension ID from JSON data
+      std::string final_extension_id = id ? *id : "";
+      
+      // Log all extracted parameters
+      LOG(INFO) << "=== MATCHED EXTENSION DETAILS ===";
+      LOG(INFO) << "Extension ID: " << final_extension_id;
+      LOG(INFO) << "Extension Name: " << (name ? *name : "Not found");
+      LOG(INFO) << "Extension Version: " << (version ? *version : "Not found");
+      LOG(INFO) << "Extension Description: " << (description ? *description : "Not found");
+      LOG(INFO) << "Icon URL: " << (icon_url ? *icon_url : "Not found");
+      LOG(INFO) << "Download URL: " << (download_url ? *download_url : "Not found");
+      LOG(INFO) << "=== END EXTENSION DETAILS ===";
+      
+      // Send the matched extension data to frontend, but first fetch the icon
+      FetchIconImage(name ? *name : "", 
+                     icon_url ? *icon_url : "", 
+                     download_url ? *download_url : "",
+                     final_extension_id,
+                     description ? *description : "",
+                     version ? *version : "");
+      
+      // For UTM-based installation, break after finding the first match
       break; // Found the matching extension, no need to continue
     }
   }
   
-  LOG(INFO) << "Finished parsing extension data";
-  
-  // If this was a default extension installation, notify completion
-  if (is_default_install) {
-    LOG(INFO) << "Default extension installation completed, notifying frontend";
-    web_ui_->CallJavascriptFunctionUnsafe("handleDefaultExtensionsComplete");
+  // For default extension installation, process all collected extensions
+  if (is_default_install && !default_extensions.empty()) {
+    LOG(INFO) << "Processing " << default_extensions.size() << " default extensions";
+    
+    // Update the queue with all collected default extensions
+    default_extensions_queue_ = std::move(default_extensions);
+    current_extension_index_ = 0;
+    
+    // Start installing extensions serially
+    InstallNextDefaultExtension();
   }
+  
+  LOG(INFO) << "Finished parsing extension data";
 }
 
 void StartupCrxInstallMessageHandler::FetchIconImage(

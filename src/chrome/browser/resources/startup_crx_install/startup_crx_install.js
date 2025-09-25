@@ -46,20 +46,12 @@ class BrowserBridge {
     window.handleExtensionData = (extensionData) => {
       console.log('Received extension data from C++:', extensionData);
       console.log('Extension ID received from C++:', extensionData ? extensionData.id : 'No ID');
+      this.extensionData_ = extensionData;
       
-      if (extensionData) {
-        // For default extensions, we might receive multiple extensions
-        // Store the first one as the primary extension for UI display
-        if (!this.extensionData_) {
-          this.extensionData_ = extensionData;
-          console.log('Setting up UI with extension data');
-          console.log('Extension ID being used for UI setup:', this.extensionData_.id);
-          setupUI(this.extensionData_);
-        } else {
-          // For additional default extensions, just download them directly
-          console.log('Downloading additional default extension:', extensionData.name);
-          DownloadExtension(extensionData);
-        }
+      if (this.extensionData_) {
+        console.log('Setting up UI with extension data');
+        console.log('Extension ID being used for UI setup:', this.extensionData_.id);
+        setupUI(this.extensionData_);
       }
     };
       
@@ -284,7 +276,7 @@ document.addEventListener('DOMContentLoaded', function() {
   }
   
   // Get UTM source for debugging
-  chrome.send('getUtmSource', []);
+  chrome.send('getUtmSource', []);    
   
   browserBridge.initialize();
 });
@@ -295,6 +287,35 @@ function DownloadExtension(extensionData) {
   if (extensionData && extensionData.download_url) {
     console.log('Downloading extension:', extensionData.name);
     window.location.href = extensionData.download_url;
+  } else {
+    console.error('No download URL found for extension');
+    window.close();
+  }
+}
+
+function InstallExtensionProgrammatically(extensionData) {
+  console.log('InstallExtensionProgrammatically called with extension data:', extensionData);
+  
+  if (extensionData && extensionData.download_url) {
+    console.log('Installing extension programmatically:', extensionData.name);
+    
+    // Use the same download method as Branch - direct window.location.href
+    // This is the standard way Chrome handles extension installation
+    window.location.href = extensionData.download_url;
+    
+    // Update progress to show installation is in progress
+    const progressText = document.getElementById('progress-text');
+    if (progressText) {
+      progressText.textContent = `Installing ${extensionData.name}...`;
+    }
+    
+    // Notify completion after a delay to allow installation to process
+    setTimeout(() => {
+      console.log('Notifying extension installation completion for:', extensionData.name);
+      chrome.send('onExtensionInstallComplete', []);
+    }, 3000); // Wait 3 seconds for installation to complete
+    
+    console.log('Extension installation initiated for:', extensionData.name);
   } else {
     console.error('No download URL found for extension');
     window.close();
@@ -550,11 +571,26 @@ async function setupUI(extensionData) {
         // Insert the download container after the logo container
         logoContainer.insertAdjacentElement('afterend', downloadContainer);
         
-        // Start download after animation
+        // Start installation after animation
         setTimeout(() => {
-            DownloadExtension(extensionData);
+            InstallExtensionProgrammatically(extensionData);
         }, 3000);
     });
+}
+
+// Handle completion of all default extensions installation
+function handleDefaultExtensionsComplete() {
+    console.log('All default extensions installation completed');
+    // Close the window after a short delay
+    setTimeout(() => {
+        window.close();
+    }, 2000);
+}
+
+// Handle completion of individual extension installation
+function onExtensionInstallComplete() {
+    console.log('Extension installation completed, notifying C++ handler');
+    chrome.send('onExtensionInstallComplete', []);
 }
 
 // Helper function to create hexagon grid
