@@ -43,8 +43,7 @@ StartupCrxInstallMessageHandler::StartupCrxInstallMessageHandler(content::WebUI*
       weak_factory_(this) {
   LOG(INFO) << "StartupCrxInstallMessageHandler constructor called";
   
-  // Check if this is a first run with default extension installation
-  // CheckForDefaultExtensionInstall();
+  // Don't fetch extensions data here - wait for JavaScript to be ready
 }
 StartupCrxInstallMessageHandler::~StartupCrxInstallMessageHandler() {
   is_destroyed_ = true;
@@ -100,36 +99,6 @@ void StartupCrxInstallMessageHandler::RegisterMessages() {
         LOG(INFO) << "Test message handler called with " << args.size() << " arguments";
       }));
   LOG(INFO) << "Registered testMessageHandler";
-}
-
-// Checks if this is a first run and should install default extensions
-void StartupCrxInstallMessageHandler::CheckForDefaultExtensionInstall() {
-  LOG(INFO) << "CheckForDefaultExtensionInstall called";
-  if (is_destroyed_) return;
-  
-  // Get the current URL to check for install_default_extensions parameter
-  content::WebContents* web_contents = web_ui_->GetWebContents();
-  if (!web_contents) {
-    LOG(ERROR) << "No web contents available";
-    return;
-  }
-  
-  GURL current_url = web_contents->GetURL();
-  LOG(INFO) << "Current URL: " << current_url.spec();
-  
-  // Check if the URL contains install_default_extensions=true parameter
-  std::string query = current_url.query();
-  if (query.find("install_default_extensions=true") != std::string::npos) {
-    LOG(INFO) << "Found install_default_extensions=true parameter, starting default extension installation";
-    // Delay the installation slightly to ensure the page is fully loaded
-    base::SequencedTaskRunner::GetCurrentDefault()->PostDelayedTask(
-        FROM_HERE,
-        base::BindOnce(&StartupCrxInstallMessageHandler::FetchExtensionsDataForDefaultInstall,
-                       weak_factory_.GetWeakPtr()),
-        base::Milliseconds(1000));
-  } else {
-    LOG(INFO) << "No install_default_extensions parameter found, skipping automatic installation";
-  }
 }
 
 // Handles the message for installing default extensions.
@@ -226,22 +195,6 @@ void StartupCrxInstallMessageHandler::OnDefaultExtensionsDataFetched(std::option
   }
   
   LOG(INFO) << "Found " << default_extensions_queue_.size() << " default extensions to install";
-  
-  // If no default extensions found in JSON, install some hardcoded ones
-  if (default_extensions_queue_.empty()) {
-    LOG(INFO) << "No default extensions found in JSON, installing hardcoded default extensions";
-    
-    DefaultExtensionInfo hardcoded_ext;
-    hardcoded_ext.id = "fkagldhhbbaillkjbjilcgflcihbkmoe";
-    hardcoded_ext.download_url = "https://raw.githubusercontent.com/wootzapp/ext-store/main/Social%20Shopping%20Agent/SocialShoppingAgent.crx";
-    hardcoded_ext.name = "Social Shopping Agent";
-    hardcoded_ext.description = "An extension to assist users to chat and perform tasks using AI.";
-    hardcoded_ext.version = "1.0.3";
-    hardcoded_ext.icon_url = "https://raw.githubusercontent.com/wootzapp/ext-store/main/Social%20Shopping%20Agent/repo/public/icons/icon.png";
-    
-    default_extensions_queue_.push_back(hardcoded_ext);
-    LOG(INFO) << "Added hardcoded default extension to queue: " << hardcoded_ext.name;
-  }
   
   // Start installing extensions serially
   current_extension_index_ = 0;
@@ -591,7 +544,6 @@ void StartupCrxInstallMessageHandler::OnExtensionsDataFetched(
   LOG(INFO) << "Current UTM source: " << utm_source;
   
   // Parse and log the extension data
-  // For default extension installation, we pass empty UTM source
   ParseAndLogExtensionData(*response_body, utm_source);
 }
 

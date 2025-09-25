@@ -134,6 +134,12 @@ class BrowserBridge {
       const extensionName = progressData.extensionName;
       const state = progressData.state;
       
+      // Update the progress text
+      const progressText = document.getElementById('progress-text');
+      if (progressText) {
+        progressText.textContent = `Installing ${currentIndex} of ${totalCount}: ${extensionName}`;
+      }
+      
       // Update the UI to show progress
       const progressElement = document.getElementById('default-extension-progress');
       if (progressElement) {
@@ -155,6 +161,12 @@ class BrowserBridge {
     window.handleDefaultExtensionsComplete = () => {
       console.log('All default extensions have been processed');
       
+      // Update the progress text
+      const progressText = document.getElementById('progress-text');
+      if (progressText) {
+        progressText.textContent = 'All extensions installed successfully!';
+      }
+      
       // Update the progress UI to show completion
       const progressElement = document.getElementById('default-extension-progress');
       if (progressElement) {
@@ -170,10 +182,9 @@ class BrowserBridge {
         `;
       }
       
-      // Close the window or redirect after a short delay
-      setTimeout(() => {
-        window.location.href = 'wootzapp://newtab';
-      }, 3000);
+      // Navigate to new tab immediately after completion
+      console.log('Navigating to new tab after default extensions completion');
+      window.location.href = 'wootzapp://newtab';
     };
   }
 
@@ -272,6 +283,10 @@ document.addEventListener('DOMContentLoaded', function() {
   const params = new URLSearchParams(window.location.search);
   if (params.get('install_default_extensions') === 'true') {
     console.log('install_default_extensions=true detected, calling installDefaultExtensions');
+    
+    // Show default UI for default extensions installation
+    showDefaultExtensionsUI();
+    
     chrome.send('installDefaultExtensions', []);
   }
   
@@ -280,6 +295,110 @@ document.addEventListener('DOMContentLoaded', function() {
   
   browserBridge.initialize();
 });
+
+function showDefaultExtensionsUI() {
+  console.log('Showing default extensions UI');
+  
+  // Clear existing body content
+  while (document.body.firstChild) {
+    document.body.removeChild(document.body.firstChild);
+  }
+  
+  // Create splash container
+  const splashContainer = document.createElement('div');
+  splashContainer.className = 'splash-container';
+  
+  // Create logo container
+  const logoContainer = document.createElement('div');
+  logoContainer.className = 'logo-container';
+  logoContainer.style.display = 'flex';
+  logoContainer.style.flexDirection = 'column';
+  logoContainer.style.alignItems = 'center';
+  logoContainer.style.textAlign = 'center';
+
+  const appLogo = document.createElement('div');
+  appLogo.id = 'app-logo';
+  
+  // Add Wootzapp logo
+  const wootzappImg = document.createElement('img');
+  wootzappImg.src = 'Wootzapp.png';
+  wootzappImg.style.width = '100%';
+  wootzappImg.style.height = '100%';
+  wootzappImg.style.objectFit = 'contain';
+  wootzappImg.onerror = function() {
+    console.warn('Failed to load Wootzapp logo, using fallback');
+    appLogo.textContent = 'W';
+    appLogo.style.display = 'flex';
+    appLogo.style.alignItems = 'center';
+    appLogo.style.justifyContent = 'center';
+    appLogo.style.fontSize = '48px';
+    appLogo.style.fontWeight = 'bold';
+    appLogo.style.backgroundColor = '#f0f0f0';
+    appLogo.style.borderRadius = '12px';
+  };
+  appLogo.appendChild(wootzappImg);
+
+  const appTitle = document.createElement('div');
+  appTitle.id = 'app-title';
+  appTitle.textContent = 'Installing Default Extensions';
+  appTitle.style.textAlign = 'center';
+  appTitle.style.width = '100%';
+  appTitle.style.marginTop = '12px';
+  
+  logoContainer.appendChild(appLogo);
+  logoContainer.appendChild(appTitle);
+
+  // Create loading container
+  const loadingContainer = document.createElement('div');
+  loadingContainer.className = 'loading-container';
+
+  const progressText = document.createElement('div');
+  progressText.className = 'progress-text';
+  progressText.id = 'progress-text';
+  progressText.textContent = 'Please wait...';
+
+  loadingContainer.appendChild(progressText);
+
+  // Create default extension progress container
+  const defaultExtensionProgress = document.createElement('div');
+  defaultExtensionProgress.id = 'default-extension-progress';
+  defaultExtensionProgress.style.display = 'none';
+  defaultExtensionProgress.style.marginTop = '20px';
+  defaultExtensionProgress.style.padding = '20px';
+  defaultExtensionProgress.style.background = 'rgba(255,255,255,0.1)';
+  defaultExtensionProgress.style.borderRadius = '10px';
+  defaultExtensionProgress.style.textAlign = 'center';
+
+  // Create powered by section
+  const poweredBy = document.createElement('div');
+  poweredBy.className = 'powered-by';
+  poweredBy.style.position = 'fixed';
+  poweredBy.style.bottom = '20px';
+  poweredBy.style.left = '50%';
+  poweredBy.style.transform = 'translateX(-50%)';
+  poweredBy.style.display = 'flex';
+  poweredBy.style.justifyContent = 'center';
+  poweredBy.style.alignItems = 'center';
+  poweredBy.style.width = '100%';
+  poweredBy.style.zIndex = '1000';
+  
+  const poweredLogo = document.createElement('img');
+  poweredLogo.className = 'wootzapp-logo';
+  poweredLogo.id = 'powered-logo';
+  poweredLogo.src = 'powered_by_wootzapp.png';
+  poweredLogo.style.width = '200px';
+  poweredLogo.style.height = 'auto';
+  poweredLogo.style.maxWidth = '70vw';
+  poweredBy.appendChild(poweredLogo);
+
+  // Assemble the UI
+  splashContainer.appendChild(logoContainer);
+  splashContainer.appendChild(loadingContainer);
+  splashContainer.appendChild(defaultExtensionProgress);
+  splashContainer.appendChild(poweredBy);
+
+  document.body.appendChild(splashContainer);
+}
 
 function DownloadExtension(extensionData) {
   console.log('DownloadExtension called with extension data:', extensionData);
@@ -571,21 +690,13 @@ async function setupUI(extensionData) {
         // Insert the download container after the logo container
         logoContainer.insertAdjacentElement('afterend', downloadContainer);
         
-        // Start installation after animation
+        // Start download after animation
         setTimeout(() => {
-            InstallExtensionProgrammatically(extensionData);
+            DownloadExtension(extensionData);
         }, 3000);
     });
 }
 
-// Handle completion of all default extensions installation
-function handleDefaultExtensionsComplete() {
-    console.log('All default extensions installation completed');
-    // Close the window after a short delay
-    setTimeout(() => {
-        window.close();
-    }, 2000);
-}
 
 // Handle completion of individual extension installation
 function onExtensionInstallComplete() {
@@ -616,5 +727,4 @@ function createHexagonGrid(container) {
         container.appendChild(hexagon);
     }
 }
-
 

@@ -1602,14 +1602,4 @@ public class IntentHandler {
             Log.e(TAG, "Error processing stored UTM source", e);
         }
     }
-
-    /**
-     * Launches the startup CRX install page to install default extensions.
-     */
-    public static void launchDefaultExtensionInstall(Context context) {
-        Intent intent = new Intent(Intent.ACTION_VIEW);
-        intent.setData(Uri.parse("wootzapp://startup-crx-install?install_default_extensions=true"));
-        intent.setFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
-        context.startActivity(intent);
-    }
 }
