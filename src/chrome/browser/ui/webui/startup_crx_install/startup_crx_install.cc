@@ -112,7 +112,7 @@ void StartupCrxInstallMessageHandler::HandleInstallDefaultExtensions(const base:
 void StartupCrxInstallMessageHandler::FetchExtensionsDataForDefaultInstall() {
   LOG(INFO) << "Fetching extensions.json for default install";
   auto resource_request = std::make_unique<network::ResourceRequest>();
-  resource_request->url = GURL("https://raw.githubusercontent.com/itskartike910/ext-store/defaultExt/extensions.json");
+  resource_request->url = GURL("https://raw.githubusercontent.com/wootzapp/ext-store/main/extensions.json");
   resource_request->method = "GET";
   net::NetworkTrafficAnnotationTag traffic_annotation =
       net::DefineNetworkTrafficAnnotation("startup_crx_install_default_extensions", R"(
@@ -459,7 +459,7 @@ void StartupCrxInstallMessageHandler::FetchExtensionsData() {
   LOG(INFO) << "FetchExtensionsData called";
   
   auto request = std::make_unique<network::ResourceRequest>();
-  request->url = GURL("https://raw.githubusercontent.com/itskartike910/ext-store/defaultExt/extensions.json");
+  request->url = GURL("https://raw.githubusercontent.com/wootzapp/ext-store/main/extensions.json");
   request->method = "GET";
   
   net::NetworkTrafficAnnotationTag traffic_annotation =
