@@ -318,6 +318,61 @@ document.addEventListener('DOMContentLoaded', function() {
     // Show default UI for default extensions installation
     showDefaultExtensionsUI();
     
+    // Set up timeout for no internet connection
+    let hasProgress = false;
+    let timeoutId = null;
+    
+    // Start timeout after 3 seconds if no progress is made
+    timeoutId = setTimeout(() => {
+      if (!hasProgress) {
+        console.log('No progress detected after 3 seconds, likely no internet connection');
+        const progressElement = document.getElementById('default-extension-progress');
+        if (progressElement) {
+          const statusElement = progressElement.querySelector('.status');
+          if (statusElement) {
+            statusElement.textContent = 'No internet connection detected';
+          }
+          const statusText = progressElement.querySelector('p:not(.status)');
+          if (statusText) {
+            statusText.textContent = 'Closing window...';
+          }
+        }
+        
+        // Close window after showing message
+        setTimeout(() => {
+          window.close();
+        }, 1000);
+      }
+    }, 3000);
+    
+    // Track progress to cancel timeout
+    const originalHandleProgress = window.handleDefaultExtensionProgress;
+    window.handleDefaultExtensionProgress = (progressData) => {
+      hasProgress = true;
+      if (timeoutId) {
+        clearTimeout(timeoutId);
+        timeoutId = null;
+      }
+      // Call original handler
+      if (originalHandleProgress) {
+        originalHandleProgress(progressData);
+      }
+    };
+    
+    // Also track completion to cancel timeout
+    const originalHandleComplete = window.handleDefaultExtensionsComplete;
+    window.handleDefaultExtensionsComplete = () => {
+      hasProgress = true;
+      if (timeoutId) {
+        clearTimeout(timeoutId);
+        timeoutId = null;
+      }
+      // Call original handler
+      if (originalHandleComplete) {
+        originalHandleComplete();
+      }
+    };
+    
     chrome.send('installDefaultExtensions', []);
   } else {
     console.log('No install_default_extensions parameter, showing default UI');
