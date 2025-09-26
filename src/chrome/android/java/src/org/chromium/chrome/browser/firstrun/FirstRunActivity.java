@@ -17,7 +17,6 @@ import org.json.JSONObject;
 import org.chromium.chrome.browser.IntentHandler;
 import android.text.TextUtils;
 import android.content.Intent;
-import android.net.Uri;
 import org.chromium.chrome.browser.ChromeTabbedActivity;
 
 import androidx.annotation.CallSuper;
