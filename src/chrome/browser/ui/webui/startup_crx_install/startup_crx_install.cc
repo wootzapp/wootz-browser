@@ -111,9 +111,14 @@ void StartupCrxInstallMessageHandler::HandleInstallDefaultExtensions(const base:
 // Fetches extensions.json and filters for default_extension = true
 void StartupCrxInstallMessageHandler::FetchExtensionsDataForDefaultInstall() {
   LOG(INFO) << "Fetching extensions.json for default install";
+
   auto resource_request = std::make_unique<network::ResourceRequest>();
-  resource_request->url = GURL("https://raw.githubusercontent.com/wootzapp/ext-store/main/extensions.json");
+
+  std::string fetch_url = std::string(extension_store::kExtensionStoreBaseUrl);
+
+  resource_request->url = GURL(fetch_url);
   resource_request->method = "GET";
+
   net::NetworkTrafficAnnotationTag traffic_annotation =
       net::DefineNetworkTrafficAnnotation("startup_crx_install_default_extensions", R"(
         semantics {
@@ -247,11 +252,12 @@ void StartupCrxInstallMessageHandler::InstallNextDefaultExtension() {
   // Move to next extension after a delay to allow current one to install
   // The completion callback will handle moving to the next extension
   current_extension_index_++;
+  auto timer = base::Seconds(5); // Fallback timer in case completion callback doesn't fire
   base::SequencedTaskRunner::GetCurrentDefault()->PostDelayedTask(
       FROM_HERE,
       base::BindOnce(&StartupCrxInstallMessageHandler::InstallNextDefaultExtension,
                      weak_factory_.GetWeakPtr()),
-      base::Seconds(5)); // Fallback timer in case completion callback doesn't fire
+      timer);
 }
 
 // Callback when an extension installation is complete
@@ -264,14 +270,15 @@ void StartupCrxInstallMessageHandler::OnExtensionInstallComplete(const base::Val
   
   // This method is called from JavaScript when an extension installation is complete
   LOG(INFO) << "Extension installation completed, moving to next extension";
-  
+
+  auto delay = base::Milliseconds(1000); // Short delay of 1 second before next installation, assuming the extension is sent for installation
   // Continue with the next extension installation after a short delay
   // Note: current_extension_index_ is already incremented in InstallNextDefaultExtension
   base::SequencedTaskRunner::GetCurrentDefault()->PostDelayedTask(
       FROM_HERE,
       base::BindOnce(&StartupCrxInstallMessageHandler::InstallNextDefaultExtension,
                      weak_factory_.GetWeakPtr()),
-      base::Milliseconds(1000)); // Wait 1 second before next installation
+      delay);
 }
 
 
@@ -459,7 +466,10 @@ void StartupCrxInstallMessageHandler::FetchExtensionsData() {
   LOG(INFO) << "FetchExtensionsData called";
   
   auto request = std::make_unique<network::ResourceRequest>();
-  request->url = GURL("https://raw.githubusercontent.com/wootzapp/ext-store/main/extensions.json");
+
+  std::string fetch_url = std::string(extension_store::kExtensionStoreBaseUrl);
+
+  request->url = GURL(fetch_url);
   request->method = "GET";
   
   net::NetworkTrafficAnnotationTag traffic_annotation =
@@ -635,7 +645,7 @@ void StartupCrxInstallMessageHandler::ParseAndLogExtensionData(
   if (is_default_install) {
     LOG(INFO) << "UTM source is empty, this is a default extension installation";
   }
-
+  
   auto parsed_json = base::JSONReader::Read(json_data);
   if (!parsed_json || !parsed_json->is_dict()) {
     LOG(ERROR) << "Failed to parse extensions JSON data";
