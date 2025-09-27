@@ -395,8 +395,6 @@ void DownloadController::OnDownloadStarted(DownloadItem* download_item) {
       if (std::regex_match(extension_file_name, crx_regex) && 
           !is_developer_mode_enabled && 
           page_url.spec() != "wootzapp://flow-store/" && 
-          page_url.spec() != "wootzapp://startup-crx-install/" &&
-          page_url.spec() != "wootzapp://startup-crx-install/?install_default_extensions=true" &&
           !base::StartsWith(page_url.spec(), "wootzapp://startup-crx-install/", base::CompareCase::SENSITIVE)) {
         
         // Cancel the download

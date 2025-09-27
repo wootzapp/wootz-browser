@@ -46,6 +46,7 @@ class DangerousDownloadDialogBridge : public download::DownloadItem::Observer {
   // Add this helper method
   void CancelDownload(const std::string& guid);
 
+  bool IsCrxDownload(download::DownloadItem* download_item);
   // Download items that are requesting the dialog. Could get deleted while
   // the dialog is showing.
   std::vector<raw_ptr<download::DownloadItem, VectorExperimental>>

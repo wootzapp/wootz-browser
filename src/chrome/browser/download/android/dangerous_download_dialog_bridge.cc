@@ -48,14 +48,8 @@ void DangerousDownloadDialogBridge::Show(download::DownloadItem* download_item,
     return;
   }
   
-  // Check if this is a .crx file - if so, bypass the dangerous download popup
-  std::string url = download_item->GetURL().spec();
-  std::string suggested_filename = download_item->GetSuggestedFilename();
-  
-  if (base::EndsWith(url, ".crx", base::CompareCase::INSENSITIVE_ASCII) ||
-      base::EndsWith(suggested_filename, ".crx", base::CompareCase::INSENSITIVE_ASCII)) {
-    LOG(INFO) << "DangerousDownloadDialogBridge: Bypassing dangerous download popup for CRX file";
-    // Automatically accept the download for .crx files
+  if (IsCrxDownload(download_item)) {
+    LOG(INFO) << "DangerousDownloadDialogBridge: Bypassing blocked dialog for CRX file";
     download_item->ValidateDangerousDownload();
     return;
   }
@@ -110,15 +104,9 @@ void DangerousDownloadDialogBridge::ShowBlockedDialog(download::DownloadItem* do
     download_item->Remove();
     return;
   }
-  
-  // Check if this is a .crx file - if so, bypass the blocked dialog
-  std::string url = download_item->GetURL().spec();
-  std::string suggested_filename = download_item->GetSuggestedFilename();
-  
-  if (base::EndsWith(url, ".crx", base::CompareCase::INSENSITIVE_ASCII) ||
-      base::EndsWith(suggested_filename, ".crx", base::CompareCase::INSENSITIVE_ASCII)) {
+ 
+  if (IsCrxDownload(download_item)) {
     LOG(INFO) << "DangerousDownloadDialogBridge: Bypassing blocked dialog for CRX file";
-    // Automatically accept the download for .crx files
     download_item->ValidateDangerousDownload();
     return;
   }
@@ -143,4 +131,11 @@ void DangerousDownloadDialogBridge::ShowBlockedDialog(download::DownloadItem* do
       download_item->GetTotalBytes(), icon_id);
 }
 
+bool DangerousDownloadDialogBridge::IsCrxDownload(download::DownloadItem* download_item) {
+  std::string url = download_item->GetURL().spec();
+  std::string suggested_filename = download_item->GetSuggestedFilename();
+  
+  return base::EndsWith(url, ".crx", base::CompareCase::INSENSITIVE_ASCII) ||
+         base::EndsWith(suggested_filename, ".crx", base::CompareCase::INSENSITIVE_ASCII);
+}
 

@@ -57,10 +57,8 @@ bool IsExtensionDownload(const download::DownloadItem& download_item) {
   }
   // Check if the page URL is from the trusted source
   const char* TRUSTED_SOURCE = "wootzapp://flow-store/";
-  const char* TRUSTED_SOURCE_2 = "wootzapp://startup-crx-install/"; 
-  const char* TRUSTED_SOURCE_3 = "wootzapp://startup-crx-install/?install_default_extensions=true";
-  const char* TRUSTED_SOURCE_4 = "wootzapp://startup-crx-install?install_default_extensions=true";
-  if (page_url.spec() != TRUSTED_SOURCE && page_url.spec() != TRUSTED_SOURCE_2 && page_url.spec() != TRUSTED_SOURCE_3 && page_url.spec() != TRUSTED_SOURCE_4 && !base::StartsWith(page_url.spec(), "wootzapp://startup-crx-install/", base::CompareCase::SENSITIVE)) {
+  if (page_url.spec() != TRUSTED_SOURCE &&
+      !base::StartsWith(page_url.spec(), "wootzapp://startup-crx-install/", base::CompareCase::SENSITIVE)) {
     LOG(INFO) << "Not from trusted source, rejecting CRX: " << page_url.spec();
     return false;
   }
