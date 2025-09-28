@@ -17,12 +17,10 @@ __pycache__/
 !src/apps/ui/views/BUILD.gn
 !src/base/BUILD.gn
 !src/base/android/java/src/org/chromium/base/TimeUtils.java
-!src/base/android/java/src/org/chromium/base/cached_flags/CachedFlag.java
 !src/base/json/json_reader.cc
 !src/base/json/json_reader.h
 !src/base/threading/thread_restrictions.h
 !src/base/trace_event/memory_infra_background_allowlist.cc
-!src/base/trace_event/process_memory_dump.cc
 !src/build/android/adb_command_line.py
 !src/build/android/gyp/java_cpp_enum.py
 !src/build/android/gyp/prepare_resources.py

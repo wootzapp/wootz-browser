@@ -6803,8 +6803,8 @@ void ChromeContentBrowserClient::ConfigureNetworkContextParams(
     network::mojom::NetworkContextParams* network_context_params,
     cert_verifier::mojom::CertVerifierCreationParams*
         cert_verifier_creation_params) {
-  ProfileNetworkContextService* service = nullptr;
-      // ProfileNetworkContextServiceFactory::GetForContext(context);
+  ProfileNetworkContextService* service =
+      ProfileNetworkContextServiceFactory::GetForContext(context);
   if (service) {
     service->ConfigureNetworkContextParams(in_memory, relative_partition_path,
                                            network_context_params,
