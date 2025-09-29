@@ -110,8 +110,6 @@
 
         /* Update powered by section */
         .powered-by {
-            width: 40px;
-            height: auto;
             position: fixed;
             bottom: 20px;
             left: 50%;

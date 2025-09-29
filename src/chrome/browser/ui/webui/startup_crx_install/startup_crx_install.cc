@@ -458,7 +458,7 @@ void StartupCrxInstallMessageHandler::HandleDownloadExtension(const base::Value:
   extension_data.Set("icon_url", extension_icon_url);
   extension_data.Set("install_method", "programmatic"); // Flag to indicate programmatic install
   
-  web_ui_->CallJavascriptFunctionUnsafe("InstallExtensionProgrammatically", base::Value(std::move(extension_data)));
+  web_ui_->CallJavascriptFunctionUnsafe("InstallExtensionByUrl", base::Value(std::move(extension_data)));
   LOG(INFO) << "Programmatic extension installation initiated for: " << extension_name;
 }
 

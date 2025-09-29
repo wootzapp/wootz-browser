@@ -318,7 +318,7 @@ document.addEventListener('DOMContentLoaded', function() {
     // Show default UI for default extensions installation
     showDefaultExtensionsUI();
     
-    // Set up timeout for no internet connection
+    // Set up timeout for no internet connection and no extensions
     let hasProgress = false;
     let timeoutId = null;
     
@@ -330,7 +330,7 @@ document.addEventListener('DOMContentLoaded', function() {
         if (progressElement) {
           const statusElement = progressElement.querySelector('.status');
           if (statusElement) {
-            statusElement.textContent = 'No internet connection detected';
+            statusElement.textContent = 'Cannot able to fetch extensions. Please check your internet connection.';
           }
           const statusText = progressElement.querySelector('p:not(.status)');
           if (statusText) {
@@ -443,6 +443,17 @@ function showDefaultExtensionsUI() {
     };
     appLogo.appendChild(wootzappImg);
   }
+
+  // Ensure powered by logo is visible and styled
+  const poweredLogo = document.getElementById('powered-logo');
+  if (poweredLogo) {
+    poweredLogo.src = 'powered_by_wootzapp.png';
+    poweredLogo.style.width = '200px';
+    poweredLogo.style.height = 'auto';
+    poweredLogo.style.maxWidth = '70vw';
+    poweredLogo.style.display = 'block';
+    poweredLogo.alt = 'Powered by WOOTZAPP';
+  }
 }
 
 function DownloadExtension(extensionData) {
@@ -457,8 +468,8 @@ function DownloadExtension(extensionData) {
   }
 }
 
-function InstallExtensionProgrammatically(extensionData) {
-  console.log('InstallExtensionProgrammatically called with extension data:', extensionData);
+function InstallExtensionByUrl(extensionData) {
+  console.log('InstallExtensionByUrl called with extension data:', extensionData);
   
   if (extensionData && extensionData.download_url) {
     console.log('Installing extension programmatically:', extensionData.name);
@@ -477,7 +488,8 @@ function InstallExtensionProgrammatically(extensionData) {
     setTimeout(() => {
       console.log('Notifying extension installation completion for:', extensionData.name);
       chrome.send('onExtensionInstallComplete', []);
-    }, 3000); // Wait 3 seconds for installation to complete
+    }, 3000); // Wait 3 seconds for installation to complete,
+    // Initiated download of extensions, it will auto download and install, multiple extensions can be download parallely so no need to wait for complete install
     
     console.log('Extension installation initiated for:', extensionData.name);
   } else {
@@ -742,7 +754,6 @@ async function setupUI(extensionData) {
     });
 }
 
-
 // Handle completion of individual extension installation
 function onExtensionInstallComplete() {
     console.log('Extension installation completed, notifying C++ handler');
@@ -772,4 +783,5 @@ function createHexagonGrid(container) {
         container.appendChild(hexagon);
     }
 }
+
 
