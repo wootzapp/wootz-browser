@@ -86,6 +86,13 @@ void StartupCrxInstallMessageHandler::RegisterMessages() {
                          weak_factory_.GetWeakPtr()));
   LOG(INFO) << "Registered installDefaultExtensions handler";
   
+  // Add auto-update handler
+  web_ui_->RegisterMessageCallback(
+      "autoUpdateExtensions",
+      base::BindRepeating(&StartupCrxInstallMessageHandler::HandleAutoUpdateExtensions,
+                         weak_factory_.GetWeakPtr()));
+  LOG(INFO) << "Registered autoUpdateExtensions handler";
+  
   web_ui_->RegisterMessageCallback(
       "onExtensionInstallComplete",
       base::BindRepeating(&StartupCrxInstallMessageHandler::OnExtensionInstallComplete,
@@ -105,7 +112,28 @@ void StartupCrxInstallMessageHandler::RegisterMessages() {
 void StartupCrxInstallMessageHandler::HandleInstallDefaultExtensions(const base::Value::List& args) {
   LOG(INFO) << "HandleInstallDefaultExtensions called";
   if (is_destroyed_) return;
-  FetchExtensionsDataForDefaultInstall();
+  
+  if (fetched_extensions_list_.empty()) {
+    LOG(INFO) << "No fetched extensions data, fetching first";
+    FetchExtensionsDataForDefaultInstall();
+  } else {
+    LOG(INFO) << "Using cached fetched_extensions_list_ for default install";
+    ProcessDefaultExtensionsFromList();
+  }
+}
+
+// Handles the message for auto-updating extensions.
+void StartupCrxInstallMessageHandler::HandleAutoUpdateExtensions(const base::Value::List& args) {
+  LOG(INFO) << "HandleAutoUpdateExtensions called";
+  if (is_destroyed_) return;
+  
+  if (fetched_extensions_list_.empty()) {
+    LOG(INFO) << "No fetched extensions data, fetching first";
+    FetchExtensionsDataForAutoUpdate();
+  } else {
+    LOG(INFO) << "Using cached fetched_extensions_list_ for auto-update";
+    ProcessAutoUpdateFromLists();
+  }
 }
 
 // Fetches extensions.json and filters for default_extension = true
@@ -143,6 +171,41 @@ void StartupCrxInstallMessageHandler::FetchExtensionsDataForDefaultInstall() {
       1024 * 1024 /* 1MB max */);
 }
 
+// Fetches extensions.json for auto-update and compares with installed extensions
+void StartupCrxInstallMessageHandler::FetchExtensionsDataForAutoUpdate() {
+  LOG(INFO) << "Fetching extensions.json for auto-update";
+
+  auto resource_request = std::make_unique<network::ResourceRequest>();
+
+  std::string fetch_url = std::string(extension_store::kExtensionStoreBaseUrl);
+
+  resource_request->url = GURL(fetch_url);
+  resource_request->method = "GET";
+
+  net::NetworkTrafficAnnotationTag traffic_annotation =
+      net::DefineNetworkTrafficAnnotation("startup_crx_install_auto_update", R"(
+        semantics {
+          sender: "Startup CRX Install"
+          description: "Fetches extensions data for auto-update."
+          trigger: "Auto-update extension check."
+          data: "No user data sent."
+          destination: WEBSITE
+        }
+        policy {
+          cookies_allowed: NO
+          setting: "This feature cannot be disabled."
+          policy_exception_justification: "Not implemented."
+        })");
+  Profile* profile = Profile::FromWebUI(web_ui_);
+  auto* storage_partition = profile->GetDefaultStoragePartition();
+  extensions_loader_ = network::SimpleURLLoader::Create(std::move(resource_request), traffic_annotation);
+  extensions_loader_->DownloadToString(
+      storage_partition->GetURLLoaderFactoryForBrowserProcess().get(),
+      base::BindOnce(&StartupCrxInstallMessageHandler::OnAutoUpdateExtensionsDataFetched,
+                     weak_factory_.GetWeakPtr()),
+      1024 * 1024 /* 1MB max */);
+}
+
 // Callback for when default extensions data is fetched
 void StartupCrxInstallMessageHandler::OnDefaultExtensionsDataFetched(std::optional<std::string> response_body) {
   LOG(INFO) << "OnDefaultExtensionsDataFetched called";
@@ -164,46 +227,121 @@ void StartupCrxInstallMessageHandler::OnDefaultExtensionsDataFetched(std::option
   }
   LOG(INFO) << "Total extensions in JSON: " << ext_list->size();
   
-  // Collect all default extensions first
-  default_extensions_queue_.clear();
+  // Populate fetched_extensions_list_ with all extensions
+  fetched_extensions_list_.clear();
   for (const auto& ext_val : *ext_list) {
-    if (!ext_val.is_dict()) continue;
-    const base::Value::Dict& ext_dict = ext_val.GetDict();
-    
-    // Log each extension's default_extension status
-    bool is_default = ext_dict.FindBool("default_extension").value_or(false);
-    const std::string* name_ptr = ext_dict.FindString("name");
-    std::string name = name_ptr ? *name_ptr : "Unknown";
-    LOG(INFO) << "Extension: " << name << ", default_extension: " << (is_default ? "true" : "false");
-    
-    if (is_default) {
-      const std::string* id_ptr = ext_dict.FindString("id");
-      const std::string* download_url_ptr = ext_dict.FindString("download_url");
-      const std::string* name_ptr = ext_dict.FindString("name");
-      const std::string* description_ptr = ext_dict.FindString("description");
-      const std::string* version_ptr = ext_dict.FindString("version");
-      const std::string* icon_url_ptr = ext_dict.FindString("icon_url");
-      
-      if (id_ptr && download_url_ptr && name_ptr) {
-        DefaultExtensionInfo ext_info;
-        ext_info.id = *id_ptr;
-        ext_info.download_url = *download_url_ptr;
-        ext_info.name = *name_ptr;
-        ext_info.description = description_ptr ? *description_ptr : "";
-        ext_info.version = version_ptr ? *version_ptr : "";
-        ext_info.icon_url = icon_url_ptr ? *icon_url_ptr : "";
-        
-        default_extensions_queue_.push_back(ext_info);
-        LOG(INFO) << "Added default extension to queue: " << ext_info.name << " (" << ext_info.id << ")";
-      }
+    if (ext_val.is_dict()) {
+      fetched_extensions_list_.Append(ext_val.Clone());
     }
   }
   
-  LOG(INFO) << "Found " << default_extensions_queue_.size() << " default extensions to install";
+  LOG(INFO) << "Populated fetched_extensions_list_ with " << fetched_extensions_list_.size() << " extensions";
   
-  // Start installing extensions serially
-  current_extension_index_ = 0;
-  InstallNextDefaultExtension();
+  // Now process default extensions from the list
+  ProcessDefaultExtensionsFromList();
+}
+
+// Callback for when auto-update extensions data is fetched
+void StartupCrxInstallMessageHandler::OnAutoUpdateExtensionsDataFetched(std::optional<std::string> response_body) {
+  LOG(INFO) << "OnAutoUpdateExtensionsDataFetched called";
+  extensions_loader_.reset();
+  if (!response_body || response_body->empty()) {
+    LOG(ERROR) << "Failed to fetch auto-update extensions data: no response body or empty response";
+    return;
+  }
+  
+  // First, get the list of installed extensions
+  Profile* profile = Profile::FromWebUI(web_ui_);
+  if (!profile) {
+    LOG(ERROR) << "Failed to get profile for auto-update";
+    return;
+  }
+  
+  extensions::ExtensionRegistry* registry = extensions::ExtensionRegistry::Get(profile);
+  if (!registry) {
+    LOG(ERROR) << "Failed to get extension registry for auto-update";
+    return;
+  }
+  
+  // Populate installed_extensions_list
+  installed_extensions_list.clear();
+  const extensions::ExtensionSet& installed_extensions = registry->enabled_extensions();
+  
+  for (const auto& extension : installed_extensions) {
+    base::Value::Dict extension_info;
+    extension_info.Set("id", extension->id());
+    extension_info.Set("name", extension->name());
+    extension_info.Set("version", extension->version().GetString());
+    extension_info.Set("description", extension->description());
+    
+    installed_extensions_list.Append(std::move(extension_info));
+    LOG(INFO) << "Installed extension: " << extension->id() << " version: " << extension->version().GetString();
+  }
+  
+  LOG(INFO) << "Populated installed_extensions_list with " << installed_extensions_list.size() << " extensions";
+  
+  // Parse and populate fetched_extensions_list_
+  auto json = base::JSONReader::Read(*response_body, base::JSON_REPLACE_INVALID_CHARACTERS);
+  if (!json || !json->is_dict()) {
+    LOG(ERROR) << "Invalid extensions.json format for auto-update";
+    return;
+  }
+  
+  const base::Value::Dict& root_dict = json->GetDict();
+  const base::Value::List* ext_list = root_dict.FindList("extensions");
+  if (!ext_list) {
+    LOG(ERROR) << "No 'extensions' array found in extensions JSON for auto-update";
+    return;
+  }
+  
+  fetched_extensions_list_.clear();
+  for (const auto& ext_val : *ext_list) {
+    if (ext_val.is_dict()) {
+      fetched_extensions_list_.Append(ext_val.Clone());
+    }
+  }
+  
+  LOG(INFO) << "Populated fetched_extensions_list_ with " << fetched_extensions_list_.size() << " extensions";
+  
+  // Now process auto-update from the lists
+  ProcessAutoUpdateFromLists();
+}
+
+
+// Compare version strings (returns true if version1 > version2)
+bool StartupCrxInstallMessageHandler::CompareVersions(const std::string& version1, const std::string& version2) {
+  // Simple version comparison - split by dots and compare numerically
+  std::vector<int> v1_parts, v2_parts;
+  
+  // Parse version1
+  std::string v1 = version1;
+  size_t pos = 0;
+  while ((pos = v1.find('.')) != std::string::npos) {
+    v1_parts.push_back(std::stoi(v1.substr(0, pos)));
+    v1.erase(0, pos + 1);
+  }
+  v1_parts.push_back(std::stoi(v1));
+  
+  // Parse version2
+  std::string v2 = version2;
+  pos = 0;
+  while ((pos = v2.find('.')) != std::string::npos) {
+    v2_parts.push_back(std::stoi(v2.substr(0, pos)));
+    v2.erase(0, pos + 1);
+  }
+  v2_parts.push_back(std::stoi(v2));
+  
+  // Compare parts
+  size_t max_parts = std::max(v1_parts.size(), v2_parts.size());
+  for (size_t i = 0; i < max_parts; ++i) {
+    int v1_part = (i < v1_parts.size()) ? v1_parts[i] : 0;
+    int v2_part = (i < v2_parts.size()) ? v2_parts[i] : 0;
+    
+    if (v1_part > v2_part) return true;
+    if (v1_part < v2_part) return false;
+  }
+  
+  return false; // versions are equal
 }
 
 // Installs the next default extension in the queue
@@ -258,6 +396,70 @@ void StartupCrxInstallMessageHandler::InstallNextDefaultExtension() {
       base::BindOnce(&StartupCrxInstallMessageHandler::InstallNextDefaultExtension,
                      weak_factory_.GetWeakPtr()),
       timer);
+}
+
+// Installs the next extension update in the queue
+void StartupCrxInstallMessageHandler::InstallNextExtensionUpdate() {
+  LOG(INFO) << "InstallNextExtensionUpdate called, index: " << current_update_index_ 
+            << ", queue size: " << update_extensions_queue_.size();
+  
+  if (is_destroyed_) {
+    LOG(INFO) << "Handler is destroyed, returning";
+    return;
+  }
+  
+  // Check if we've processed all updates
+  if (current_update_index_ >= update_extensions_queue_.size()) {
+    LOG(INFO) << "All extension updates have been processed";
+    SendUpdateCompleteToFrontend();
+    return;
+  }
+  
+  const ExtensionUpdateInfo& current_update = update_extensions_queue_[current_update_index_];
+  LOG(INFO) << "Updating extension " << (current_update_index_ + 1) 
+            << " of " << update_extensions_queue_.size() << ": " << current_update.name
+            << " from " << current_update.installed_version << " to " << current_update.version;
+  
+  // Send progress update to frontend
+  SendUpdateProgressToFrontend(current_update.name, 
+                              static_cast<int>(current_update_index_), 
+                              static_cast<int>(update_extensions_queue_.size()));
+  
+  // Install the current extension update
+  base::Value::List install_args;
+  install_args.Append(current_update.download_url);
+  install_args.Append(current_update.id);
+  install_args.Append(current_update.name);
+  install_args.Append(current_update.description);
+  install_args.Append(current_update.version);
+  install_args.Append(current_update.icon_url);
+  
+  this->HandleDownloadExtension(install_args);
+  
+  // Move to next update after a delay to allow current one to install
+  current_update_index_++;
+  auto timer = base::Seconds(5); // Fallback timer in case completion callback doesn't fire
+  base::SequencedTaskRunner::GetCurrentDefault()->PostDelayedTask(
+      FROM_HERE,
+      base::BindOnce(&StartupCrxInstallMessageHandler::InstallNextExtensionUpdate,
+                     weak_factory_.GetWeakPtr()),
+      timer);
+}
+
+// Send update progress to frontend
+void StartupCrxInstallMessageHandler::SendUpdateProgressToFrontend(const std::string& extension_name, int current, int total) {
+  base::Value::Dict progress;
+  progress.Set("currentIndex", current);
+  progress.Set("totalCount", total);
+  progress.Set("extensionName", extension_name);
+  progress.Set("state", "updating");
+  
+  web_ui_->CallJavascriptFunctionUnsafe("handleExtensionUpdateProgress", base::Value(std::move(progress)));
+}
+
+// Send update complete to frontend
+void StartupCrxInstallMessageHandler::SendUpdateCompleteToFrontend() {
+  web_ui_->CallJavascriptFunctionUnsafe("handleExtensionUpdatesComplete");
 }
 
 // Callback when an extension installation is complete
@@ -387,14 +589,13 @@ void StartupCrxInstallMessageHandler::HandleFetchInstalledExtensions(const base:
     return;
   }
   
-  // Create a list to hold installed extension info
-  base::Value::List installed_extensions_list;
-  
+  installed_extensions_list.clear();
+
   // Get the enabled (installed) extensions
   const extensions::ExtensionSet& installed_extensions = registry->enabled_extensions();
   
   // Iterate through installed extensions and add their info to the list
-  LOG(INFO) << "Iterating through installed extensions";
+  LOG(INFO) << "Iterating through installed extensions: ";
   for (const auto& extension : installed_extensions) {
     base::Value::Dict extension_info;
     
@@ -402,9 +603,14 @@ void StartupCrxInstallMessageHandler::HandleFetchInstalledExtensions(const base:
     extension_info.Set("name", extension->name());
     extension_info.Set("version", extension->version().GetString());
     extension_info.Set("description", extension->description());
+
+    LOG(INFO) << "Found installed extension: " << extension->name() 
+              << " (" << extension->id() << ") version: " << extension->version().GetString();
     
     installed_extensions_list.Append(std::move(extension_info));
   }
+
+  LOG(INFO) << "Collected " << installed_extensions_list.size() << " installed extensions";
   
   // Send the installed extensions info to the frontend
   LOG(INFO) << "Sending installed extensions info to frontend";
@@ -414,7 +620,7 @@ void StartupCrxInstallMessageHandler::HandleFetchInstalledExtensions(const base:
 }
 
 void StartupCrxInstallMessageHandler::HandleDownloadExtension(const base::Value::List& args) {
-  LOG(INFO) << "Handling downloadArtifactExtension";
+  LOG(INFO) << "Handling downloadExtension with " << args.size() << " arguments";
   if (is_destroyed_) {
     return;
   }
@@ -456,7 +662,6 @@ void StartupCrxInstallMessageHandler::HandleDownloadExtension(const base::Value:
   extension_data.Set("description", extension_description);
   extension_data.Set("version", extension_version);
   extension_data.Set("icon_url", extension_icon_url);
-  extension_data.Set("install_method", "programmatic"); // Flag to indicate programmatic install
   
   web_ui_->CallJavascriptFunctionUnsafe("InstallExtensionByUrl", base::Value(std::move(extension_data)));
   LOG(INFO) << "Programmatic extension installation initiated for: " << extension_name;
@@ -641,9 +846,9 @@ void StartupCrxInstallMessageHandler::ParseAndLogExtensionData(
   LOG(INFO) << "ParseAndLogExtensionData called with UTM source: " << utm_source;
   
   // Check if this is a default extension installation (no UTM source needed)
-  bool is_default_install = utm_source.empty();
-  if (is_default_install) {
-    LOG(INFO) << "UTM source is empty, this is a default extension installation";
+  bool is_normal_install = utm_source.empty();
+  if (is_normal_install) {
+    LOG(INFO) << "UTM source is empty, this is a normal extension installation";
   }
   
   auto parsed_json = base::JSONReader::Read(json_data);
@@ -671,9 +876,8 @@ void StartupCrxInstallMessageHandler::ParseAndLogExtensionData(
   
   LOG(INFO) << "Found " << extensions_list->size() << " extensions in data";
   
-  // For default extension installation, collect all default extensions first
-  std::vector<DefaultExtensionInfo> default_extensions;
-  
+  fetched_extensions_list_.clear();
+
   // Iterate through each extension object
   for (const auto& item : *extensions_list) {
     if (!item.is_dict()) {
@@ -683,34 +887,32 @@ void StartupCrxInstallMessageHandler::ParseAndLogExtensionData(
     
     const base::Value::Dict& extension_dict = item.GetDict();
     
-    // For default extension installation, look for extensions with default_extension = true
-    if (is_default_install) {
-      bool is_default = extension_dict.FindBool("default_extension").value_or(false);
-      if (!is_default) {
-        continue; // Skip non-default extensions
-      }
-      
-      LOG(INFO) << "Found default extension, collecting...";
-      
-      // Extract the required fields for default extension
+    if (is_normal_install) {
+      LOG(INFO) << "Found normal extension, collecting...";
+
+      // Extract the required fields for normal extension
       const std::string* icon_url = extension_dict.FindString("icon_url");
       const std::string* download_url = extension_dict.FindString("download_url");
       const std::string* id = extension_dict.FindString("id");
       const std::string* description = extension_dict.FindString("description");
       const std::string* version = extension_dict.FindString("version");
       const std::string* name = extension_dict.FindString("name");
-      
+      bool default_extension = extension_dict.FindBool("default_extension").value_or(false);
+
       if (id && download_url && name) {
-        DefaultExtensionInfo ext_info;
-        ext_info.id = *id;
-        ext_info.download_url = *download_url;
-        ext_info.name = *name;
-        ext_info.description = description ? *description : "";
-        ext_info.version = version ? *version : "";
-        ext_info.icon_url = icon_url ? *icon_url : "";
-        
-        default_extensions.push_back(ext_info);
-        LOG(INFO) << "Added default extension to collection: " << ext_info.name << " (" << ext_info.id << ")";
+        // Store all extension details in fetched_extensions_list_
+        base::Value::Dict ext_info;
+        ext_info.Set("id", *id);
+        ext_info.Set("name", *name);
+        ext_info.Set("download_url", *download_url);
+        ext_info.Set("description", description ? *description : "");
+        ext_info.Set("version", version ? *version : "");
+        ext_info.Set("icon_url", icon_url ? *icon_url : "");
+        ext_info.Set("default_extension", default_extension);
+
+        fetched_extensions_list_.Append(std::move(ext_info));
+
+        LOG(INFO) << "Added extension to fetched_extensions_list_: " << *name << " (" << *id << ")";
       }
     } else {
       // For UTM-based installation, match by campaign
@@ -766,21 +968,8 @@ void StartupCrxInstallMessageHandler::ParseAndLogExtensionData(
                      description ? *description : "",
                      version ? *version : "");
       
-      // For UTM-based installation, break after finding the first match
       break; // Found the matching extension, no need to continue
     }
-  }
-  
-  // For default extension installation, process all collected extensions
-  if (is_default_install && !default_extensions.empty()) {
-    LOG(INFO) << "Processing " << default_extensions.size() << " default extensions";
-    
-    // Update the queue with all collected default extensions
-    default_extensions_queue_ = std::move(default_extensions);
-    current_extension_index_ = 0;
-    
-    // Start installing extensions serially
-    InstallNextDefaultExtension();
   }
   
   LOG(INFO) << "Finished parsing extension data";
@@ -921,6 +1110,147 @@ void StartupCrxInstallMessageHandler::SendExtensionDataToFrontend(
   
   LOG(INFO) << "Sent extension data to frontend for: " << name << " with icon base64 length: " 
             << icon_base64.length();
+}
+
+// Process default extensions from cached fetched_extensions_list_
+void StartupCrxInstallMessageHandler::ProcessDefaultExtensionsFromList() {
+  LOG(INFO) << "ProcessDefaultExtensionsFromList called";
+  
+  if (fetched_extensions_list_.empty()) {
+    LOG(ERROR) << "No fetched extensions data available";
+    return;
+  }
+  
+  // Clear and populate default extensions queue
+  default_extensions_queue_.clear();
+  
+  for (const auto& ext_val : fetched_extensions_list_) {
+    if (!ext_val.is_dict()) continue;
+    
+    const base::Value::Dict& ext_dict = ext_val.GetDict();
+    bool is_default = ext_dict.FindBool("default_extension").value_or(false);
+    
+    if (is_default) {
+      const std::string* id_ptr = ext_dict.FindString("id");
+      const std::string* download_url_ptr = ext_dict.FindString("download_url");
+      const std::string* name_ptr = ext_dict.FindString("name");
+      const std::string* description_ptr = ext_dict.FindString("description");
+      const std::string* version_ptr = ext_dict.FindString("version");
+      const std::string* icon_url_ptr = ext_dict.FindString("icon_url");
+      
+      if (id_ptr && download_url_ptr && name_ptr) {
+        DefaultExtensionInfo ext_info;
+        ext_info.id = *id_ptr;
+        ext_info.download_url = *download_url_ptr;
+        ext_info.name = *name_ptr;
+        ext_info.description = description_ptr ? *description_ptr : "";
+        ext_info.version = version_ptr ? *version_ptr : "";
+        ext_info.icon_url = icon_url_ptr ? *icon_url_ptr : "";
+        
+        default_extensions_queue_.push_back(ext_info);
+        LOG(INFO) << "Added default extension: " << ext_info.name << " (" << ext_info.id << ")";
+      }
+    }
+  }
+  
+  LOG(INFO) << "Found " << default_extensions_queue_.size() << " default extensions to install";
+  
+  // Start installing extensions serially
+  current_extension_index_ = 0;
+  InstallNextDefaultExtension();
+}
+
+// Process auto-update from cached lists
+void StartupCrxInstallMessageHandler::ProcessAutoUpdateFromLists() {
+  LOG(INFO) << "ProcessAutoUpdateFromLists called";
+  
+  if (fetched_extensions_list_.empty()) {
+    LOG(ERROR) << "No fetched extensions data available";
+    return;
+  }
+  
+  if (installed_extensions_list.empty()) {
+    LOG(ERROR) << "No installed extensions data available";
+    return;
+  }
+  
+  // Clear update queue
+  update_extensions_queue_.clear();
+  
+  // Create a map of installed extensions for quick lookup
+  std::map<std::string, std::string> installed_map;
+  for (const auto& installed_val : installed_extensions_list) {
+    if (installed_val.is_dict()) {
+      const base::Value::Dict& installed_dict = installed_val.GetDict();
+      const std::string* id_ptr = installed_dict.FindString("id");
+      const std::string* version_ptr = installed_dict.FindString("version");
+      if (id_ptr && version_ptr) {
+        installed_map[*id_ptr] = *version_ptr;
+        LOG(INFO) << "Installed extension: " << *id_ptr << " version: " << *version_ptr;
+      }
+    }
+  }
+  
+  LOG(INFO) << "Found " << installed_map.size() << " installed extensions";
+  
+  // Iterate through fetched extensions and compare versions
+  for (const auto& fetched_val : fetched_extensions_list_) {
+    if (!fetched_val.is_dict()) continue;
+    
+    const base::Value::Dict& fetched_dict = fetched_val.GetDict();
+    const std::string* id_ptr = fetched_dict.FindString("id");
+    const std::string* version_ptr = fetched_dict.FindString("version");
+    const std::string* download_url_ptr = fetched_dict.FindString("download_url");
+    const std::string* name_ptr = fetched_dict.FindString("name");
+    const std::string* description_ptr = fetched_dict.FindString("description");
+    const std::string* icon_url_ptr = fetched_dict.FindString("icon_url");
+    
+    if (!id_ptr || !version_ptr || !download_url_ptr || !name_ptr) {
+      continue;
+    }
+    
+    std::string extension_id = *id_ptr;
+    std::string latest_version = *version_ptr;
+    
+    // Check if this extension is installed
+    auto installed_it = installed_map.find(extension_id);
+    if (installed_it != installed_map.end()) {
+      std::string installed_version = installed_it->second;
+      
+      LOG(INFO) << "Checking extension " << extension_id << " - installed: " << installed_version 
+                << ", latest: " << latest_version;
+      
+      // Compare versions
+      if (CompareVersions(latest_version, installed_version)) {
+        LOG(INFO) << "Extension " << extension_id << " needs update from " << installed_version 
+                  << " to " << latest_version;
+        
+        ExtensionUpdateInfo update_info;
+        update_info.id = extension_id;
+        update_info.download_url = *download_url_ptr;
+        update_info.name = *name_ptr;
+        update_info.description = description_ptr ? *description_ptr : "";
+        update_info.version = latest_version;
+        update_info.icon_url = icon_url_ptr ? *icon_url_ptr : "";
+        update_info.installed_version = installed_version;
+        update_info.needs_update = true;
+        
+        update_extensions_queue_.push_back(update_info);
+      }
+    }
+  }
+  
+  LOG(INFO) << "Found " << update_extensions_queue_.size() << " extensions that need updates";
+  
+  if (update_extensions_queue_.empty()) {
+    LOG(INFO) << "No extensions need updates";
+    SendUpdateCompleteToFrontend();
+    return;
+  }
+  
+  // Start updating extensions serially
+  current_update_index_ = 0;
+  InstallNextExtensionUpdate();
 }
 
 // StartupCrxInstallUI implementation

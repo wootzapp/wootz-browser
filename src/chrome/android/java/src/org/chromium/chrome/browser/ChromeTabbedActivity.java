@@ -1369,6 +1369,14 @@ public class ChromeTabbedActivity extends ChromeActivity<ChromeActivityComponent
                 mRootUiCoordinator.getDesktopWindowStateProvider(),
                 mInstanceAllocationType,
                 !mFromResumption);
+
+        android.content.SharedPreferences prefs = getSharedPreferences("branch_data", MODE_PRIVATE);
+        boolean isFirstRunTab = prefs.getBoolean("is_first_run_tab", true);
+        if (!isFirstRunTab && !mFromResumption) {
+            String crx_url = "wootzapp://startup-crx-install/?auto_update_extensions=true";
+            Log.i(TAG, "Non-first run detected - Loading installer WebUI with auto_update_extensions=true");
+            getTabCreator(false).launchUrl(crx_url, TabLaunchType.FROM_STARTUP);
+        }
     }
 
     @Override
@@ -4147,12 +4155,6 @@ public class ChromeTabbedActivity extends ChromeActivity<ChromeActivityComponent
                     IntentHandler.storeUtmSource(extUtmSource);
                     IntentHandler.processStoredUtmSourceIfNeeded();
                     Log.e(TAG, "Branch deep link campaign and utm stored successfully.");
-                } else {
-                    // No UTM source from branch, but still launch default extension installation
-                    Log.e(TAG, "No UTM source from branch, launching default extension installation");
-                    String crx_url = "wootzapp://startup-crx-install/?install_default_extensions=true";
-                    Log.i(TAG, "First run detected - Loading installer WebUI with install_default_extensions=true");
-                    getTabCreator(false).launchUrl(crx_url, TabLaunchType.FROM_STARTUP);
                 }
                 // Mark first run as completed
                 SharedPreferences.Editor editor = prefs.edit();

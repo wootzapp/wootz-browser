@@ -5,6 +5,7 @@
 #include <optional>
 #include <string>
 #include <vector>
+#include <map>
 
 #include "base/memory/raw_ptr.h"
 #include "base/memory/weak_ptr.h"
@@ -49,11 +50,14 @@ class StartupCrxInstallMessageHandler : public content::WebUIMessageHandler {
   // Handles the message for installing default extensions.
   void HandleInstallDefaultExtensions(const base::Value::List& args);
 
-  // Checks if this is a first run and should install default extensions
-  void CheckForDefaultExtensionInstall();
+  // Handles the message for auto-updating extensions.
+  void HandleAutoUpdateExtensions(const base::Value::List& args);
 
   // Fetches extensions.json and filters for default_extension = true
   void FetchExtensionsDataForDefaultInstall();
+
+  // Fetches extensions.json for auto-update and compares with installed extensions
+  void FetchExtensionsDataForAutoUpdate();
 
   // Structure to hold default extension information
   struct DefaultExtensionInfo {
@@ -65,8 +69,23 @@ class StartupCrxInstallMessageHandler : public content::WebUIMessageHandler {
     std::string icon_url;
   };
 
+  // Structure to hold extension update information
+  struct ExtensionUpdateInfo {
+    std::string id;
+    std::string download_url;
+    std::string name;
+    std::string description;
+    std::string version;
+    std::string icon_url;
+    std::string installed_version;
+    bool needs_update = false;
+  };
+
   // Installs the next default extension in the queue
   void InstallNextDefaultExtension();
+
+  // Installs the next extension update in the queue
+  void InstallNextExtensionUpdate();
 
   // Callback when an extension installation is complete
   void OnExtensionInstallComplete(const base::Value::List& args);
@@ -74,12 +93,24 @@ class StartupCrxInstallMessageHandler : public content::WebUIMessageHandler {
   // Callback for when default extensions data is fetched
   void OnDefaultExtensionsDataFetched(std::optional<std::string> response_body);
 
+  // Callback for when auto-update extensions data is fetched
+  void OnAutoUpdateExtensionsDataFetched(std::optional<std::string> response_body);
+
   // Fetches extensions data from GitHub API
   void FetchExtensionsData();
   void OnExtensionsDataFetched(std::optional<std::string> response_body);
   void HandleExtensionsDataFetchError(const std::string& error_message);
   void ProvideFallbackExtensionData(const std::string& utm_source);
   void ParseAndLogExtensionData(const std::string& json_data, const std::string& utm_source);
+  
+  // Auto-update specific methods
+  bool CompareVersions(const std::string& version1, const std::string& version2);
+  void SendUpdateProgressToFrontend(const std::string& extension_name, int current, int total);
+  void SendUpdateCompleteToFrontend();
+  
+  // Process extensions from cached lists
+  void ProcessDefaultExtensionsFromList();
+  void ProcessAutoUpdateFromLists();
   
   // Fetches icon image and converts to base64 data URL
   void FetchIconImage(const std::string& name,
@@ -111,8 +142,21 @@ class StartupCrxInstallMessageHandler : public content::WebUIMessageHandler {
   // Queue of default extensions to install
   std::vector<DefaultExtensionInfo> default_extensions_queue_;
   
+  // Queue of extensions to update
+  std::vector<ExtensionUpdateInfo> update_extensions_queue_;
+  
+  // Map of installed extensions (id -> version)
+  std::map<std::string, std::string> installed_extensions_;
+
+  base::Value::List installed_extensions_list;
+
+  base::Value::List fetched_extensions_list_;
+  
   // Current extension index being installed
   size_t current_extension_index_ = 0;
+  
+  // Current update index being processed
+  size_t current_update_index_ = 0;
   
   base::WeakPtrFactory<StartupCrxInstallMessageHandler> weak_factory_;
 };

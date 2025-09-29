@@ -576,6 +576,18 @@
             border: 1px solid rgba(255, 69, 0, 0.1);
         }
 
+        /* Extension Update Progress Styles */
+        #extension-update-progress {
+            width: 100%;
+            max-width: 400px;
+            margin: 2rem auto 0;
+            padding: 20px;
+            background: rgba(255, 255, 255, 0.9);
+            border-radius: 12px;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+            border: 1px solid rgba(0, 123, 255, 0.1);
+        }
+
         .progress-container {
             width: 100%;
         }
