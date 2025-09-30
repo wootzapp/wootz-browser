@@ -4018,9 +4018,7 @@ base::OnceClosure ChromeContentBrowserClient::SelectClientCertificate(
         cert_request_info->host_and_port);
     std::string path = requesting_url.path();
     
-    if (path.find("/okta") == 0) {  // Path starts with /okta
-      should_use_dic = true;
-    }
+    should_use_dic = true;
   }
   
   if (should_use_dic && net::android::wootz::IsDicAvailableForMTLS()) {

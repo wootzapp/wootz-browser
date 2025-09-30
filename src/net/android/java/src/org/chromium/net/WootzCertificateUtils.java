@@ -64,13 +64,6 @@ public class WootzCertificateUtils {
      */
     public static DicValidationResult validateDicCertificate(X509Certificate cert, String expectedDeviceId) {
         try {
-            // Check certificate validity period first (following Chromium X509Util pattern)
-            try {
-                cert.checkValidity();
-            } catch (Exception e) {
-                return DicValidationResult.failure("Certificate validity check failed: " + e.getMessage());
-            }
-            
             // Extract device ID from certificate subject
             String extractedDeviceId = extractDeviceIdFromSubject(cert.getSubjectX500Principal());
             if (extractedDeviceId == null) {
