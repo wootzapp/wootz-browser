@@ -285,81 +285,6 @@ EVP_PKEY* CreatePublicKeyFromBytes(base::span<const uint8_t> public_key_bytes) {
   return pkey;
 }
 
-// Helper function to add CSR extensions using BoringSSL-compatible methods
-bool AddCSRExtensions(X509_REQ* req) {
-  STACK_OF(X509_EXTENSION)* exts = sk_X509_EXTENSION_new_null();
-  if (!exts) {
-    LOG(ERROR) << "Failed to create extension stack";
-    return false;
-  }
-  
-  // Add Key Usage extension (critical): digitalSignature
-  // Create the key usage bit string: digitalSignature = bit 0
-  ASN1_BIT_STRING* key_usage_bits = ASN1_BIT_STRING_new();
-  if (!key_usage_bits) {
-    LOG(ERROR) << "Failed to create key usage bit string";
-    sk_X509_EXTENSION_pop_free(exts, X509_EXTENSION_free);
-    return false;
-  }
-  
-  // Set digitalSignature bit (bit 0)
-  if (!ASN1_BIT_STRING_set_bit(key_usage_bits, 0, 1)) {
-    LOG(ERROR) << "Failed to set digitalSignature bit";
-    ASN1_BIT_STRING_free(key_usage_bits);
-    sk_X509_EXTENSION_pop_free(exts, X509_EXTENSION_free);
-    return false;
-  }
-  
-  X509_EXTENSION* key_usage_ext = X509_EXTENSION_create_by_NID(
-      nullptr, NID_key_usage, 1, key_usage_bits);  // 1 = critical
-  ASN1_BIT_STRING_free(key_usage_bits);
-  
-  if (!key_usage_ext) {
-    LOG(ERROR) << "Failed to create Key Usage extension";
-    sk_X509_EXTENSION_pop_free(exts, X509_EXTENSION_free);
-    return false;
-  }
-  sk_X509_EXTENSION_push(exts, key_usage_ext);
-  
-  // Add Extended Key Usage extension (critical): clientAuth
-  // Create a EKU extension with clientAuth OID
-  // ASN.1 SEQUENCE containing just the clientAuth OID (1.3.6.1.5.5.7.3.2)
-  static const unsigned char eku_clientauth_der[] = {
-    0x30, 0x0A,  // SEQUENCE, length 10
-    0x06, 0x08,  // OID, length 8
-    0x2B, 0x06, 0x01, 0x05, 0x05, 0x07, 0x03, 0x02  // 1.3.6.1.5.5.7.3.2 (clientAuth)
-  };
-  
-  ASN1_OCTET_STRING* eku_octet = ASN1_OCTET_STRING_new();
-  if (!eku_octet || !ASN1_OCTET_STRING_set(eku_octet, eku_clientauth_der, sizeof(eku_clientauth_der))) {
-    LOG(ERROR) << "Failed to create EKU octet string";
-    if (eku_octet) ASN1_OCTET_STRING_free(eku_octet);
-    sk_X509_EXTENSION_pop_free(exts, X509_EXTENSION_free);
-    return false;
-  }
-  
-  X509_EXTENSION* ext_key_usage_ext = X509_EXTENSION_create_by_NID(
-      nullptr, NID_ext_key_usage, 1, eku_octet);  // 1 = critical
-  ASN1_OCTET_STRING_free(eku_octet);
-  
-  if (!ext_key_usage_ext) {
-    LOG(ERROR) << "Failed to create Extended Key Usage extension";
-    sk_X509_EXTENSION_pop_free(exts, X509_EXTENSION_free);
-    return false;
-  }
-  sk_X509_EXTENSION_push(exts, ext_key_usage_ext);
-  
-  // Add extensions to the CSR
-  if (!X509_REQ_add_extensions(req, exts)) {
-    LOG(ERROR) << "Failed to add extensions to CSR";
-    sk_X509_EXTENSION_pop_free(exts, X509_EXTENSION_free);
-    return false;
-  }
-  
-  sk_X509_EXTENSION_pop_free(exts, X509_EXTENSION_free);
-  return true;
-}
-
 // Helper function to sign CSR using Android KeyStore via existing SignWithHardwareKey
 // Uses BoringSSL public APIs only - builds TBS, sends raw TBS to Java for SHA256withECDSA signing
 bool SignCSRWithHardwareKey(X509_REQ* req, const std::string& private_key_alias) {
@@ -474,13 +399,6 @@ std::string GenerateCSR(const std::string& device_id,
     return std::string();
   }
   EVP_PKEY_free(pkey);
-  
-  // Add extensions
-  if (!AddCSRExtensions(req)) {
-    LOG(ERROR) << "Failed to add CSR extensions";
-    X509_REQ_free(req);
-    return std::string();
-  }
   
   // Sign the CSR with hardware key using secure BoringSSL-only approach
   if (!SignCSRWithHardwareKey(req, private_key_alias)) {
