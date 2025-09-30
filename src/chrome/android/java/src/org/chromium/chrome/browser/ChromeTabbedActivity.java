@@ -1369,14 +1369,6 @@ public class ChromeTabbedActivity extends ChromeActivity<ChromeActivityComponent
                 mRootUiCoordinator.getDesktopWindowStateProvider(),
                 mInstanceAllocationType,
                 !mFromResumption);
-
-        android.content.SharedPreferences prefs = getSharedPreferences("branch_data", MODE_PRIVATE);
-        boolean isFirstRunTab = prefs.getBoolean("is_first_run_tab", true);
-        if (!isFirstRunTab && !mFromResumption) {
-            String crx_url = "wootzapp://startup-crx-install/?auto_update_extensions=true";
-            Log.i(TAG, "Non-first run detected - Loading installer WebUI with auto_update_extensions=true");
-            getTabCreator(false).launchUrl(crx_url, TabLaunchType.FROM_STARTUP);
-        }
     }
 
     @Override
