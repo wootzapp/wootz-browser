@@ -29,9 +29,9 @@ import java.nio.charset.StandardCharsets;
 @JNINamespace("net::android")
 public class WootzDeviceEnrollment {
     private static final String TAG = "WootzDeviceEnrollment";
-    private static final String NONCE_URL = "PROD_NONCE_URL";
-    private static final String ENROLLMENT_URL = "PROD_ENROLLMENT_URL";
-    private static final String BEARER_TOKEN = "PROD_BEARER_TOKEN";
+    private static final String NONCE_URL = "NONCE_URL"; // fetch from config    
+    private static final String ENROLLMENT_URL = "ENROLLMENT_URL"; // fetch from config
+    private static final String BEARER_TOKEN = "API_TOKEN"; // fetch from secure storage
 
     /**
      * Starts the device enrollment process by requesting a nonce from the server.
@@ -70,6 +70,10 @@ public class WootzDeviceEnrollment {
      * @return The response body as a string, or null if the request failed
      */
     private static String requestNonce() throws IOException {
+        if (NONCE_URL == null || ENROLLMENT_URL == null || BEARER_TOKEN == null) {
+            Log.e(TAG, "WOOTZ_API_NONCE_URL, WOOTZ_API_ENROLLMENT_URL, or WOOTZ_API_TOKEN is not set");
+            return null;
+        }
         URL url = new URL(NONCE_URL);
         
         // Create traffic annotation for privacy auditing
@@ -105,7 +109,7 @@ public class WootzDeviceEnrollment {
             
             if (responseCode != HttpURLConnection.HTTP_OK) {
                 Log.e(TAG, "Nonce request failed: " + responseCode);
-                return null;
+                return "{nonce: null}";
             }
 
             // Read the response
@@ -253,9 +257,6 @@ public class WootzDeviceEnrollment {
             String requestBody = WootzEnrollmentUtils.createCSREnrollmentRequestJson(
                 csr, nonce, attestationChain);
             
-            // Log basic enrollment info without exposing sensitive data
-            Log.e(TAG, "Sending CSR enrollment request to API");
-
             // Send the request body
             try (OutputStream os = connection.getOutputStream()) {
                 byte[] input = requestBody.getBytes(StandardCharsets.UTF_8);
@@ -301,7 +302,10 @@ public class WootzDeviceEnrollment {
             Log.e(TAG, "Enrollment response received successfully");
             
             // Extract the certificate from the simplified JSON response
-            String certificate = WootzEnrollmentUtils.extractJsonValue(response, "certificate");
+            String certificate = WootzEnrollmentUtils.extractJsonValue(
+                WootzEnrollmentUtils.extractJsonValue(response, "certificate"),
+                "certificatePem"
+            );
             
             if (certificate == null || certificate.isEmpty()) {
                 Log.e(TAG, "Missing certificate in enrollment response");
