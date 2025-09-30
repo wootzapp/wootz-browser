@@ -4006,9 +4006,22 @@ base::OnceClosure ChromeContentBrowserClient::SelectClientCertificate(
 #endif  // BUILDFLAG(IS_CHROMEOS_ASH)
 
 #if BUILDFLAG(IS_ANDROID)
-  // WOOTZ mTLS INTEGRATION: Check for DIC auto-selection
-  if (net::android::wootz::IsDicAvailableForMTLS()) {
-    LOG(INFO) << "Auto-selecting Wootz DIC for mTLS authentication";
+  // WOOTZ mTLS INTEGRATION: Check for DIC auto-selection for specific URLs only
+  // Only use DIC for eb.wootzapp.com/okta paths
+  bool should_use_dic = false;
+  std::string host = cert_request_info->host_and_port.host();
+  
+  // Check if this is eb.wootzapp.com with /okta path
+  if (host == "eb.wootzapp.com") {
+    // Get the requesting URL to check the path
+    GURL requesting_url = chrome::enterprise_util::GetRequestingUrl(
+        cert_request_info->host_and_port);
+    std::string path = requesting_url.path();
+    
+    should_use_dic = true;
+  }
+  
+  if (should_use_dic && net::android::wootz::IsDicAvailableForMTLS()) {
     
     // Get DIC certificate in DER format
     std::vector<uint8_t> dic_cert_der = net::android::wootz::GetMTLSClientCertificate();
@@ -4029,13 +4042,8 @@ base::OnceClosure ChromeContentBrowserClient::SelectClientCertificate(
                 &content::ClientCertificateDelegate::ContinueWithCertificate,
                 std::move(delegate), dic_certificate));
         
-        LOG(INFO) << "Successfully auto-selected Wootz DIC for mTLS";
         return base::OnceClosure();  // No UI to cancel
-      } else {
-        LOG(ERROR) << "Failed to parse Wootz DIC certificate";
       }
-    } else {
-      LOG(ERROR) << "Wootz DIC certificate not available";
     }
   }
 #endif  // BUILDFLAG(IS_ANDROID)
@@ -6793,8 +6801,8 @@ void ChromeContentBrowserClient::ConfigureNetworkContextParams(
     network::mojom::NetworkContextParams* network_context_params,
     cert_verifier::mojom::CertVerifierCreationParams*
         cert_verifier_creation_params) {
-  ProfileNetworkContextService* service = nullptr;
-      // ProfileNetworkContextServiceFactory::GetForContext(context);
+  ProfileNetworkContextService* service =
+      ProfileNetworkContextServiceFactory::GetForContext(context);
   if (service) {
     service->ConfigureNetworkContextParams(in_memory, relative_partition_path,
                                            network_context_params,
