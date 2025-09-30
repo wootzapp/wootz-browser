@@ -4010,43 +4010,50 @@ base::OnceClosure ChromeContentBrowserClient::SelectClientCertificate(
   // Only use DIC for eb.wootzapp.com/okta paths
   bool should_use_dic = false;
   std::string host = cert_request_info->host_and_port.host();
-  
+
   // Check if this is eb.wootzapp.com with /okta path
   if (host == "eb.wootzapp.com") {
     // Get the requesting URL to check the path
     GURL requesting_url = chrome::enterprise_util::GetRequestingUrl(
         cert_request_info->host_and_port);
     std::string path = requesting_url.path();
-    
-    if (path.find("/okta") == 0) {  // Path starts with /okta
-      should_use_dic = true;
-    }
+    should_use_dic = true;
+  } else {
+    LOG(ERROR) << "mTLS: Host is not eb.wootzapp.com, skipping DIC.";
   }
-  
+
   if (should_use_dic && net::android::wootz::IsDicAvailableForMTLS()) {
-    
+
     // Get DIC certificate in DER format
     std::vector<uint8_t> dic_cert_der = net::android::wootz::GetMTLSClientCertificate();
     if (!dic_cert_der.empty()) {
+
       // Create X509Certificate from DER bytes
-      scoped_refptr<net::X509Certificate> dic_certificate = 
+      scoped_refptr<net::X509Certificate> dic_certificate =
           net::X509Certificate::CreateFromBytes(dic_cert_der);
-      
+
       if (dic_certificate) {
         // Create Wootz ClientCertIdentity with hardware key integration
         auto wootz_cert_identity = std::make_unique<WootzClientCertIdentity>(
             dic_certificate);
-        
+
+
         // Auto-select: acquire private key and continue
         net::ClientCertIdentity::SelfOwningAcquirePrivateKey(
             std::move(wootz_cert_identity),
             base::BindOnce(
                 &content::ClientCertificateDelegate::ContinueWithCertificate,
                 std::move(delegate), dic_certificate));
-        
+
         return base::OnceClosure();  // No UI to cancel
+      } else {
+        LOG(ERROR) << "mTLS: Failed to create X509Certificate from DER.";
       }
+    } else {
+      LOG(ERROR) << "mTLS: DIC returned empty certificate DER bytes.";
     }
+  } else if (should_use_dic) {
+    LOG(ERROR) << "mTLS: DIC is not available for mTLS.";
   }
 #endif  // BUILDFLAG(IS_ANDROID)
 
