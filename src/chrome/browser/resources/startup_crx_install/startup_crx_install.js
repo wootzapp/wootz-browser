@@ -102,6 +102,210 @@ class BrowserBridge {
     window.handleError = (errorMessage) => {
       console.error('Error from C++:', errorMessage);
     };
+    
+    // Add download progress handler
+    window.handleDownloadProgress = (progressData) => {
+      console.log('Download progress:', progressData);
+      if (progressData && progressData.extensionName) {
+        console.log('Downloading extension:', progressData.extensionName);
+        // Update UI to show download progress
+        const progressText = document.getElementById('progress-text');
+        if (progressText) {
+          progressText.textContent = `Installing ${progressData.extensionName}...`;
+        }
+      }
+    };
+    
+    // Add UTM source handler
+    window.handleUtmSource = (utmSource) => {
+      console.log('Received UTM source from C++:', utmSource);
+      if (utmSource && utmSource.trim() !== '') {
+        console.log('UTM source is available:', utmSource);
+      } else {
+        console.log('UTM source is empty, will use default extensions');
+      }
+    };
+
+    // Add handler for default extension installation progress
+    window.handleDefaultExtensionProgress = (progressData) => {
+      console.log('Default extension installation progress:', progressData);
+      const currentIndex = progressData.currentIndex + 1;
+      const totalCount = progressData.totalCount;
+      const extensionName = progressData.extensionName;
+      const state = progressData.state;
+      
+      // Hide the main progress text since we have progress in the card
+      const progressText = document.getElementById('progress-text');
+      if (progressText) {
+        progressText.style.display = 'none';
+      }
+      
+      // Update the UI to show progress
+      const progressElement = document.getElementById('default-extension-progress');
+      if (progressElement) {
+        const progressFill = progressElement.querySelector('.progress-fill');
+        if (progressFill) {
+          progressFill.style.width = `${(currentIndex / totalCount) * 100}%`;
+        }
+        
+        const statusText = progressElement.querySelector('p:not(.status)');
+        if (statusText) {
+          statusText.textContent = `Installing ${currentIndex} of ${totalCount}: ${extensionName}`;
+        }
+        
+        const statusElement = progressElement.querySelector('.status');
+        if (statusElement) {
+          statusElement.textContent = state;
+        }
+      }
+    };
+
+    // Add handler for when all default extensions are processed
+    window.handleDefaultExtensionsComplete = () => {
+      console.log('All default extensions have been processed');
+      
+      // Hide the main progress text since we have progress in the card
+      const progressText = document.getElementById('progress-text');
+      if (progressText) {
+        progressText.style.display = 'none';
+      }
+      
+      // Update the progress UI to show completion
+      const progressElement = document.getElementById('default-extension-progress');
+      if (progressElement) {
+        const progressFill = progressElement.querySelector('.progress-fill');
+        if (progressFill) {
+          progressFill.style.width = '100%';
+        }
+        
+        const titleElement = progressElement.querySelector('h3');
+        if (titleElement) {
+          titleElement.textContent = 'Default Extensions Installed Successfully!';
+        }
+        
+        const statusText = progressElement.querySelector('p:not(.status)');
+        if (statusText) {
+          statusText.textContent = 'All default extensions have been installed.';
+        }
+        
+        const statusElement = progressElement.querySelector('.status');
+        if (statusElement) {
+          statusElement.textContent = 'Complete';
+        }
+      }
+      
+      // Navigate to new tab after a short delay to show completion message
+      console.log('Navigating to new tab after default extensions completion');
+      setTimeout(() => {
+        try {
+          // Notify C++ that default extensions are complete
+          chrome.send('onDefaultExtensionsComplete', []);
+          
+          // Try multiple approaches to ensure navigation works
+          window.location.href = 'wootzapp://newtab';
+          
+          // Fallback: try to close the window if navigation doesn't work
+          setTimeout(() => {
+            console.log('Attempting to close window as fallback');
+            window.close();
+          }, 1000);
+          
+        } catch (error) {
+          console.error('Error navigating to new tab:', error);
+          // Fallback: try to close the window
+          window.close();
+        }
+      }, 2000); // 2 second delay to show completion message
+    };
+
+    // Add handler for extension update progress
+    window.handleExtensionUpdateProgress = (progressData) => {
+      console.log('Extension update progress:', progressData);
+      const currentIndex = progressData.currentIndex + 1;
+      const totalCount = progressData.totalCount;
+      const extensionName = progressData.extensionName;
+      const state = progressData.state;
+      
+      // Hide the main progress text since we have progress in the card
+      const progressText = document.getElementById('progress-text');
+      if (progressText) {
+        progressText.style.display = 'none';
+      }
+      
+      // Update the UI to show progress
+      const progressElement = document.getElementById('extension-update-progress');
+      if (progressElement) {
+        const progressFill = progressElement.querySelector('.progress-fill');
+        if (progressFill) {
+          progressFill.style.width = `${(currentIndex / totalCount) * 100}%`;
+        }
+        
+        const statusText = progressElement.querySelector('p:not(.status)');
+        if (statusText) {
+          statusText.textContent = `Updating ${currentIndex} of ${totalCount}: ${extensionName}`;
+        }
+        
+        const statusElement = progressElement.querySelector('.status');
+        if (statusElement) {
+          statusElement.textContent = state;
+        }
+      }
+    };
+
+    // Add handler for when all extension updates are processed
+    window.handleExtensionUpdatesComplete = () => {
+      console.log('All extension updates have been processed');
+      
+      // Hide the main progress text since we have progress in the card
+      const progressText = document.getElementById('progress-text');
+      if (progressText) {
+        progressText.style.display = 'none';
+      }
+      
+      // Update the progress UI to show completion
+      const progressElement = document.getElementById('extension-update-progress');
+      if (progressElement) {
+        const progressFill = progressElement.querySelector('.progress-fill');
+        if (progressFill) {
+          progressFill.style.width = '100%';
+        }
+        
+        const titleElement = progressElement.querySelector('h3');
+        if (titleElement) {
+          titleElement.textContent = 'Extensions Updated Successfully!';
+        }
+        
+        const statusText = progressElement.querySelector('p:not(.status)');
+        if (statusText) {
+          statusText.textContent = 'All extensions have been updated.';
+        }
+        
+        const statusElement = progressElement.querySelector('.status');
+        if (statusElement) {
+          statusElement.textContent = 'Complete';
+        }
+      }
+      
+      // Navigate to new tab after a short delay to show completion message
+      console.log('Navigating to new tab after extension updates completion');
+      setTimeout(() => {
+        try {
+          // Try multiple approaches to ensure navigation works
+          window.location.href = 'wootzapp://newtab';
+          
+          // Fallback: try to close the window if navigation doesn't work
+          setTimeout(() => {
+            console.log('Attempting to close window as fallback');
+            window.close();
+          }, 1000);
+          
+        } catch (error) {
+          console.error('Error navigating to new tab:', error);
+          // Fallback: try to close the window
+          window.close();
+        }
+      }, 2000); // 2 second delay to show completion message
+    };
   }
 
   /**
@@ -196,9 +400,296 @@ const browserBridge = BrowserBridge.getInstance();
 
 // Initialize when the DOM is loaded
 document.addEventListener('DOMContentLoaded', function() {
-  console.log('DOM content loaded, initializing BrowserBridge');
-  browserBridge.initialize();
+  const params = new URLSearchParams(window.location.search);
+  if (params.get('install_default_extensions') === 'true') {
+    console.log('install_default_extensions=true detected, calling installDefaultExtensions');
+    
+    // Show default UI for default extensions installation
+    showDefaultExtensionsUI();
+    
+    // Set up timeout for no internet connection and no extensions
+    let hasProgress = false;
+    let timeoutId = null;
+    
+    // Start timeout after 3 seconds if no progress is made
+    timeoutId = setTimeout(() => {
+      if (!hasProgress) {
+        console.log('No progress detected after 3 seconds, likely no internet connection');
+        const progressElement = document.getElementById('default-extension-progress');
+        if (progressElement) {
+          const statusElement = progressElement.querySelector('.status');
+          if (statusElement) {
+            statusElement.textContent = 'Cannot able to fetch extensions. Please check your internet connection.';
+          }
+          const statusText = progressElement.querySelector('p:not(.status)');
+          if (statusText) {
+            statusText.textContent = 'Closing window...';
+          }
+        }
+        
+        // Close window after showing message
+        setTimeout(() => {
+          window.close();
+        }, 1000);
+      }
+    }, 3000);
+    
+    // Track progress to cancel timeout
+    const originalHandleProgress = window.handleDefaultExtensionProgress;
+    window.handleDefaultExtensionProgress = (progressData) => {
+      hasProgress = true;
+      if (timeoutId) {
+        clearTimeout(timeoutId);
+        timeoutId = null;
+      }
+      // Call original handler
+      if (originalHandleProgress) {
+        originalHandleProgress(progressData);
+      }
+    };
+    
+    // Also track completion to cancel timeout
+    const originalHandleComplete = window.handleDefaultExtensionsComplete;
+    window.handleDefaultExtensionsComplete = () => {
+      hasProgress = true;
+      if (timeoutId) {
+        clearTimeout(timeoutId);
+        timeoutId = null;
+      }
+      // Call original handler
+      if (originalHandleComplete) {
+        originalHandleComplete();
+      }
+    };
+    
+    // Fetch installed extensions for default flow
+    chrome.send('fetchInstalledExtensions', []);
+    
+    chrome.send('installDefaultExtensions', []);
+  } else if (params.get('auto_update_extensions') === 'true') {
+    console.log('auto_update_extensions=true detected, calling autoUpdateExtensions');
+    
+    // Show auto-update UI for extension updates
+    showAutoUpdateExtensionsUI();
+    
+    // Set up timeout for no internet connection and no updates
+    let hasProgress = false;
+    let timeoutId = null;
+    
+    // Start timeout after 3 seconds if no progress is made
+    timeoutId = setTimeout(() => {
+      if (!hasProgress) {
+        console.log('No progress detected after 3 seconds, likely no internet connection or no updates available');
+        const progressElement = document.getElementById('extension-update-progress');
+        if (progressElement) {
+          const statusElement = progressElement.querySelector('.status');
+          if (statusElement) {
+            statusElement.textContent = 'No updates available or cannot fetch updates. Please check your internet connection.';
+          }
+          const statusText = progressElement.querySelector('p:not(.status)');
+          if (statusText) {
+            statusText.textContent = 'Closing window...';
+          }
+        }
+        
+        // Close window after showing message
+        setTimeout(() => {
+          window.close();
+        }, 1000);
+      }
+    }, 3000);
+    
+    // Track progress to cancel timeout
+    const originalHandleProgress = window.handleExtensionUpdateProgress;
+    window.handleExtensionUpdateProgress = (progressData) => {
+      hasProgress = true;
+      if (timeoutId) {
+        clearTimeout(timeoutId);
+        timeoutId = null;
+      }
+      // Call original handler
+      if (originalHandleProgress) {
+        originalHandleProgress(progressData);
+      }
+    };
+    
+    // Also track completion to cancel timeout
+    const originalHandleComplete = window.handleExtensionUpdatesComplete;
+    window.handleExtensionUpdatesComplete = () => {
+      hasProgress = true;
+      if (timeoutId) {
+        clearTimeout(timeoutId);
+        timeoutId = null;
+      }
+      // Call original handler
+      if (originalHandleComplete) {
+        originalHandleComplete();
+      }
+    };
+    
+    // Fetch installed extensions for auto-update flow
+    chrome.send('fetchInstalledExtensions', []);
+    
+    chrome.send('autoUpdateExtensions', []);
+  } else {
+    console.log('No special parameters, showing default UI');
+    // Ensure the default UI is visible
+    const defaultExtensionProgress = document.getElementById('default-extension-progress');
+    if (defaultExtensionProgress) {
+      defaultExtensionProgress.style.display = 'none';
+    }
+    const extensionUpdateProgress = document.getElementById('extension-update-progress');
+    if (extensionUpdateProgress) {
+      extensionUpdateProgress.style.display = 'none';
+    }
+    
+    // Only initialize browserBridge for campaign flow (no special parameters)
+    browserBridge.initialize();
+  }
+  
+  // Get UTM source for debugging
+  chrome.send('getUtmSource', []);
 });
+
+function showDefaultExtensionsUI() {
+  console.log('Showing default extensions UI');
+  
+  // Update the existing UI elements instead of clearing everything
+  const appTitle = document.getElementById('app-title');
+  if (appTitle) {
+    appTitle.textContent = 'Installing Default Extensions';
+  }
+  
+  const progressText = document.getElementById('progress-text');
+  if (progressText) {
+    progressText.style.display = 'none';
+  }
+  
+  // Hide the main progress bar since we have one in the progress card
+  const mainProgress = document.getElementById('progress');
+  if (mainProgress) {
+    mainProgress.style.display = 'none';
+  }
+  
+  // Hide the main progress bar container
+  const progressBar = document.querySelector('.progress-bar');
+  if (progressBar) {
+    progressBar.style.display = 'none';
+  }
+  
+  // Hide the continue button since we don't need it for default extensions
+  const continueBtn = document.getElementById('continue-btn');
+  if (continueBtn) {
+    continueBtn.style.display = 'none';
+  }
+  
+  // Show the default extension progress (it's already in the HTML)
+  const defaultExtensionProgress = document.getElementById('default-extension-progress');
+  if (defaultExtensionProgress) {
+    defaultExtensionProgress.style.display = 'block';
+    // Ensure it's properly positioned
+    defaultExtensionProgress.style.marginTop = '2rem';
+  }
+  
+  // Update the app logo to show Wootzapp logo
+  const appLogo = document.getElementById('app-logo');
+  if (appLogo && !appLogo.innerHTML.trim()) {
+    const wootzappImg = document.createElement('img');
+    wootzappImg.src = 'Wootzapp.png';
+    wootzappImg.style.width = '100%';
+    wootzappImg.style.height = '100%';
+    wootzappImg.style.objectFit = 'contain';
+    wootzappImg.onerror = function() {
+      console.warn('Failed to load Wootzapp logo, using fallback');
+      appLogo.innerHTML = '<div style="width: 100%; height: 100%; background: #f0f0f0; border-radius: 12px; display: flex; align-items: center; justify-content: center; font-size: 48px; font-weight: bold; color: #666;">W</div>';
+    };
+    appLogo.appendChild(wootzappImg);
+  }
+
+  // Ensure powered by logo is visible and styled
+  const poweredLogo = document.getElementById('powered-logo');
+  if (poweredLogo) {
+    poweredLogo.src = 'powered_by_wootzapp.png';
+    poweredLogo.style.width = '200px';
+    poweredLogo.style.height = 'auto';
+    poweredLogo.style.maxWidth = '70vw';
+    poweredLogo.style.display = 'block';
+    poweredLogo.alt = 'Powered by WOOTZAPP';
+  }
+}
+
+function showAutoUpdateExtensionsUI() {
+  console.log('Showing auto-update extensions UI');
+  
+  // Update the existing UI elements instead of clearing everything
+  const appTitle = document.getElementById('app-title');
+  if (appTitle) {
+    appTitle.textContent = 'Checking for Extension Updates';
+  }
+  
+  const progressText = document.getElementById('progress-text');
+  if (progressText) {
+    progressText.style.display = 'none';
+  }
+  
+  // Hide the main progress bar since we have one in the progress card
+  const mainProgress = document.getElementById('progress');
+  if (mainProgress) {
+    mainProgress.style.display = 'none';
+  }
+  
+  // Hide the main progress bar container
+  const progressBar = document.querySelector('.progress-bar');
+  if (progressBar) {
+    progressBar.style.display = 'none';
+  }
+  
+  // Hide the continue button since we don't need it for auto-updates
+  const continueBtn = document.getElementById('continue-btn');
+  if (continueBtn) {
+    continueBtn.style.display = 'none';
+  }
+  
+  // Hide default extension progress if it exists
+  const defaultExtensionProgress = document.getElementById('default-extension-progress');
+  if (defaultExtensionProgress) {
+    defaultExtensionProgress.style.display = 'none';
+  }
+  
+  // Show the extension update progress (it's already in the HTML)
+  const extensionUpdateProgress = document.getElementById('extension-update-progress');
+  if (extensionUpdateProgress) {
+    extensionUpdateProgress.style.display = 'block';
+    // Ensure it's properly positioned
+    extensionUpdateProgress.style.marginTop = '2rem';
+  }
+  
+  // Update the app logo to show Wootzapp logo
+  const appLogo = document.getElementById('app-logo');
+  if (appLogo && !appLogo.innerHTML.trim()) {
+    const wootzappImg = document.createElement('img');
+    wootzappImg.src = 'Wootzapp.png';
+    wootzappImg.style.width = '100%';
+    wootzappImg.style.height = '100%';
+    wootzappImg.style.objectFit = 'contain';
+    wootzappImg.onerror = function() {
+      console.warn('Failed to load Wootzapp logo, using fallback');
+      appLogo.innerHTML = '<div style="width: 100%; height: 100%; background: #f0f0f0; border-radius: 12px; display: flex; align-items: center; justify-content: center; font-size: 48px; font-weight: bold; color: #666;">W</div>';
+    };
+    appLogo.appendChild(wootzappImg);
+  }
+
+  // Ensure powered by logo is visible and styled
+  const poweredLogo = document.getElementById('powered-logo');
+  if (poweredLogo) {
+    poweredLogo.src = 'powered_by_wootzapp.png';
+    poweredLogo.style.width = '200px';
+    poweredLogo.style.height = 'auto';
+    poweredLogo.style.maxWidth = '70vw';
+    poweredLogo.style.display = 'block';
+    poweredLogo.alt = 'Powered by WOOTZAPP';
+  }
+}
 
 function DownloadExtension(extensionData) {
   console.log('DownloadExtension called with extension data:', extensionData);
@@ -206,6 +697,36 @@ function DownloadExtension(extensionData) {
   if (extensionData && extensionData.download_url) {
     console.log('Downloading extension:', extensionData.name);
     window.location.href = extensionData.download_url;
+  } else {
+    console.error('No download URL found for extension');
+    window.close();
+  }
+}
+
+function InstallExtensionByUrl(extensionData) {
+  console.log('InstallExtensionByUrl called with extension data:', extensionData);
+  
+  if (extensionData && extensionData.download_url) {
+    console.log('Installing extension programmatically:', extensionData.name);
+    
+    // Use the same download method as Branch - direct window.location.href
+    // This is the standard way Chrome handles extension installation
+    window.location.href = extensionData.download_url;
+    
+    // Update progress to show installation is in progress
+    const progressText = document.getElementById('progress-text');
+    if (progressText) {
+      progressText.textContent = `Installing ${extensionData.name}...`;
+    }
+    
+    // Notify completion after a delay to allow installation to process
+    setTimeout(() => {
+      console.log('Notifying extension installation completion for:', extensionData.name);
+      chrome.send('onExtensionInstallComplete', []);
+    }, 3000); // Wait 3 seconds for installation to complete,
+    // Initiated download of extensions, it will auto download and install, multiple extensions can be download parallely so no need to wait for complete install
+    
+    console.log('Extension installation initiated for:', extensionData.name);
   } else {
     console.error('No download URL found for extension');
     window.close();
@@ -466,6 +987,12 @@ async function setupUI(extensionData) {
             DownloadExtension(extensionData);
         }, 3000);
     });
+}
+
+// Handle completion of individual extension installation
+function onExtensionInstallComplete() {
+    console.log('Extension installation completed, notifying C++ handler');
+    chrome.send('onExtensionInstallComplete', []);
 }
 
 // Helper function to create hexagon grid
