@@ -89,6 +89,7 @@ import org.chromium.chrome.browser.ActivityTabProvider;
 import org.chromium.chrome.browser.ActivityUtils;
 import org.chromium.chrome.browser.extensions.ExtensionInfo;
 import org.chromium.chrome.browser.extensions.Extensions;
+import org.chromium.chrome.browser.extensions.OpenExtensionsById;
 import org.chromium.chrome.browser.extensions.WootzBridge;
 import org.chromium.chrome.browser.AppHooks;
 import org.chromium.chrome.browser.ChromeActivitySessionTracker;
@@ -963,8 +964,8 @@ public abstract class ChromeActivity<C extends ChromeActivityComponent>
 
                         case MotionEvent.ACTION_UP:
                             if (!isDragging) {
-                                showAiChatOptionsMenu(view);
-                                
+                                // showAiChatOptionsMenu(view);
+                                openWootzAi(view);
                             }
                             isDragging = false;
                             return true;
@@ -1023,15 +1024,19 @@ public abstract class ChromeActivity<C extends ChromeActivityComponent>
             return false;
         }
 
-        boolean isOnSearchPage = false;
-        if (currentTab.getUrl() != null) {
-            isOnSearchPage = isSearchPage(currentTab.getUrl().getSpec());
-        }
+        // boolean isOnSearchPage = false;
+        // if (currentTab.getUrl() != null) {
+        //     isOnSearchPage = isSearchPage(currentTab.getUrl().getSpec());
+        // }
+
+        // Map<String, String> extensionFeatures = getExtensionFeaturesMap();
+        // boolean hasExtensionFeatures = !extensionFeatures.isEmpty();
+
+        // return isOnSearchPage || hasExtensionFeatures;
 
         Map<String, String> extensionFeatures = getExtensionFeaturesMap();
-        boolean hasExtensionFeatures = !extensionFeatures.isEmpty();
-
-        return isOnSearchPage || hasExtensionFeatures;
+        boolean hasWootzAiFeature = extensionFeatures.containsKey("Wootz AI");
+        return hasWootzAiFeature;
     }
 
     public void updateFabVisibility() {
@@ -1043,6 +1048,20 @@ public abstract class ChromeActivity<C extends ChromeActivityComponent>
             if (shouldShow) {
                 resetFabOpacity();
             }
+        }
+    }
+
+    private void openWootzAi(View anchorView) {
+        Tab currentTab = getActivityTab();
+        Map<String, String> extensionFeatures = getExtensionFeaturesMap();
+        String featureKey = "Wootz AI";
+        if (currentTab != null && extensionFeatures.containsKey(featureKey)) {
+            String extensionId = extensionFeatures.get(featureKey);
+            OpenExtensionsById openExtById = new OpenExtensionsById();
+            openExtById.openExtensionById(extensionId);
+        } else {
+            updateFabVisibility();
+            Log.e(TAG, "Wootz AI feature not found in installed extensions.");
         }
     }
 
