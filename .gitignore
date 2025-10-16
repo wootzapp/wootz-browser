@@ -319,6 +319,12 @@ __pycache__/
 !src/chrome/browser/lookalikes/safety_tip_ui_helper.cc
 !src/chrome/browser/media/webrtc/media_capture_devices_dispatcher.cc
 !src/chrome/browser/net/system_network_context_manager.cc
+!src/chrome/browser/net/okta_app_gate_throttle.cc
+!src/chrome/browser/net/okta_app_gate_throttle.h
+!src/chrome/browser/net/okta_certificate_manager.cc
+!src/chrome/browser/net/okta_certificate_manager.h
+!src/chrome/browser/net/okta_gate_util.cc
+!src/chrome/browser/net/okta_gate_util.h
 !src/chrome/browser/notifications/notification_trigger_scheduler.cc
 !src/chrome/browser/notifications/persistent_notification_handler.cc
 !src/chrome/browser/password_manager/android/pwd_migration/java/src/org/chromium/chrome/browser/pwd_migration/PasswordMigrationWarningUtil.java

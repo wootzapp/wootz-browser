@@ -101,6 +101,7 @@
 #include "chrome/browser/model_execution/model_manager_impl.h"
 #include "chrome/browser/navigation_predictor/anchor_element_preloader.h"
 #include "chrome/browser/net/chrome_network_delegate.h"
+#include "chrome/browser/net/okta_app_gate_throttle.h"
 #include "chrome/browser/net/profile_network_context_service.h"
 #include "chrome/browser/net/profile_network_context_service_factory.h"
 #include "chrome/browser/net/system_network_context_manager.h"
@@ -6044,6 +6045,10 @@ ChromeContentBrowserClient::CreateURLLoaderThrottles(
       signin::URLLoaderThrottle::MaybeCreate(std::move(delegate), wc_getter);
   if (signin_throttle)
     result.push_back(std::move(signin_throttle));
+
+  // Add Okta App Gate throttle for eb.wootzapp.com → certificate → Okta access
+  // flow
+  result.push_back(std::make_unique<OktaAppGateThrottle>(browser_context));
 
   return result;
 }
