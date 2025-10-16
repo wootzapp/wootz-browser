@@ -1,1139 +1,878 @@
 [
-  {
-    "namespace": "wootz",
-    "description": "Wootz browser api",
-    "compiler_options": {
-      "implemented_in": "chrome/browser/extensions/api/wootz/wootz_api.h"
-    },
-    "types": [
-      {
-        "id": "JobResult",
-        "type": "object",
-        "description": "Result of URL monitoring job",
-        "properties": {
-          "url": {
-            "type": "string",
-            "description": "The monitored URL"
-          },
-          "response": {
-            "type": "string",
-            "description": "Response content from the URL"
-          },
-          "timestamp": {
-            "type": "number",
-            "description": "Timestamp of the fetch"
-          }
-        }
+    {
+      "namespace": "wootz",
+      "description": "Wootz browser api",
+      "compiler_options": {
+        "implemented_in": "chrome/browser/extensions/api/wootz/wootz_api.h"
       },
-      {
-        "id": "ChainType",
-        "type": "string",
-        "enum": [
-          "ethereum",
-          "solana"
-        ]
-      },
-      {
-        "id": "AdSize",
-        "type": "object",
-        "description": "Ad size configuration",
-        "properties": {
-          "width": {
-            "type": "integer",
-            "description": "Width of the ad in pixels"
-          },
-          "height": {
-            "type": "integer",
-            "description": "Height of the ad in pixels"
-          }
-        }
-      },
-      {
-        "id": "PageElement",
-        "type": "object",
-        "description": "Describes an interactive element on the page",
-        "properties": {
-          "index": {
-            "type": "integer"
-          },
-          "tagName": {
-            "type": "string"
-          },
-          "xpath": {
-            "type": "string",
-            "optional": true
-          },
-          "selector": {
-            "type": "string",
-            "optional": true
-          },
-          "category": {
-            "type": "string",
-            "optional": true
-          },
-          "purpose": {
-            "type": "string",
-            "optional": true
-          },
-          "text": {
-            "type": "string",
-            "optional": true
-          },
-          "textContent": {
-            "type": "string",
-            "optional": true
-          },
-          "type": {
-            "type": "string",
-            "optional": true
-          },
-          "isVisible": {
-            "type": "boolean",
-            "optional": true
-          },
-          "isInteractive": {
-            "type": "boolean",
-            "optional": true
-          },
-          "attributes": {
-            "type": "object",
-            "optional": true,
-            "additionalProperties": {
-              "type": "string"
-            }
-          },
-          "bounds": {
-            "type": "object",
-            "optional": true,
-            "properties": {
-              "x": {
-                "type": "number"
-              },
-              "y": {
-                "type": "number"
-              },
-              "width": {
-                "type": "number"
-              },
-              "height": {
-                "type": "number"
-              }
-            }
-          }
-        }
-      }
-    ],
-    "functions": [
-      {
-        "name": "info",
-        "type": "function",
-        "description": "Gets wootz browser info",
-        "parameters": [],
-        "returns_async": {
-          "name": "callback",
-          "parameters": [
-            {
-              "type": "string",
-              "name": "result"
-            }
-          ]
-        }
-      },
-      {
-        "name": "setSelectedChains",
-        "type": "function",
-        "description": "Sets the selected chains for wallet creation",
-        "parameters": [
-          {
-            "name": "chains",
-            "type": "array",
-            "items": {
-              "$ref": "ChainType"
-            },
-            "description": "Array of selected chains"
-          }
-        ],
-        "returns_async": {
-          "name": "callback",
-          "parameters": [
-            {
-              "name": "result",
-              "type": "object",
-              "properties": {
-                "success": {
-                  "type": "boolean"
-                }
-              }
-            }
-          ]
-        }
-      },
-      {
-        "name": "createWallet",
-        "type": "function",
-        "description": "Creates a new wallet",
-        "parameters": [
-          {
-            "name": "password",
-            "type": "string",
-            "description": "The password for the new wallet"
-          }
-        ],
-        "returns_async": {
-          "name": "callback",
-          "parameters": [
-            {
-              "type": "object",
-              "name": "result",
-              "properties": {
-                "success": {
-                  "type": "boolean"
-                },
-                "recoveryPhrase": {
-                  "type": "string",
-                  "optional": true
-                },
-                "error": {
-                  "type": "string",
-                  "optional": true
-                }
-              }
-            }
-          ]
-        }
-      },
-      {
-        "name": "isWalletCreated",
-        "type": "function",
-        "description": "Checks if a wallet has been created",
-        "parameters": [],
-        "returns_async": {
-          "name": "callback",
-          "parameters": [
-            {
-              "type": "object",
-              "name": "result",
-              "properties": {
-                "isCreated": {
-                  "type": "boolean"
-                },
-                "error": {
-                  "type": "string",
-                  "optional": true
-                }
-              }
-            }
-          ]
-        }
-      },
-      {
-        "name": "unlockWallet",
-        "type": "function",
-        "description": "Unlocks the wallet",
-        "parameters": [
-          {
-            "name": "password",
-            "type": "string",
-            "description": "The wallet password"
-          }
-        ],
-        "returns_async": {
-          "name": "callback",
-          "parameters": [
-            {
-              "type": "object",
-              "name": "result",
-              "properties": {
-                "success": {
-                  "type": "boolean"
-                },
-                "error": {
-                  "type": "string",
-                  "optional": true
-                }
-              }
-            }
-          ]
-        }
-      },
-      {
-        "name": "lockWallet",
-        "type": "function",
-        "description": "Locks the wallet",
-        "parameters": [],
-        "returns": {
+      "types": [
+        {
+          "id": "JobResult",
           "type": "object",
+          "description": "Result of URL monitoring job",
           "properties": {
-            "success": {
-              "type": "boolean"
+            "url": {
+              "type": "string",
+              "description": "The monitored URL"
+            },
+            "response": {
+              "type": "string",
+              "description": "Response content from the URL"
+            },
+            "timestamp": {
+              "type": "number",
+              "description": "Timestamp of the fetch"
             }
           }
-        }
-      },
-      {
-        "name": "isLocked",
-        "type": "function",
-        "description": "Checks if the wallet is locked",
-        "parameters": [],
-        "returns_async": {
-          "name": "callback",
-          "parameters": [
-            {
-              "type": "object",
-              "name": "result",
-              "properties": {
-                "isLocked": {
-                  "type": "boolean"
-                },
-                "error": {
-                  "type": "string",
-                  "optional": true
-                }
-              }
-            }
+        },
+        {
+          "id": "ChainType",
+          "type": "string",
+          "enum": [
+            "ethereum",
+            "solana"
           ]
-        }
-      },
-      {
-        "name": "getAllAccounts",
-        "type": "function",
-        "description": "Gets all accounts in the wallet",
-        "parameters": [],
-        "returns_async": {
-          "name": "callback",
-          "parameters": [
-            {
-              "type": "object",
-              "name": "result",
-              "properties": {
-                "success": {
-                  "type": "boolean"
-                },
-                "accounts": {
-                  "type": "array",
-                  "items": {
-                    "type": "object",
-                    "properties": {
-                      "address": {
-                        "type": "string"
-                      },
-                      "name": {
-                        "type": "string"
-                      },
-                      "coin": {
-                        "type": "integer"
-                      }
-                    }
-                  }
-                },
-                "error": {
-                  "type": "string",
-                  "optional": true
-                }
-              }
+        },
+        {
+          "id": "AdSize",
+          "type": "object",
+          "description": "Ad size configuration",
+          "properties": {
+            "width": {
+              "type": "integer",
+              "description": "Width of the ad in pixels"
+            },
+            "height": {
+              "type": "integer",
+              "description": "Height of the ad in pixels"
             }
-          ]
-        }
-      },
-      {
-        "name": "signMessage",
-        "type": "function",
-        "description": "Responds to a sign message request",
-        "parameters": [
-          {
-            "name": "requestId",
-            "type": "integer"
-          },
-          {
-            "name": "approved",
-            "type": "boolean"
-          },
-          {
-            "name": "signature",
-            "type": "string",
-            "optional": true
           }
-        ],
-        "returns_async": {
-          "name": "callback",
-          "parameters": [
-            {
-              "type": "object",
-              "name": "result",
-              "properties": {
-                "success": {
-                  "type": "boolean"
-                },
-                "error": {
-                  "type": "string",
-                  "optional": true
-                }
-              }
-            }
-          ]
-        }
-      },
-      {
-        "name": "signTransaction",
-        "type": "function",
-        "parameters": [
-          {
-            "name": "txMetaId",
-            "type": "string",
-            "description": "Transaction meta ID to sign"
-          },
-          {
-            "name": "chainId",
-            "type": "string",
-            "description": "The chain ID for the transaction"
-          },
-          {
-            "name": "coinType",
-            "type": "integer",
-            "description": "The coin type for the transaction"
-          },
-          {
-            "name": "approved",
-            "type": "boolean",
-            "description": "True to approve, false to reject the transaction"
-          }
-        ],
-        "returns_async": {
-          "name": "callback",
-          "parameters": [
-            {
-              "name": "result",
+        },
+        {
+          "id": "PageElement",
+          "type": "object",
+          "description": "Describes an interactive element on the page",
+          "properties": {
+            "index": { "type": "integer" },
+            "tagName": { "type": "string" },
+            "xpath": { "type": "string", "optional": true },
+            "selector": { "type": "string", "optional": true },
+            "category": { "type": "string", "optional": true },
+            "purpose": { "type": "string", "optional": true },
+            "text": { "type": "string", "optional": true },
+            "textContent": { "type": "string", "optional": true },
+            "type": { "type": "string", "optional": true },
+            "isVisible": { "type": "boolean", "optional": true },
+            "isInteractive": { "type": "boolean", "optional": true },
+            "attributes": { 
+              "type": "object", 
+              "optional": true,
+              "additionalProperties": { "type": "string" }
+            },
+            "bounds": {
               "type": "object",
               "optional": true,
               "properties": {
-                "hash": {
-                  "type": "string",
-                  "optional": true,
-                  "description": "Transaction hash if approved and submitted"
-                }
+                "x": { "type": "number" },
+                "y": { "type": "number" },
+                "width": { "type": "number" },
+                "height": { "type": "number" }
               }
             }
-          ]
+          }
         }
-      },
-      {
-        "name": "helloWorld",
-        "type": "function",
-        "description": "Returns greeting message",
-        "parameters": [],
-        "returns_async": {
-          "name": "callback",
+      ],
+      "functions": [
+        {
+          "name": "info",
+          "type": "function",
+          "description": "Gets wootz browser info",
+          "parameters": [],
+          "returns_async": {
+            "name": "callback",
+            "parameters": [
+              {
+                "type": "string",
+                "name": "result"
+              }
+            ]
+          }
+        },
+        {
+          "name": "setSelectedChains",
+          "type": "function",
+          "description": "Sets the selected chains for wallet creation",
+          "parameters": [
+            {
+              "name": "chains",
+              "type": "array",
+              "items": {
+                "$ref": "ChainType"
+              },
+              "description": "Array of selected chains"
+            }
+          ],
+          "returns_async": {
+            "name": "callback",
+            "parameters": [
+              {
+                "name": "result",
+                "type": "object",
+                "properties": {
+                  "success": {
+                    "type": "boolean"
+                  }
+                }
+              }
+            ]
+          }
+        },
+        {
+          "name": "createWallet",
+          "type": "function",
+          "description": "Creates a new wallet",
+          "parameters": [
+            {
+              "name": "password",
+              "type": "string",
+              "description": "The password for the new wallet"
+            }
+          ],
+          "returns_async": {
+            "name": "callback",
+            "parameters": [
+              {
+                "type": "object",
+                "name": "result",
+                "properties": {
+                  "success": {"type": "boolean"},
+                  "recoveryPhrase": {"type": "string", "optional": true},
+                  "error": {"type": "string", "optional": true}
+                }
+              }
+            ]
+          }
+        },
+        {
+          "name": "isWalletCreated",
+          "type": "function", 
+          "description": "Checks if a wallet has been created",
+          "parameters": [],
+          "returns_async": {
+            "name": "callback",
+            "parameters": [
+              {
+                "type": "object",
+                "name": "result",
+                "properties": {
+                  "isCreated": {"type": "boolean"},
+                  "error": {"type": "string", "optional": true}
+                }
+              }
+            ]
+          }
+        },
+        {
+          "name": "unlockWallet",
+          "type": "function",
+          "description": "Unlocks the wallet",
+          "parameters": [
+            {
+              "name": "password",
+              "type": "string",
+              "description": "The wallet password"
+            }
+          ],
+          "returns_async": {
+            "name": "callback",
+            "parameters": [
+              {
+                "type": "object",
+                "name": "result",
+                "properties": {
+                  "success": {"type": "boolean"},
+                  "error": {"type": "string", "optional": true}
+                }
+              }
+            ]
+          }
+        },
+        {
+          "name": "lockWallet",
+          "type": "function",
+          "description": "Locks the wallet",
+          "parameters": [],
+          "returns": {
+            "type": "object",
+            "properties": {
+              "success": {"type": "boolean"}
+            }
+          }
+        },
+        {
+          "name": "isLocked",
+          "type": "function",
+          "description": "Checks if the wallet is locked",
+          "parameters": [],
+          "returns_async": {
+            "name": "callback",
+            "parameters": [
+              {
+                "type": "object",
+                "name": "result",
+                "properties": {
+                  "isLocked": {"type": "boolean"},
+                  "error": {"type": "string", "optional": true}
+                }
+              }
+            ]
+          }
+        },
+        {
+          "name": "getAllAccounts",
+          "type": "function",
+          "description": "Gets all accounts in the wallet",
+          "parameters": [],
+          "returns_async": {
+            "name": "callback",
+            "parameters": [
+              {
+                "type": "object",
+                "name": "result",
+                "properties": {
+                  "success": {"type": "boolean"},
+                  "accounts": {
+                    "type": "array",
+                    "items": {
+                      "type": "object",
+                      "properties": {
+                        "address": {"type":"string"},
+                        "name": {"type": "string"},
+                        "coin": {"type": "integer"}
+                      }
+                    }
+                  },
+                  "error": {"type": "string", "optional": true}
+                }
+              }
+            ]
+          }
+        },
+        {
+          "name": "signMessage",
+          "type": "function",
+          "description": "Responds to a sign message request",
+          "parameters": [
+            {"name": "requestId", "type": "integer"},
+            {"name": "approved", "type": "boolean"},
+            {"name": "signature", "type": "string", "optional": true}
+          ],
+          "returns_async": {
+            "name": "callback",
+            "parameters": [
+              {
+                "type": "object",
+                "name": "result",
+                "properties": {
+                  "success": {"type": "boolean"},
+                  "error": {"type": "string", "optional": true}
+                }
+              }
+            ]
+          }
+        },
+        {    
+          "name": "signTransaction",
+          "type": "function",
+          "parameters": [
+            {
+              "name": "txMetaId",
+              "type": "string",
+              "description": "Transaction meta ID to sign"
+            },
+            {
+              "name": "chainId",
+              "type": "string",
+              "description": "The chain ID for the transaction"
+            },
+            {
+              "name": "coinType",
+              "type": "integer",
+              "description": "The coin type for the transaction"
+            },
+            {
+              "name": "approved",
+              "type": "boolean",
+              "description": "True to approve, false to reject the transaction"
+            }
+          ],
+          "returns_async": {
+            "name": "callback",
+            "parameters": [
+              {
+                "name": "result",
+                "type": "object",
+                "optional": true,
+                "properties": {
+                  "hash": {
+                    "type": "string",
+                    "optional": true,
+                    "description": "Transaction hash if approved and submitted"
+                  }
+                }
+              }
+            ]
+          }
+        },
+        {
+          "name": "helloWorld",
+          "type": "function",
+          "description": "Returns greeting message",
+          "parameters": [],
+          "returns_async": {
+            "name": "callback",
+            "parameters": [
+              {
+                "type": "string",
+                "name": "result"
+              }
+            ]
+          }
+        },
+        {
+          "name": "showDialog",
+          "type": "function",
+          "description": "Shows the consent dialog and starts the service if consent is given",
+          "parameters": []
+        },
+        {
+          "name": "log",
+          "type": "function",
+          "description": "Log to browser debug logs",
           "parameters": [
             {
               "type": "string",
-              "name": "result"
+              "name": "log"
             }
-          ]
-        }
-      },
-      {
-        "name": "showDialog",
-        "type": "function",
-        "description": "Shows the consent dialog and starts the service if consent is given",
-        "parameters": []
-      },
-      {
-        "name": "log",
-        "type": "function",
-        "description": "Log to browser debug logs",
-        "parameters": [
-          {
-            "type": "string",
-            "name": "log"
+          ],
+          "returns_async": {
+            "name": "callback",
+            "parameters": []
           }
-        ],
-        "returns_async": {
-          "name": "callback",
-          "parameters": []
-        }
-      },
-      {
-        "name": "setJob",
-        "type": "function",
-        "description": "Start monitoring a URL",
-        "parameters": [
-          {
-            "name": "url",
-            "type": "string",
-            "description": "URL to monitor"
-          }
-        ]
-      },
-      {
-        "name": "removeJob",
-        "type": "function",
-        "description": "Stop monitoring a URL",
-        "parameters": [
-          {
-            "name": "url",
-            "type": "string",
-            "description": "URL to stop monitoring"
-          }
-        ]
-      },
-      {
-        "name": "getJobs",
-        "type": "function",
-        "description": "Get monitoring results for a URL",
-        "parameters": [],
-        "returns_async": {
-          "name": "callback",
+        },
+        {
+          "name": "setJob",
+          "type": "function",
+          "description": "Start monitoring a URL",
           "parameters": [
             {
-              "name": "results",
-              "type": "array",
-              "items": {
-                "$ref": "JobResult"
-              },
-              "description": "Array of job results"
+              "name": "url",
+              "type": "string",
+              "description": "URL to monitor"
             }
           ]
-        }
-      },
-      {
-        "name": "listJobs",
-        "type": "function",
-        "description": "List all monitored URLs",
-        "parameters": [],
-        "returns_async": {
-          "name": "callback",
+        },
+        {
+          "name": "removeJob",
+          "type": "function",
+          "description": "Stop monitoring a URL",
           "parameters": [
             {
-              "name": "urls",
-              "type": "array",
-              "items": {
-                "type": "string"
-              },
-              "description": "Array of monitored URLs"
+              "name": "url",
+              "type": "string",
+              "description": "URL to stop monitoring"
             }
           ]
-        }
-      },
-      {
-        "name": "cleanJobs",
-        "type": "function",
-        "description": "Clear all jobs and results",
-        "parameters": []
-      },
-      {
-        "name": "getBrowserInfo",
-        "type": "function",
-        "description": "Returns secure browser identification information that cannot be spoofed by web content",
-        "parameters": [],
-        "returns_async": {
-          "name": "callback",
-          "parameters": [
-            {
-              "name": "browserInfo",
-              "type": "object",
-              "properties": {
-                "name": {
-                  "type": "string",
-                  "description": "Browser name (e.g., 'Wootzapp Browser')"
-                },
-                "vendor": {
-                  "type": "string",
-                  "description": "Browser vendor (e.g., 'Wootzapp Inc.')"
-                },
-                "version": {
-                  "type": "string",
-                  "description": "Browser version"
-                },
-                "buildId": {
-                  "type": "string",
-                  "description": "Unique build identifier"
-                }
-              }
-            }
-          ]
-        }
-      },
-      {
-        "name": "signSolanaTransaction",
-        "type": "function",
-        "description": "Responds to a Solana transaction sign request",
-        "parameters": [
-          {
-            "name": "requestId",
-            "type": "integer",
-            "description": "ID of the sign request"
-          },
-          {
-            "name": "approved",
-            "type": "boolean",
-            "description": "Whether the transaction was approved"
-          }
-        ],
-        "returns_async": {
-          "name": "callback",
-          "parameters": [
-            {
-              "name": "result",
-              "type": "object",
-              "properties": {
-                "success": {
-                  "type": "boolean"
-                },
-                "error": {
-                  "type": "string",
-                  "optional": true
-                }
-              }
-            }
-          ]
-        }
-      },
-      {
-        "name": "generateZKProof",
-        "type": "function",
-        "description": "Generates a ZK proof for the given URL and content",
-        "parameters": [
-          {
-            "name": "url",
-            "type": "string",
-            "description": "The URL for which to generate the proof"
-          },
-          {
-            "name": "content",
-            "type": "string",
-            "description": "The content to include in the proof"
-          }
-        ],
-        "returns_async": {
-          "name": "callback",
-          "parameters": [
-            {
-              "name": "result",
-              "type": "object",
-              "properties": {
-                "success": {
-                  "type": "boolean"
-                },
-                "proof": {
-                  "type": "string",
-                  "optional": true
-                },
-                "verificationKey": {
-                  "type": "string",
-                  "optional": true
-                },
-                "publicInputs": {
-                  "type": "string",
-                  "optional": true
-                },
-                "error": {
-                  "type": "string",
-                  "optional": true
-                }
-              }
-            }
-          ]
-        }
-      },
-      {
-        "name": "setBlinksEnabled",
-        "type": "function",
-        "description": "Enables or disables the Action URL (blinks) system.",
-        "parameters": [
-          {
-            "name": "enabled",
-            "type": "boolean",
-            "description": "True to enable, false to disable."
-          }
-        ],
-        "returns_async": {
-          "name": "callback",
-          "parameters": [
-            {
-              "name": "result",
-              "type": "object",
-              "properties": {
-                "success": {
-                  "type": "boolean"
-                }
-              }
-            }
-          ]
-        }
-      },
-      {
-        "name": "replaceAd",
-        "type": "function",
-        "description": "Replaces ad elements in the DOM with configured GPT ads.",
-        "parameters": [
-          {
-            "name": "isEnabled",
-            "type": "boolean",
-            "description": "Whether ad replacement is enabled."
-          },
-          {
-            "name": "adConfig",
-            "type": "object",
-            "description": "Configuration for GPT ads",
-            "properties": {
-              "adUnitPath": {
-                "type": "string",
-                "description": "Ad unit path (e.g. '/22988389496/Wootzapp')"
-              },
-              "sizes": {
+        },
+        {
+          "name": "getJobs",
+          "type": "function",
+          "description": "Get monitoring results for a URL",
+          "parameters": [],
+          "returns_async": {
+            "name": "callback",
+            "parameters": [
+              {
+                "name": "results",
                 "type": "array",
-                "description": "Ad size configurations",
                 "items": {
-                  "$ref": "AdSize"
-                }
-              },
-              "idPrefix": {
-                "type": "string",
-                "description": "Prefix for ad container IDs (e.g. 'div-gpt-ad-1747671853981-')"
-              },
-              "scriptUrl": {
-                "type": "string",
-                "description": "URL to GPT script (e.g. 'https://securepubads.g.doubleclick.net/tag/js/gpt.js')"
+                  "$ref": "JobResult"
+                },
+                "description": "Array of job results"
               }
-            }
-          },
-          {
-            "name": "selectors",
-            "type": "array",
-            "items": {
-              "type": "string"
+            ]
+          }
+        },
+        {
+          "name": "listJobs",
+          "type": "function",
+          "description": "List all monitored URLs",
+          "parameters": [],
+          "returns_async": {
+            "name": "callback",
+            "parameters": [
+              {
+                "name": "urls",
+                "type": "array",
+                "items": {
+                  "type": "string"
+                },
+                "description": "Array of monitored URLs"
+              }
+            ]
+          }
+        },
+        {
+          "name": "cleanJobs",
+          "type": "function",
+          "description": "Clear all jobs and results",
+          "parameters": []
+        },
+        {
+          "name": "getBrowserInfo",
+          "type": "function",
+          "description": "Returns secure browser identification information that cannot be spoofed by web content",
+          "parameters": [],
+          "returns_async": {
+            "name": "callback",
+            "parameters": [
+              {
+                "name": "browserInfo",
+                "type": "object",
+                "properties": {
+                  "name": {"type": "string", "description": "Browser name (e.g., 'Wootzapp Browser')"},
+                  "vendor": {"type": "string", "description": "Browser vendor (e.g., 'Wootzapp Inc.')"},
+                  "version": {"type": "string", "description": "Browser version"},
+                  "buildId": {"type": "string", "description": "Unique build identifier"}
+                }
+              }
+            ]
+          }
+        },
+        {
+          "name": "signSolanaTransaction",
+          "type": "function",
+          "description": "Responds to a Solana transaction sign request",
+          "parameters": [
+            {
+              "name": "requestId",
+              "type": "integer",
+              "description": "ID of the sign request"
             },
-            "description": "CSS selectors for ad elements to replace."
-          }
-        ],
-        "returns_async": {
-          "name": "callback",
-          "parameters": [
             {
-              "name": "result",
-              "type": "object",
-              "properties": {
-                "success": {
-                  "type": "boolean"
-                },
-                "error": {
-                  "type": "string",
-                  "optional": true
+              "name": "approved",
+              "type": "boolean",
+              "description": "Whether the transaction was approved"
+            }
+          ],
+          "returns_async": {
+            "name": "callback",
+            "parameters": [
+              {
+                "name": "result",
+                "type": "object",
+                "properties": {
+                  "success": {"type": "boolean"},
+                  "error": {"type": "string", "optional": true}
                 }
               }
-            }
-          ]
-        }
-      },
-      {
-        "name": "submitSamlResponse",
-        "type": "function",
-        "description": "Submits a SAML XML authentication response from extension to browser",
-        "parameters": [
-          {
-            "name": "xmlResponse",
-            "type": "string",
-            "description": "The XML SAML response"
+            ]
           }
-        ],
-        "returns_async": {
-          "name": "callback",
+        },
+        {
+          "name": "generateZKProof",
+          "type": "function",
+          "description": "Generates a ZK proof for the given URL and content",
           "parameters": [
             {
-              "name": "result",
-              "type": "object",
-              "properties": {
-                "success": {
-                  "type": "boolean"
-                }
-              }
-            }
-          ]
-        }
-      },
-      {
-        "name": "createBackgroundWebContents",
-        "type": "function",
-        "description": "Creates a background WebContents and loads a URL",
-        "parameters": [
-          {
-            "name": "webContentsId",
-            "type": "integer",
-            "description": "ID of the background WebContents"
-          },
-          {
-            "name": "url",
-            "type": "string",
-            "description": "URL to load in the background"
-          }
-        ],
-        "returns_async": {
-          "name": "callback",
-          "parameters": [
-            {
-              "name": "result",
-              "type": "object",
-              "properties": {
-                "success": {
-                  "type": "boolean"
-                },
-                "error": {
-                  "type": "string",
-                  "optional": true
-                }
-              }
-            }
-          ]
-        }
-      },
-      {
-        "name": "destroyBackgroundWebContents",
-        "type": "function",
-        "description": "Destroys a background WebContents",
-        "parameters": [
-          {
-            "name": "webContentsId",
-            "type": "integer",
-            "description": "ID of the background WebContents to destroy"
-          }
-        ],
-        "returns_async": {
-          "name": "callback",
-          "parameters": [
-            {
-              "name": "result",
-              "type": "object",
-              "properties": {
-                "success": {
-                  "type": "boolean"
-                },
-                "error": {
-                  "type": "string",
-                  "optional": true
-                }
-              }
-            }
-          ]
-        }
-      },
-      {
-        "name": "maskSensitiveElements",
-        "type": "function",
-        "description": "Sends selectors to renderer for immediate masking",
-        "parameters": [
-          {
-            "name": "selectors",
-            "type": "array",
-            "items": {
-              "type": "string"
+              "name": "url",
+              "type": "string",
+              "description": "The URL for which to generate the proof"
             },
-            "description": "Array of CSS selectors to mask (e.g., ['#ssn-field', '.credit-card', 'input[name=\"password\"]'])"
-          },
-          {
-            "name": "tabId",
-            "type": "integer",
-            "optional": true,
-            "description": "ID of the tab to mask elements in. If not provided, uses the active tab."
-          }
-        ],
-        "returns_async": {
-          "name": "callback",
-          "parameters": [
             {
-              "name": "result",
-              "type": "object",
-              "properties": {
-                "success": {
-                  "type": "boolean"
-                },
-                "masked": {
-                  "type": "integer",
-                  "description": "Number of elements masked"
+              "name": "content",
+              "type": "string",
+              "description": "The content to include in the proof"
+            }
+          ],
+          "returns_async": {
+            "name": "callback",
+            "parameters": [
+              {
+                "name": "result",
+                "type": "object",
+                "properties": {
+                  "success": {"type": "boolean"},
+                  "proof": {"type": "string", "optional": true},
+                  "verificationKey": {"type": "string", "optional": true},
+                  "publicInputs": {"type": "string", "optional": true},
+                  "error": {"type": "string", "optional": true}
                 }
               }
-            }
-          ]
-        }
-      },
-      {
-        "name": "getPageState",
-        "type": "function",
-        "description": "Gets enhanced page state including interactive elements",
-        "parameters": [
-          {
-            "name": "options",
-            "type": "object",
-            "properties": {
-              "debugMode": {
-                "type": "boolean",
-                "optional": true
-              },
-              "includeHidden": {
-                "type": "boolean",
-                "optional": true
-              },
-              "isBackgroundWebContents": {
-                "type": "boolean",
-                "optional": true
-              },
-              "backgroundWebContentsId": {
-                "type": "integer",
-                "optional": true
-              }
-            }
+            ]
           }
-        ],
-        "returns_async": {
-          "name": "callback",
+        },
+        {
+          "name": "setBlinksEnabled",
+          "type": "function",
+          "description": "Enables or disables the Action URL (blinks) system.",
           "parameters": [
             {
-              "name": "result",
+              "name": "enabled",
+              "type": "boolean",
+              "description": "True to enable, false to disable."
+            }
+          ],
+          "returns_async": {
+            "name": "callback",
+            "parameters": [
+              {
+                "name": "result",
+                "type": "object",
+                "properties": {
+                  "success": { "type": "boolean" }
+                }
+              }
+            ]
+          }
+        },
+        {
+          "name": "replaceAd",
+          "type": "function",
+          "description": "Replaces ad elements in the DOM with configured GPT ads.",
+          "parameters": [
+            {
+              "name": "isEnabled",
+              "type": "boolean",
+              "description": "Whether ad replacement is enabled."
+            },
+            {
+              "name": "adConfig",
+              "type": "object",
+              "description": "Configuration for GPT ads",
+              "properties": {
+                "adUnitPath": {
+                  "type": "string",
+                  "description": "Ad unit path (e.g. '/22988389496/Wootzapp')"
+                },
+                "sizes": {
+                  "type": "array",
+                  "description": "Ad size configurations",
+                  "items": {"$ref": "AdSize"}
+                },
+                "idPrefix": {
+                  "type": "string",
+                  "description": "Prefix for ad container IDs (e.g. 'div-gpt-ad-1747671853981-')"
+                },
+                "scriptUrl": {
+                  "type": "string",
+                  "description": "URL to GPT script (e.g. 'https://securepubads.g.doubleclick.net/tag/js/gpt.js')"
+                }
+              }
+            },
+            {
+              "name": "selectors",
+              "type": "array",
+              "items": { "type": "string" },
+              "description": "CSS selectors for ad elements to replace."
+            }
+          ],
+          "returns_async": {
+            "name": "callback",
+            "parameters": [
+              {
+                "name": "result",
+                "type": "object",
+                "properties": {
+                  "success": { "type": "boolean" },
+                  "error": { "type": "string", "optional": true }
+                }
+              }
+            ]
+          }
+        },
+        {
+          "name": "submitSamlResponse",
+          "type": "function",
+          "description": "Submits a SAML XML authentication response from extension to browser",
+          "parameters": [
+            {
+              "name": "xmlResponse",
+              "type": "string",
+              "description": "The XML SAML response"
+            }
+          ],
+          "returns_async": {
+            "name": "callback",
+            "parameters": [
+              {
+                "name": "result",
+                "type": "object",
+                "properties": {
+                  "success": {"type": "boolean"}
+                }
+              }
+            ]
+          }
+        },
+        {
+          "name": "createBackgroundWebContents",
+          "type": "function",
+          "description": "Creates a background WebContents and loads a URL",
+          "parameters": [
+            { 
+              "name": "webContentsId",
+              "type": "integer",
+              "description": "ID of the background WebContents"
+            },
+            {
+              "name": "url",
+              "type": "string",
+              "description": "URL to load in the background"
+            }
+          ],
+          "returns_async": {
+            "name": "callback",
+            "parameters": [
+              {
+                "name": "result",
+                "type": "object",
+                "properties": {
+                  "success": { "type": "boolean" },
+                  "error": { "type": "string", "optional": true }
+                }
+              }
+            ]
+          }
+        },
+        {
+          "name": "destroyBackgroundWebContents",
+          "type": "function",
+          "description": "Destroys a background WebContents",
+          "parameters": [
+            { 
+              "name": "webContentsId", 
+              "type": "integer", 
+              "description": "ID of the background WebContents to destroy" 
+            }
+          ],
+          "returns_async": {
+            "name": "callback",
+            "parameters": [
+              { 
+                "name": "result", 
+                "type": "object",  
+                "properties": { 
+                  "success": { "type": "boolean" },
+                  "error": { "type": "string", "optional": true }
+                }
+              }
+            ]
+          }
+        },
+        {
+          "name": "maskSensitiveElements",
+          "type": "function",
+          "description": "Sends selectors to renderer for immediate masking",
+          "parameters": [
+            {
+              "name": "selectors",
+              "type": "array",
+              "items": {"type": "string"},
+              "description": "Array of CSS selectors to mask (e.g., ['#ssn-field', '.credit-card', 'input[name=\"password\"]'])"
+            },
+            {
+              "name": "tabId",
+              "type": "integer",
+              "optional": true,
+              "description": "ID of the tab to mask elements in. If not provided, uses the active tab."
+            }
+          ],
+          "returns_async": {
+            "name": "callback",
+            "parameters": [
+              {
+                "name": "result",
+                "type": "object",
+                "properties": {
+                  "success": {"type": "boolean"},
+                  "masked": {"type": "integer", "description": "Number of elements masked"}
+                }
+              }
+            ]
+          }
+        },
+        {
+          "name": "getPageState",
+          "type": "function",
+          "description": "Gets enhanced page state including interactive elements",
+          "parameters": [
+            {
+              "name": "options",
               "type": "object",
               "properties": {
-                "success": {
-                  "type": "boolean"
-                },
-                "pageState": {
-                  "type": "object",
-                  "properties": {
-                    "url": {
-                      "type": "string"
-                    },
-                    "title": {
-                      "type": "string"
-                    },
-                    "pageContext": {
-                      "type": "object",
-                      "properties": {
-                        "pageType": {
-                          "type": "string"
-                        },
-                        "hasLoginForm": {
-                          "type": "boolean"
-                        },
-                        "hasUserMenu": {
-                          "type": "boolean"
-                        },
-                        "isLoggedIn": {
-                          "type": "boolean"
+                "debugMode": {"type": "boolean", "optional": true},
+                "includeHidden": {"type": "boolean", "optional": true}, 
+                "isBackgroundWebContents": {"type": "boolean", "optional": true},
+                "backgroundWebContentsId": {"type": "integer", "optional": true}
+              }
+            }
+          ],
+          "returns_async": {
+            "name": "callback",
+            "parameters": [
+              {
+                "name": "result",
+                "type": "object",
+                "properties": {
+                  "success": {"type": "boolean"},
+                  "pageState": {
+                    "type": "object",
+                    "properties": {
+                      "url": {"type": "string"},
+                      "title": {"type": "string"},
+                      "pageContext": {
+                        "type": "object",
+                        "properties": {
+                          "pageType": {"type": "string"},
+                          "hasLoginForm": {"type": "boolean"},
+                          "hasUserMenu": {"type": "boolean"},
+                          "isLoggedIn": {"type": "boolean"}
                         }
-                      }
-                    },
-                    "viewport": {
-                      "type": "object",
-                      "properties": {
-                        "width": {
-                          "type": "integer"
-                        },
-                        "height": {
-                          "type": "integer"
-                        },
-                        "isMobileWidth": {
-                          "type": "boolean"
-                        },
-                        "isTabletWidth": {
-                          "type": "boolean"
-                        },
-                        "isPortrait": {
-                          "type": "boolean"
-                        },
-                        "deviceType": {
-                          "type": "string"
-                        },
-                        "aspectRatio": {
-                          "type": "number"
+                      },
+                      "viewport": {
+                        "type": "object",
+                        "properties": {
+                          "width": {"type": "integer"},
+                          "height": {"type": "integer"},
+                          "isMobileWidth": {"type": "boolean"},
+                          "isTabletWidth": {"type": "boolean"},
+                          "isPortrait": {"type": "boolean"},
+                          "deviceType": {"type": "string"},
+                          "aspectRatio": {"type": "number"}
                         }
-                      }
-                    },
-                    "elements": {
-                      "type": "array",
-                      "items": {
-                        "$ref": "PageElement"
-                      }
-                    },
-                    "elementCategories": {
-                      "type": "object",
-                      "properties": {
-                        "form": {
-                          "type": "integer"
-                        },
-                        "navigation": {
-                          "type": "integer"
-                        },
-                        "action": {
-                          "type": "integer"
-                        },
-                        "content": {
-                          "type": "integer"
+                      },
+                      "elements": { "type": "array", "items": { "$ref": "PageElement" } },
+                      "elementCategories": {
+                        "type": "object",
+                        "properties": {
+                          "form": {"type": "integer"},
+                          "navigation": {"type": "integer"},
+                          "action": {"type": "integer"},
+                          "content": {"type": "integer"}
                         }
-                      }
-                    },
-                    "capabilities": {
-                      "type": "object",
-                      "properties": {
-                        "canLogin": {
-                          "type": "boolean"
-                        },
-                        "canSearch": {
-                          "type": "boolean"
-                        },
-                        "hasForms": {
-                          "type": "boolean"
-                        },
-                        "hasFileUpload": {
-                          "type": "boolean"
-                        },
-                        "hasMedia": {
-                          "type": "boolean"
-                        },
-                        "isInteractive": {
-                          "type": "boolean"
+                      },
+                      "capabilities": {
+                        "type": "object",
+                        "properties": {
+                          "canLogin": {"type": "boolean"},
+                          "canSearch": {"type": "boolean"},
+                          "hasForms": {"type": "boolean"},
+                          "hasFileUpload": {"type": "boolean"},
+                          "hasMedia": {"type": "boolean"},
+                          "isInteractive": {"type": "boolean"}
                         }
                       }
                     }
                   }
                 }
               }
-            }
-          ]
-        }
-      },
-      {
-        "name": "performAction",
-        "type": "function",
-        "description": "Performs an action on the page",
-        "parameters": [
-          {
-            "name": "action",
-            "type": "string",
-            "description": "The action to perform: click, fill, scroll"
-          },
-          {
-            "name": "actionParams",
-            "type": "object",
-            "properties": {
-              "index": {
-                "type": "integer",
-                "optional": true,
-                "description": "Element index for click/fill actions (takes precedence over selector)"
-              },
-              "selector": {
-                "type": "string",
-                "optional": true,
-                "description": "CSS selector for click/fill actions"
-              },
-              "text": {
-                "type": "string",
-                "optional": true,
-                "description": "Text content for fill actions"
-              },
-              "direction": {
-                "type": "string",
-                "optional": true,
-                "description": "Scroll direction: up, down, left, right (required for scroll action)"
-              },
-              "amount": {
-                "type": "string",
-                "optional": true,
-                "description": "Scroll amount in pixels (default: 300, only for scroll action)"
-              },
-              "isBackgroundWebContents": {
-                "type": "boolean",
-                "optional": true
-              },
-              "backgroundWebContentsId": {
-                "type": "integer",
-                "optional": true
-              }
-            }
+            ]
           }
-        ],
-        "returns_async": {
-          "name": "callback",
+        },
+        {
+          "name": "performAction",
+          "type": "function", 
+          "description": "Performs an action on the page",
           "parameters": [
             {
-              "name": "result",
+              "name": "action",
+              "type": "string",
+              "description": "The action to perform: click, fill, scroll"
+            },
+            {
+              "name": "actionParams",
               "type": "object",
               "properties": {
-                "success": {
-                  "type": "boolean"
-                },
-                "error": {
-                  "type": "string",
-                  "optional": true
-                }
+                "index": {"type": "integer", "optional": true, "description": "Element index for click/fill actions (takes precedence over selector)"},
+                "selector": {"type": "string", "optional": true, "description": "CSS selector for click/fill actions"},
+                "text": {"type": "string", "optional": true, "description": "Text content for fill actions"},
+                "direction": {"type": "string", "optional": true, "description": "Scroll direction: up, down, left, right (required for scroll action)"},
+                "amount": {"type": "string", "optional": true, "description": "Scroll amount in pixels (default: 300, only for scroll action)"}, 
+                "isBackgroundWebContents": {"type": "boolean", "optional": true},
+                "backgroundWebContentsId": {"type": "integer", "optional": true}
               }
             }
-          ]
-        }
-      },
-      {
-        "name": "changeWootzAppSearchConfiguration",
-        "type": "function",
-        "description": "Changes the search configuration for the WootzApp Search",
-        "parameters": [
-          {
-            "name": "searchEngineKeyword",
-            "type": "string",
-            "description": "Keyword of the search engine"
-          },
-          {
-            "name": "aiModelName",
-            "type": "string",
-            "description": "Name of the AI model to use for search"
-          },
-          {
-            "name": "apiKey",
-            "type": "string",
-            "description": "API key for the AI model"
+          ],
+          "returns_async": {
+            "name": "callback", 
+            "parameters": [
+              {
+                "name": "result",
+                "type": "object",
+                "properties": {
+                  "success": {"type": "boolean"},
+                  "error": {"type": "string", "optional": true}
+                }
+              }
+            ]
           }
-        ],
-        "returns_async": {
-          "name": "callback",
+        },
+        {
+          "name": "changeWootzAppSearchConfiguration",
+          "type": "function",
+          "description": "Changes the search configuration for the WootzApp Search",
           "parameters": [
-            {
-              "name": "result",
-              "type": "object",
-              "properties": {
-                "success": {
-                  "type": "boolean"
-                },
-                "error": {
-                  "type": "string",
-                  "optional": true
+            { 
+              "name": "searchEngineKeyword", 
+              "type": "string",
+              "description": "Keyword of the search engine"
+            },
+            { 
+              "name": "aiModelName", 
+              "type": "string", 
+              "description": "Name of the AI model to use for search" 
+            },
+            { 
+              "name": "apiKey", 
+              "type": "string", 
+              "description": "API key for the AI model" 
+            }
+          ],
+          "returns_async": {
+            "name": "callback",
+            "parameters": [
+              { 
+                "name": "result", 
+                "type": "object",  
+                "properties": { 
+                  "success": { "type": "boolean" },
+                  "error": { "type": "string", "optional": true }
                 }
               }
-            }
-          ]
-        }
-      },
-      {
-        "name": "captureScreenshot",
-        "type": "function",
-        "description": "Captures a screenshot of the current visible tab/viewport",
-        "parameters": [],
-        "returns_async": {
-          "name": "callback",
-          "parameters": [
-            {
-              "name": "result",
-              "type": "object",
-              "properties": {
-                "success": {
-                  "type": "boolean",
-                  "description": "Whether the screenshot was successful"
-                },
-                "message": {
-                  "type": "string",
-                  "optional": true,
-                  "description": "Message about the screenshot"
+            ]
+          }
+        },
+        {
+          "name": "captureScreenshot",
+          "type": "function",
+          "description": "Captures a screenshot of the current visible tab/viewport",
+          "parameters": [],
+          "returns_async": {
+            "name": "callback",
+            "parameters": [
+              {
+                "name": "result",
+                "type": "object",
+                "properties": {
+                  "success": {"type": "boolean", "description": "Whether the screenshot was successful"},
+                  "message": {"type": "string", "optional": true, "description": "Message about the screenshot"}
                 }
               }
-            }
-          ]
-        }
-      },
-      {
+            ]
+          }
+        },
+        {
         "name": "mtlsCert",
         "type": "function",
         "description": "Logs mTLS certificate string in Android browser",
@@ -1159,198 +898,125 @@
           ]
         }
       }
-    ],
-    "events": [
-      {
-        "name": "onSignMessageRequested",
-        "type": "function",
-        "description": "Fired when a new sign message request is available",
-        "parameters": [
-          {
-            "name": "request",
-            "type": "object",
-            "properties": {
-              "id": {
-                "type": "integer"
-              },
-              "address": {
-                "type": "string"
-              },
-              "origin": {
-                "type": "string"
-              },
-              "chainId": {
-                "type": "string"
-              },
-              "isEip712": {
-                "type": "boolean"
+      ],
+      "events": [
+        {
+          "name": "onSignMessageRequested",
+          "type": "function",
+          "description": "Fired when a new sign message request is available",
+          "parameters": [
+            {
+              "name": "request",
+              "type": "object",
+              "properties": {
+                "id": {"type": "integer"},
+                "address": {"type": "string"},
+                "origin": {"type": "string"},
+                "chainId": {"type": "string"},
+                "isEip712": {"type": "boolean"}
               }
             }
-          }
-        ]
-      },
-      {
-        "name": "OnNewUnapprovedTxAPI",
-        "type": "function",
-        "description": "Fired when a transaction needs user signature",
-        "parameters": [
-          {
-            "name": "txInfo",
-            "type": "object",
-            "properties": {
-              "txMetaId": {
-                "type": "string"
-              },
-              "from": {
-                "type": "string"
-              },
-              "tx_hash": {
-                "type": "string"
-              },
-              "chainId": {
-                "type": "string"
-              },
-              "coinType": {
-                "type": "integer"
-              },
-              "origin": {
-                "type": "string"
-              },
-              "transaction_amount": {
-                "type": "string"
-              },
-              "feeEstimation": {
-                "type": "array",
-                "items": {
-                  "type": "object",
-                  "properties": {
-                    "baseFee": {
-                      "type": "number"
-                    },
-                    "computeUnits": {
-                      "type": "number"
-                    },
-                    "feePerComputeUnit": {
-                      "type": "number"
+          ]
+        },
+        {
+          "name": "OnNewUnapprovedTxAPI",
+          "type": "function",
+          "description": "Fired when a transaction needs user signature",
+          "parameters": [
+            {
+              "name": "txInfo",
+              "type": "object",
+              "properties": {
+                "txMetaId": { "type": "string" },
+                "from": { "type": "string" },
+                "tx_hash": { "type": "string" },
+                "chainId": { "type": "string" },
+                "coinType": { "type": "integer" },
+                "origin": { "type": "string" },
+                "transaction_amount": { "type": "string" },
+                "feeEstimation": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "properties": {
+                      "baseFee": { "type": "number" },
+                      "computeUnits": { "type": "number" },
+                      "feePerComputeUnit": { "type": "number" }
                     }
                   }
                 }
               }
             }
-          }
-        ]
-      },
-      {
-        "name": "onTransactionStatusChangedAPI",
-        "type": "function",
-        "description": "Fired when transaction status changes",
-        "parameters": [
-          {
-            "name": "txInfo",
-            "type": "object",
-            "properties": {
-              "txMetaId": {
-                "type": "string"
-              },
-              "status": {
-                "type": "string"
-              },
-              "hash": {
-                "type": "string",
-                "optional": true
-              },
-              "error": {
-                "type": "string",
-                "optional": true
+          ]
+        },
+        {
+          "name": "onTransactionStatusChangedAPI",
+          "type": "function",
+          "description": "Fired when transaction status changes",
+          "parameters": [
+            {
+              "name": "txInfo",
+              "type": "object",
+              "properties": {
+                "txMetaId": { "type": "string" },
+                "status": { "type": "string" },
+                "hash": { "type": "string", "optional": true },
+                "error": { "type": "string", "optional": true }
               }
             }
-          }
-        ]
-      },
-      {
-        "name": "onSolanaSignTransactionRequested",
-        "type": "function",
-        "description": "Fired when a Solana transaction needs user signature",
-        "parameters": [
-          {
-            "name": "request",
-            "type": "object",
-            "properties": {
-              "id": {
-                "type": "integer"
-              },
-              "address": {
-                "type": "string"
-              },
-              "origin": {
-                "type": "string"
-              },
-              "chainId": {
-                "type": "string"
-              },
-              "encodedMessage": {
-                "type": "string"
+          ]
+        },
+        {
+          "name": "onSolanaSignTransactionRequested",
+          "type": "function",
+          "description": "Fired when a Solana transaction needs user signature",
+          "parameters": [
+            {
+              "name": "request",
+              "type": "object",
+              "properties": {
+                "id": {"type": "integer"},
+                "address": {"type": "string"},
+                "origin": {"type": "string"},
+                "chainId": {"type": "string"},
+                "encodedMessage": {"type": "string"}
               }
             }
-          }
-        ]
-      },
-      {
-        "name": "onDropdownButtonClicked",
-        "type": "function",
-        "description": "Fired when a dropdown button is clicked in the browser",
-        "parameters": [
-          {
-            "name": "eventData",
-            "type": "object",
-            "properties": {
-              "selectedFeature": {
-                "type": "string",
-                "description": "The feature that was selected"
-              },
-              "extensionId": {
-                "type": "string",
-                "description": "ID of the target extension"
-              },
-              "extensionName": {
-                "type": "string",
-                "description": "Name of the target extension"
-              },
-              "timestamp": {
-                "type": "number",
-                "description": "When the event occurred"
+          ]
+        },
+        {
+          "name": "onDropdownButtonClicked",
+          "type": "function",
+          "description": "Fired when a dropdown button is clicked in the browser",
+          "parameters": [
+            {
+              "name": "eventData",
+              "type": "object",
+              "properties": {
+                "selectedFeature": {"type": "string", "description": "The feature that was selected"},
+                "extensionId": {"type": "string", "description": "ID of the target extension"},
+                "extensionName": {"type": "string", "description": "Name of the target extension"},
+                "timestamp": {"type": "number", "description": "When the event occurred"}
               }
             }
-          }
-        ]
-      },
-      {
-        "name": "onScreenshotComplete",
-        "type": "function",
-        "description": "Fired when a screenshot capture is completed",
-        "parameters": [
-          {
-            "name": "result",
-            "type": "object",
-            "properties": {
-              "success": {
-                "type": "boolean",
-                "description": "Whether the screenshot was successful"
-              },
-              "dataUrl": {
-                "type": "string",
-                "optional": true,
-                "description": "Base64-encoded Jpeg image as data URL"
-              },
-              "error": {
-                "type": "string",
-                "optional": true,
-                "description": "Error message if screenshot failed"
+          ]
+        },
+        {
+          "name": "onScreenshotComplete",
+          "type": "function",
+          "description": "Fired when a screenshot capture is completed",
+          "parameters": [
+            {
+              "name": "result",
+              "type": "object",
+              "properties": {
+                "success": {"type": "boolean", "description": "Whether the screenshot was successful"},
+                "dataUrl": {"type": "string", "optional": true, "description": "Base64-encoded Jpeg image as data URL"},
+                "error": {"type": "string", "optional": true, "description": "Error message if screenshot failed"}
               }
             }
-          }
-        ]
-      }
-    ]
-  }
+          ]
+        }
+      ]
+    }
 ]

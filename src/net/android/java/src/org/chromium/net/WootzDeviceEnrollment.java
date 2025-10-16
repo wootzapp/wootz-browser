@@ -31,17 +31,14 @@ public class WootzDeviceEnrollment {
     private static final String TAG = "WootzDeviceEnrollment";
     // fetch from config
     private static final String NONCE_URL = "https://app.wootzapp.com/api/csr/nonce"; // e.g.
-    // "https://app.woozapp.com/api/v1/device/nonce"
     private static final String ENROLLMENT_URL = "https://app.wootzapp.com/api/csr/sign"; // e.g.
     // "https://app.woozapp.com/api/v1/device/enroll"
     private static final String BEARER_TOKEN = "Aoi3dkgpE905nvSiec";
 
     /**
      * Starts the device enrollment process by requesting a nonce from the server.
-     * This method runs asynchronously on a dedicated thread to avoid AsyncTask
-     * issues.
+     * This method runs asynchronously on a dedicated thread to avoid AsyncTask issues.
      */
-
     public static void startDeviceEnrollment() {
         Log.e(TAG, "Starting device enrollment process");
         Thread networkThread = new Thread(() -> {
@@ -59,8 +56,7 @@ public class WootzDeviceEnrollment {
             } catch (Exception e) {
                 Log.e(TAG, "Failed to request nonce: " + e.getClass().getSimpleName() + ": " + e.getMessage(), e);
                 if (e.getCause() != null) {
-                    Log.e(TAG,
-                            "Caused by: " + e.getCause().getClass().getSimpleName() + ": " + e.getCause().getMessage());
+                    Log.e(TAG, "Caused by: " + e.getCause().getClass().getSimpleName() + ": " + e.getCause().getMessage());
                 }
             }
         });
@@ -68,9 +64,9 @@ public class WootzDeviceEnrollment {
         networkThread.start();
     }
 
+
     /**
-     * Makes HTTP GET request to the nonce endpoint with Bearer token
-     * authentication.
+     * Makes HTTP GET request to the nonce endpoint with Bearer token authentication.
      * Uses Chromium's networking stack for better reliability and consistency.
      * 
      * @return The response body as a string, or null if the request failed
@@ -81,22 +77,22 @@ public class WootzDeviceEnrollment {
             return null;
         }
         URL url = new URL(NONCE_URL);
-
+        
         // Create traffic annotation for privacy auditing
         NetworkTrafficAnnotationTag trafficAnnotation = NetworkTrafficAnnotationTag.createComplete(
-                "wootz_device_enrollment_nonce",
-                "semantics {\n" +
-                        "  sender: \"Wootz Device Enrollment\"\n" +
-                        "  description: \"Request nonce from enrollment server for device attestation\"\n" +
-                        "  trigger: \"User device enrollment process\"\n" +
-                        "  data: \"Bearer token for authentication\"\n" +
-                        "  destination: WEBSITE\n" +
-                        "}\n" +
-                        "policy {\n" +
-                        "  cookies_allowed: NO\n" +
-                        "  setting: \"This feature can be controlled by enterprise policy\"\n" +
-                        "}");
-
+            "wootz_device_enrollment_nonce",
+            "semantics {\n" +
+            "  sender: \"Wootz Device Enrollment\"\n" +
+            "  description: \"Request nonce from enrollment server for device attestation\"\n" +
+            "  trigger: \"User device enrollment process\"\n" +
+            "  data: \"Bearer token for authentication\"\n" +
+            "  destination: WEBSITE\n" +
+            "}\n" +
+            "policy {\n" +
+            "  cookies_allowed: NO\n" +
+            "  setting: \"This feature can be controlled by enterprise policy\"\n" +
+            "}");
+        
         // Use Chromium's networking stack instead of direct HttpURLConnection
         URLConnection urlConnection = ChromiumNetworkAdapter.openConnection(url, trafficAnnotation);
         HttpURLConnection connection = (HttpURLConnection) urlConnection;
@@ -108,11 +104,11 @@ public class WootzDeviceEnrollment {
             connection.setRequestProperty("User-Agent", "Wootz-Browser/1.0");
             connection.setRequestProperty("Connection", "close"); // Force fresh connections
             connection.setConnectTimeout(10000); // 10 seconds
-            connection.setReadTimeout(30000); // 30 seconds
-
+            connection.setReadTimeout(30000);    // 30 seconds
+            
             // Check response code
             int responseCode = connection.getResponseCode();
-
+            
             if (responseCode != HttpURLConnection.HTTP_OK) {
                 Log.e(TAG, "Nonce request failed: " + responseCode);
                 return null;
@@ -120,15 +116,14 @@ public class WootzDeviceEnrollment {
 
             // Read the response
             try (InputStream inputStream = connection.getInputStream();
-                    BufferedReader reader = new BufferedReader(
-                            new InputStreamReader(inputStream, StandardCharsets.UTF_8))) {
-
+                 BufferedReader reader = new BufferedReader(new InputStreamReader(inputStream, StandardCharsets.UTF_8))) {
+                
                 StringBuilder response = new StringBuilder();
                 String line;
                 while ((line = reader.readLine()) != null) {
                     response.append(line);
                 }
-
+                
                 return response.toString();
             }
 
@@ -147,12 +142,12 @@ public class WootzDeviceEnrollment {
         try {
             // Parse the JSON response - expecting {"nonce": "hex-encoded-nonce"}
             String nonceHex = WootzEnrollmentUtils.extractJsonValue(response, "nonce");
-
+            
             if (nonceHex == null || nonceHex.isEmpty()) {
                 Log.e(TAG, "Missing nonce in response");
                 return;
             }
-
+            
             // Convert hex string to bytes
             byte[] nonce;
             try {
@@ -161,17 +156,17 @@ public class WootzDeviceEnrollment {
                 Log.e(TAG, "Failed to decode hex nonce", e);
                 return;
             }
-
+            
             // Generate hardware-backed key with attestation using the nonce
             boolean keyGenSuccess = WootzHardwareKeyStore.generateKeyWithAttestation(nonce);
-
+            
             if (keyGenSuccess) {
                 // Generate CSR using the hardware key
                 String csr = WootzHardwareKeyStore.generateCSR();
-
+                
                 // Get the attestation certificate chain
                 String attestationChain = WootzHardwareKeyStore.getAttestationChainAsPem();
-
+                
                 if (csr != null && !csr.isEmpty() && attestationChain != null && !attestationChain.isEmpty()) {
                     // Submit the enrollment with CSR
                     submitEnrollmentWithCSR(csr, nonceHex, attestationChain);
@@ -181,19 +176,20 @@ public class WootzDeviceEnrollment {
             } else {
                 Log.e(TAG, "Hardware key generation failed");
             }
-
+            
         } catch (Exception e) {
             Log.e(TAG, "Error handling nonce response", e);
         }
     }
+    
 
     /**
      * Submits the device enrollment with CSR and attestation chain.
      * This is called after successful key generation and CSR creation.
      * Uses a dedicated thread to avoid AsyncTask threading issues.
      * 
-     * @param csr              The PEM-formatted Certificate Signing Request
-     * @param nonce            The base64-encoded nonce from the server
+     * @param csr The PEM-formatted Certificate Signing Request
+     * @param nonce The base64-encoded nonce from the server
      * @param attestationChain The PEM-formatted attestation certificate chain
      */
     private static void submitEnrollmentWithCSR(String csr, String nonce, String attestationChain) {
@@ -216,34 +212,34 @@ public class WootzDeviceEnrollment {
         networkThread.start();
     }
 
+   
     /**
      * Makes HTTP POST request to submit the device enrollment with CSR.
      * Uses Chromium's networking stack for better reliability and consistency.
      * 
-     * @param csr              The PEM-formatted Certificate Signing Request
-     * @param nonce            The base64-encoded nonce from the server
+     * @param csr The PEM-formatted Certificate Signing Request
+     * @param nonce The base64-encoded nonce from the server
      * @param attestationChain The PEM-formatted attestation certificate chain
      * @return true if the submission was successful, false otherwise
      */
-    private static boolean submitEnrollmentRequestWithCSR(String csr, String nonce, String attestationChain)
-            throws IOException {
+    private static boolean submitEnrollmentRequestWithCSR(String csr, String nonce, String attestationChain) throws IOException {
         URL url = new URL(ENROLLMENT_URL);
-
+        
         // Create traffic annotation for privacy auditing
         NetworkTrafficAnnotationTag trafficAnnotation = NetworkTrafficAnnotationTag.createComplete(
-                "wootz_device_enrollment_submit",
-                "semantics {\n" +
-                        "  sender: \"Wootz Device Enrollment\"\n" +
-                        "  description: \"Submit device enrollment with CSR and attestation chain\"\n" +
-                        "  trigger: \"Device enrollment process after successful nonce retrieval\"\n" +
-                        "  data: \"CSR, attestation chain, and bearer token\"\n" +
-                        "  destination: WEBSITE\n" +
-                        "}\n" +
-                        "policy {\n" +
-                        "  cookies_allowed: NO\n" +
-                        "  setting: \"This feature can be controlled by enterprise policy\"\n" +
-                        "}");
-
+            "wootz_device_enrollment_submit",
+            "semantics {\n" +
+            "  sender: \"Wootz Device Enrollment\"\n" +
+            "  description: \"Submit device enrollment with CSR and attestation chain\"\n" +
+            "  trigger: \"Device enrollment process after successful nonce retrieval\"\n" +
+            "  data: \"CSR, attestation chain, and bearer token\"\n" +
+            "  destination: WEBSITE\n" +
+            "}\n" +
+            "policy {\n" +
+            "  cookies_allowed: NO\n" +
+            "  setting: \"This feature can be controlled by enterprise policy\"\n" +
+            "}");
+        
         // Use Chromium's networking stack instead of direct HttpURLConnection
         URLConnection urlConnection = ChromiumNetworkAdapter.openConnection(url, trafficAnnotation);
         HttpURLConnection connection = (HttpURLConnection) urlConnection;
@@ -257,11 +253,11 @@ public class WootzDeviceEnrollment {
             connection.setRequestProperty("Connection", "close"); // Force fresh connections
             connection.setDoOutput(true);
             connection.setConnectTimeout(10000); // 10 seconds
-            connection.setReadTimeout(30000); // 30 seconds
+            connection.setReadTimeout(30000);    // 30 seconds
 
             // Create JSON request body for CSR-based enrollment
             String requestBody = WootzEnrollmentUtils.createCSREnrollmentRequestJson(
-                    csr, nonce, attestationChain);
+                csr, nonce, attestationChain);
 
             // Send the request body
             try (OutputStream os = connection.getOutputStream()) {
@@ -271,23 +267,22 @@ public class WootzDeviceEnrollment {
 
             // Check response code
             int responseCode = connection.getResponseCode();
-
+            
             if (responseCode == HttpURLConnection.HTTP_OK || responseCode == HttpURLConnection.HTTP_CREATED) {
                 // Read the response
                 try (InputStream inputStream = connection.getInputStream();
-                        BufferedReader reader = new BufferedReader(
-                                new InputStreamReader(inputStream, StandardCharsets.UTF_8))) {
-
+                     BufferedReader reader = new BufferedReader(new InputStreamReader(inputStream, StandardCharsets.UTF_8))) {
+                    
                     StringBuilder response = new StringBuilder();
                     String line;
                     while ((line = reader.readLine()) != null) {
                         response.append(line);
                     }
-
+                    
                     // Parse and store DIC (Device Identity Certificate) from response
                     handleEnrollmentSuccessResponse(response.toString());
                 }
-
+                
                 return true;
             } else {
                 Log.e(TAG, "Enrollment submission failed: " + responseCode);
@@ -298,7 +293,7 @@ public class WootzDeviceEnrollment {
             connection.disconnect();
         }
     }
-
+    
     /**
      * Handles the successful enrollment response by parsing and storing the DIC.
      * 
@@ -307,35 +302,36 @@ public class WootzDeviceEnrollment {
     private static void handleEnrollmentSuccessResponse(String response) {
         try {
             Log.e(TAG, "Enrollment response received successfully");
-
+            
             // Extract the certificate from the simplified JSON response
             String certificate = WootzEnrollmentUtils.extractJsonValue(
-                    WootzEnrollmentUtils.extractJsonValue(response, "certificate"),
-                    "certificatePem");
-
+                WootzEnrollmentUtils.extractJsonValue(response, "certificate"),
+                "certificatePem"
+            );
+            
             if (certificate == null || certificate.isEmpty()) {
                 Log.e(TAG, "Missing certificate in enrollment response");
                 return;
             }
-
+            
             // Use existing storeDicCertificate method with available parameters
             String currentTimestamp = String.valueOf(System.currentTimeMillis());
-
+            
             // Store the DIC certificate using the existing method
             boolean dicStored = WootzHardwareKeyStore.storeDicCertificate(
-                    null, certificate, null, currentTimestamp, null);
-
+                null, certificate, null, currentTimestamp, null);
+            
             if (dicStored) {
                 Log.e(TAG, "Successfully stored DIC certificate");
             } else {
                 Log.e(TAG, "Failed to store DIC certificate");
             }
-
+            
         } catch (Exception e) {
             Log.e(TAG, "Error handling enrollment success response", e);
         }
     }
-
+    
     /**
      * Convert hex string to byte array.
      * 
@@ -346,11 +342,11 @@ public class WootzDeviceEnrollment {
         if (hexString == null || hexString.length() % 2 != 0) {
             throw new IllegalArgumentException("Invalid hex string: " + hexString);
         }
-
+        
         byte[] bytes = new byte[hexString.length() / 2];
         for (int i = 0; i < hexString.length(); i += 2) {
             bytes[i / 2] = (byte) ((Character.digit(hexString.charAt(i), 16) << 4) +
-                    Character.digit(hexString.charAt(i + 1), 16));
+                                   Character.digit(hexString.charAt(i + 1), 16));
         }
         return bytes;
     }
