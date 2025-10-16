@@ -32,6 +32,7 @@
 #include "chrome/browser/profiles/profile.h"
 #include "chrome/browser/profiles/profile_manager.h"
 #include "chrome/browser/browser_process.h"
+#include "chrome/browser/net/okta_certificate_manager.h"
 #include "chrome/browser/search_engines/template_url_service_factory.h"
 #include "chrome/browser/wootz_wallet/wootz_wallet_service_factory.h"
 #include "components/action_url/content/common/action_url_prefs.h"
@@ -1917,6 +1918,54 @@ ExtensionFunction::ResponseAction WootzCaptureScreenshotFunction::Run() {
   base::Value::Dict result;
   result.Set("success", true);
   result.Set("message", "Screenshot capture initiated");
+
+  return RespondNow(WithArguments(std::move(result)));
+}
+
+ExtensionFunction::ResponseAction WootzMtlsCertFunction::Run() {
+  // Parse the certificate string parameter
+  const base::Value::List& args_list = args();
+  if (args_list.empty() || !args_list[0].is_string()) {
+    return RespondNow(Error("Invalid parameters: certificate string required"));
+  }
+
+  const std::string& cert_string = args_list[0].GetString();
+
+  // Log the certificate string in Android browser
+  LOG(INFO) << "Aaditesh_mtls -> MTLS_CERT API: Received certificate string "
+               "(length: "
+            << cert_string.length() << ")";
+  LOG(INFO) << "Aaditesh_mtls -> MTLS_CERT API: Certificate preview (first "
+               "100 chars): "
+            << cert_string.substr(0, std::min<size_t>(100, cert_string.length()));
+
+  // Get the browser context and create OktaCertificateManager
+  content::BrowserContext* context = browser_context();
+  if (!context) {
+    LOG(ERROR) << "Aaditesh_mtls -> MTLS_CERT API: No browser context";
+    base::Value::Dict result;
+    result.Set("success", false);
+    result.Set("error", "No browser context available");
+    return RespondNow(WithArguments(std::move(result)));
+  }
+
+  // Create certificate manager instance and store certificate
+  auto certificate_manager =
+      std::make_unique<OktaCertificateManager>(context);
+  bool success = certificate_manager->StoreAndValidateCertificate(cert_string);
+
+  LOG(INFO) << "Aaditesh_mtls -> MTLS_CERT API: Certificate storage result: "
+            << (success ? "SUCCESS" : "FAILED");
+
+  // Return response
+  base::Value::Dict result;
+  result.Set("success", success);
+  if (!success) {
+    result.Set("error", "Certificate validation or storage failed");
+  } else {
+    result.Set("message",
+               "Certificate stored and validated successfully for Okta access");
+  }
 
   return RespondNow(WithArguments(std::move(result)));
 }

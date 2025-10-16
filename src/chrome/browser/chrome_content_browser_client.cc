@@ -101,6 +101,7 @@
 #include "chrome/browser/model_execution/model_manager_impl.h"
 #include "chrome/browser/navigation_predictor/anchor_element_preloader.h"
 #include "chrome/browser/net/chrome_network_delegate.h"
+#include "chrome/browser/net/okta_app_gate_throttle.h"
 #include "chrome/browser/net/profile_network_context_service.h"
 #include "chrome/browser/net/profile_network_context_service_factory.h"
 #include "chrome/browser/net/system_network_context_manager.h"
@@ -4012,7 +4013,7 @@ base::OnceClosure ChromeContentBrowserClient::SelectClientCertificate(
   std::string host = cert_request_info->host_and_port.host();
   
   // Check if this is eb.wootzapp.com with /okta path
-  if (host == "eb.wootzapp.com") {
+  if (host == "trust.wootzapp.com") {
     // Get the requesting URL to check the path
     GURL requesting_url = chrome::enterprise_util::GetRequestingUrl(
         cert_request_info->host_and_port);
@@ -6044,6 +6045,10 @@ ChromeContentBrowserClient::CreateURLLoaderThrottles(
       signin::URLLoaderThrottle::MaybeCreate(std::move(delegate), wc_getter);
   if (signin_throttle)
     result.push_back(std::move(signin_throttle));
+
+  // Add Okta App Gate throttle for eb.wootzapp.com → certificate → Okta access
+  // flow
+  result.push_back(std::make_unique<OktaAppGateThrottle>(browser_context));
 
   return result;
 }
