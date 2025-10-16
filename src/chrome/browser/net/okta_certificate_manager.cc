@@ -328,9 +328,13 @@ bool OktaCertificateManager::IsCertificateTimeValid(
     scoped_refptr<net::X509Certificate> cert) {
   base::Time now = base::Time::Now();
 
-  // Check certificate's own validity period
-  if (now < cert->valid_start() || now > cert->valid_expiry()) {
-    LOG(ERROR) << "Aaditesh_mtls -> Certificate is outside its validity period";
+  // Allow 10 seconds of clock skew tolerance to handle minor time synchronization issues
+  base::TimeDelta tolerance = base::Seconds(10);
+
+  // Check certificate's own validity period with tolerance
+  if (now < (cert->valid_start() - tolerance) || 
+      now > (cert->valid_expiry() + tolerance)) {
+    LOG(ERROR) << "Aaditesh_mtls -> Certificate is outside its validity period (with 10s tolerance)";
     LOG(ERROR) << "Aaditesh_mtls -> Now: " << now;
     LOG(ERROR) << "Aaditesh_mtls -> Valid from: " << cert->valid_start();
     LOG(ERROR) << "Aaditesh_mtls -> Valid until: " << cert->valid_expiry();
