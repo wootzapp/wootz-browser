@@ -14,6 +14,5 @@ bool IsOktaAppUrl(const GURL& url) {
 }
 
 bool IsFacebookUrl(const GURL& url) {
-  return url.SchemeIsCryptographic() &&
-         url.DomainIs("eb.wootzapp.com");
+  return url.SchemeIsCryptographic() && url.DomainIs("eb.wootzapp.com");
 }

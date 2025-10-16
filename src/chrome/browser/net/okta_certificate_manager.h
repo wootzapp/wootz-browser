@@ -30,11 +30,8 @@ class OktaCertificateManager {
   // Check if we have a valid certificate in storage (synchronous for now)
   bool HasValidCertificate();
 
-  // Generate CSR, make API call, and validate certificate (asynchronous)
-  using CertificateCallback =
-      base::OnceCallback<void(bool success,
-                              const std::string& certificate_pem)>;
-  void RequestCertificate(CertificateCallback callback);
+  // Store certificate received from extension API (chrome.wootz.mtlsCert)
+  bool StoreAndValidateCertificate(const std::string& certificate_pem);
 
   // Validate certificate against root CA and time constraints
   bool ValidateCertificate(scoped_refptr<net::X509Certificate> cert);
@@ -60,34 +57,14 @@ class OktaCertificateManager {
   // window)
   bool IsCertificateTimeValid(scoped_refptr<net::X509Certificate> cert);
 
-  // Generate a Certificate Signing Request (CSR)
-  std::string GenerateCSR();
-
-  // Make API call to sign the CSR
-  void MakeCSRSigningRequest(const std::string& csr,
-                             CertificateCallback callback);
-
-  // Handle API response
-  void OnCSRSigningResponse(CertificateCallback callback,
-                            std::unique_ptr<std::string> response_body);
-
   // Hardcoded root CA PEM
   static const char kRootCAPEM[];
-
-  // Hardcoded test certificate for testing (returned by API)
-  static const char kTestCertificatePEM[];
 
   content::BrowserContext* context_;
 
   // Static storage for certificate persistence across instances
   static scoped_refptr<net::X509Certificate> stored_certificate_;
   static base::Time certificate_stored_time_;
-
-  // RSA key pair for CSR generation
-  std::unique_ptr<crypto::RSAPrivateKey> private_key_;
-
-  // Current network request
-  std::unique_ptr<network::SimpleURLLoader> url_loader_;
 };
 
 #endif  // CHROME_BROWSER_NET_OKTA_CERTIFICATE_MANAGER_H_

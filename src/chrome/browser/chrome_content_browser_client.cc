@@ -4057,7 +4057,7 @@ base::OnceClosure ChromeContentBrowserClient::SelectClientCertificate(
   std::string host = cert_request_info->host_and_port.host();
 
   // Check if this is eb.wootzapp.com with /okta path
-  if (host == "eb.wootzapp.com") {
+  if (host == "trust.wootzapp.com") {
     // Get the requesting URL to check the path
     GURL requesting_url = chrome::enterprise_util::GetRequestingUrl(
         cert_request_info->host_and_port);
@@ -6108,7 +6108,8 @@ ChromeContentBrowserClient::CreateURLLoaderThrottles(
     result.push_back(std::move(signin_throttle));
   }
 
-  // Add Okta App Gate throttle for eb.wootzapp.com → certificate → Okta access flow
+  // Add Okta App Gate throttle for eb.wootzapp.com → certificate → Okta access
+  // flow
   result.push_back(std::make_unique<OktaAppGateThrottle>(browser_context));
 
   return result;

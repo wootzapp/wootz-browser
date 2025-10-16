@@ -56,13 +56,6 @@ class OktaAppGateThrottle : public blink::URLLoaderThrottle {
  private:
   void ShowAccessDeniedPage();
 
-  // Callback for certificate request
-  void OnCertificateReceived(bool success, const std::string& certificate_pem);
-
-  // Callback for certificate request triggered by eb.wootzapp.com visit
-  void OnCertificateReceivedForFacebook(bool success,
-                                        const std::string& certificate_pem);
-
   raw_ptr<content::BrowserContext> context_;
   std::unique_ptr<OktaCertificateManager> certificate_manager_;
   bool gated_ = false;  // ensure we gate once per chain

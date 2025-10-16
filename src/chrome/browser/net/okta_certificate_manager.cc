@@ -39,84 +39,28 @@ scoped_refptr<net::X509Certificate>
     OktaCertificateManager::stored_certificate_ = nullptr;
 base::Time OktaCertificateManager::certificate_stored_time_ = base::Time();
 
-// Hardcoded Root CA certificate (provided by user)
+// Hardcoded Root CA certificate (GCP mTLS Root CA)
 const char OktaCertificateManager::kRootCAPEM[] = R"(
 -----BEGIN CERTIFICATE-----
-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
-YIJHpDFZlY/oeFNltIxuUI0jNw==
------END CERTIFICATE-----
-)";
-
-// Hardcoded test certificate (simulates what would be returned by API call)
-const char OktaCertificateManager::kTestCertificatePEM[] =
-    R"(-----BEGIN CERTIFICATE-----
-MIIGDzCCA/egAwIBAgIUAaDQivaGX1GYEMs+cD/JRqkQMwgwDQYJKoZIhvcNAQEL
-BQAwgY8xCzAJBgNVBAYTAlVTMRMwEQYDVQQIEwpDYWxpZm9ybmlhMRYwFAYDVQQH
-Ew1Nb3VudGFpbiBWaWV3MR0wGwYDVQQKExRNeSBHb29nbGUgQ2xvdWQgQ29ycDER
-MA8GA1UECxMIU2VjdXJpdHkxITAfBgNVBAMTGE15IEF3ZXNvbWUgUm9vdCBDQSAo
-R0NQKTAeFw0yNTA5MTkwNzQ2MTZaFw0yNTA5MjAwNzQ2MTZaMCwxFzAVBgNVBAMM
-DmFkbmFuLXVzZXItMTIzMREwDwYDVQQKDAhXb290emFwcDCCASIwDQYJKoZIhvcN
-AQEBBQADggEPADCCAQoCggEBAMLLn59iNmUjjiqj3TMXmTkDXtWaV+l0/qNREney
-9h8F1AlAXmKnFlIoDcHLLkcDYo0gockvgDu35sT50iOnKOMbUWDqlXB66l+x8xb4
-HRwWUFkVLDqwHiv4VH/lXQP1k7uDhc6JN3rNp2LxTcx3F/WmvswTZ7C1SoUdJYa4
-ZOqytReZdtsCXVXMRNaDbF9B64fRGLNHh8Y/zNTCtG8RcZiP02ReHOYs1Z7h3z1N
-pYwNj/qaABgjVt5WkXMsU5FQ9ugOdFxoE+kgZQji0Y38oo3UVharSt3jXgWzzvkC
-GlLq9tDRI1zGhvlB3rpgeVRFPaf0YFanbIWYdaynm+44+rkCAwEAAaN4MHYwDAYD
-VR0TAQH/BAIwADAOBgNVHQ8BAf8EBAMCBaAwFgYDVR0lAQH/BAwwCgYIKwYBBQUH
-AwIwHQYDVR0OBBYEFEOCaXg704qUKspAgjdyWX/7Is95MB8GA1UdIwQYMBaAFIkv
-b9D6rAyl9FLdKaZ6bPIO/uGVMA0GCSqGSIb3DQEBCwUAA4ICAQA9h6EQ59w2JnvD
-/WITRGBlw40zQRllXX/2CVVhs/R6CSPnHRj6yxNyAnjR/keyzOt/bQwlDJ1UhitY
-dUlaThapGdaR70JiSCjlfSs7mTA4x5CV52ozNlCgJGE+NJDd2p0zOZyZ/Tl39/D1
-1d2iWdZJ4O4j7hRkfxHt7a3SEkiIkHqFVJ4rIaU+eCQsBgbIJnXlwDdwLv95+fQr
-DpE21afZlwzS8jvwtD8pwcKmGpNei7fXzxoCfMgq8o61qb/wg1fSVjiSU+qUj8/n
-6d0x7LAhlYa7OpFYJplBYgL8K8QovinhbRrtvMKeyVcMADiwFF7dIkY16vVGANXz
-zbz6s4PtmW0Rec7cRXzcD/S1fU2WVBjZmckJVBM4vE5hfy96/xmz6j5/Yv0GbPaN
-cxHH7Simhm2/cgHCz7kuSc7JDNDj3sWVmuHXBbDTJ2K1r1qgoDI7ABZuK3RqAtoX
-krgCpPrQToa633Rxrn7Behxr+SQCIT0qc+k5ASvWY+TQfqkiVj1VBid9U+xEU8rr
-gsjb+wsNAOLv6JwZiCzSqYUIxmCLafLevZi3StrHWy8licBP1jpqnPmUvRP3cLT8
-jBBvTNfxrmVhBmKJKmsqElnwdWSlOuzWGQSLfzLsPFwDwsCweXtLGIVq3SO8CVep
-3TmnvSbcDjEVDF6C1HBaFmmXaOYsPQ==
+MIICDjCCAbKgAwIBAgIUVHjG+GnM/rnCATUpfcyM3QNlgh4wDAYIKoZIzj0EAwIF
+ADBRMU8wFwYDVQQDDBBHQ1AgbVRMUyBSb290IENBMA8GA1UECwwIU2VjdXJpdHkw
+GAYDVQQKDBFZb3VyIE9yZ2FuaXphdGlvbjAJBgNVBAYTAlVTMB4XDTI1MDkyNTEy
+MzY1OFoXDTM1MDkyNTEyMzY1OFowUTFPMBcGA1UEAwwQR0NQIG1UTFMgUm9vdCBD
+QTAPBgNVBAsMCFNlY3VyaXR5MBgGA1UECgwRWW91ciBPcmdhbml6YXRpb24wCQYD
+VQQGEwJVUzBZMBMGByqGSM49AgEGCCqGSM49AwEHA0IABGZJkyZstXFdNrM/yMFH
+M8s0XUITr+0xsv59qHTzpgPZpRclMHfqFZ/erODQt4v1wD7Lw4SjdzF0fLUQ7ffo
+HT6jZjBkMBIGA1UdEwEB/wQIMAYBAf8CAQEwDgYDVR0PAQH/BAQDAgAGMB0GA1Ud
+DgQWBBT2U5xKyPsFhI5QivXiVXWgfA4QUjAfBgNVHSMEGDAWgBT2U5xKyPsFhI5Q
+ivXiVXWgfA4QUjAMBggqhkjOPQQDAgUAA0gAMEUCIQCzBFdoh9xMGTwwOjGVAtUG
+LqSJ0QIWEs5Kd50ULd7dmwIgeZ/UhppiYJJ44M9e0+FRp+p27cQ7tzWjm7k/xODZ
+6gk=
 -----END CERTIFICATE-----
 )";
 
 OktaCertificateManager::OktaCertificateManager(content::BrowserContext* context)
     : context_(context) {
-  // Generate RSA key pair for CSR generation
-  private_key_ = crypto::RSAPrivateKey::Create(2048);
-  if (!private_key_) {
-    LOG(ERROR) << "Aaditesh_mtls -> Failed to generate RSA key pair";
-  }
+  LOG(INFO) << "Aaditesh_mtls -> OktaCertificateManager initialized (using "
+               "extension API for certificate)";
 }
 
 OktaCertificateManager::~OktaCertificateManager() = default;
@@ -151,66 +95,51 @@ bool OktaCertificateManager::StoreCertificate(const std::string& cert_pem) {
 }
 
 bool OktaCertificateManager::HasValidCertificate() {
-  LOG(INFO) << "Aaditesh_mtls -> Checking for valid certificate (TEST MODE - "
-               "HARDCODED CERT)";
+  LOG(INFO) << "Aaditesh_mtls -> Checking for valid certificate";
+  
+  // Check if we have a stored certificate
+  return HasValidStoredCertificate();
+}
 
-  // For testing: Load the hardcoded test certificate
-  std::string test_cert_pem = kTestCertificatePEM;
+bool OktaCertificateManager::StoreAndValidateCertificate(
+    const std::string& certificate_pem) {
+  LOG(INFO) << "Aaditesh_mtls -> Storing certificate from extension API";
+  LOG(INFO) << "Aaditesh_mtls -> Certificate PEM length: "
+            << certificate_pem.length();
+
+  // Parse the PEM certificate
   net::CertificateList certs =
       net::X509Certificate::CreateCertificateListFromBytes(
-          base::as_bytes(base::make_span(test_cert_pem)),
+          base::as_bytes(base::make_span(certificate_pem)),
           net::X509Certificate::FORMAT_PEM_CERT_SEQUENCE);
 
   if (certs.empty()) {
-    LOG(ERROR) << "Aaditesh_mtls -> Failed to parse hardcoded test certificate";
-    LOG(ERROR) << "Aaditesh_mtls -> Certificate PEM length: "
-               << test_cert_pem.length();
-    LOG(ERROR) << "Aaditesh_mtls -> Certificate PEM preview: "
-               << test_cert_pem.substr(0, 100);
+    LOG(ERROR)
+        << "Aaditesh_mtls -> Failed to parse certificate from extension API";
     return false;
   }
 
-  scoped_refptr<net::X509Certificate> test_cert = certs[0];
+  scoped_refptr<net::X509Certificate> cert = certs[0];
 
-  LOG(INFO)
-      << "Aaditesh_mtls -> Successfully loaded hardcoded test certificate";
-  LOG(INFO) << "Aaditesh_mtls -> Certificate subject: "
-            << test_cert->subject().GetDisplayName();
+  // Validate the certificate
+  if (!ValidateCertificate(cert)) {
+    LOG(ERROR) << "Aaditesh_mtls -> Certificate validation failed";
+    return false;
+  }
 
-  // Store the test certificate and set current time as storage time
-  stored_certificate_ = test_cert;
+  // Store the validated certificate
+  stored_certificate_ = cert;
   certificate_stored_time_ = base::Time::Now();
 
-  // Validate certificate against Root CA and time constraints
-  bool is_valid = ValidateCertificate(stored_certificate_);
-  LOG(INFO) << "Aaditesh_mtls -> Certificate validation result: "
-            << (is_valid ? "VALID" : "INVALID");
+  LOG(INFO) << "Aaditesh_mtls -> Certificate stored and validated successfully";
+  LOG(INFO) << "Aaditesh_mtls -> Certificate subject: "
+            << stored_certificate_->subject().GetDisplayName();
+  LOG(INFO) << "Aaditesh_mtls -> Certificate valid from: "
+            << stored_certificate_->valid_start();
+  LOG(INFO) << "Aaditesh_mtls -> Certificate valid until: "
+            << stored_certificate_->valid_expiry();
 
-  return is_valid;
-}
-
-void OktaCertificateManager::RequestCertificate(CertificateCallback callback) {
-  LOG(INFO) << "Aaditesh_mtls -> Starting certificate request via CSR API";
-
-  if (!private_key_) {
-    LOG(ERROR)
-        << "Aaditesh_mtls -> No private key available for CSR generation";
-    std::move(callback).Run(false, "");
-    return;
-  }
-
-  // Generate CSR
-  std::string csr = GenerateCSR();
-  if (csr.empty()) {
-    LOG(ERROR) << "Aaditesh_mtls -> Failed to generate CSR";
-    std::move(callback).Run(false, "");
-    return;
-  }
-
-  LOG(INFO) << "Aaditesh_mtls -> Generated CSR, making API request";
-
-  // Make API call to sign the CSR
-  MakeCSRSigningRequest(csr, std::move(callback));
+  return true;
 }
 
 bool OktaCertificateManager::ValidateCertificate(
@@ -311,24 +240,88 @@ OktaCertificateManager::LoadRootCACertificate() {
 
 bool OktaCertificateManager::ValidateAgainstRootCA(
     scoped_refptr<net::X509Certificate> cert) {
-  LOG(INFO)
-      << "Aaditesh_mtls -> Validating certificate against Root CA (TEST MODE)";
+  LOG(INFO) << "Aaditesh_mtls -> Validating certificate against Root CA "
+               "(STRICT MODE)";
 
-  // For testing purposes, we'll accept the hardcoded certificate as valid
-  // Check if this is our expected test certificate by comparing subject
+  // ========== CERTIFICATE DETAILS (DECODED) ==========
+  LOG(INFO) << "Aaditesh_mtls -> ===== DECODED CERTIFICATE DETAILS =====";
+  
+  // Get certificate subject (who the certificate belongs to)
   std::string cert_subject = cert->subject().GetDisplayName();
-  LOG(INFO) << "Aaditesh_mtls -> Certificate subject: " << cert_subject;
+  LOG(INFO) << "Aaditesh_mtls -> Certificate Subject (Owner): " << cert_subject;
+  
+  // Log individual subject components if available (with safety checks)
+  LOG(INFO) << "Aaditesh_mtls -> Certificate Subject Components:";
+  LOG(INFO) << "Aaditesh_mtls ->   Common Name (CN): " 
+            << (cert->subject().common_name.empty() ? "(not set)" : cert->subject().common_name);
+  
+  if (!cert->subject().organization_names.empty()) {
+    LOG(INFO) << "Aaditesh_mtls ->   Organization (O): " 
+              << cert->subject().organization_names[0];
+  } else {
+    LOG(INFO) << "Aaditesh_mtls ->   Organization (O): (not set)";
+  }
+  
+  if (!cert->subject().organization_unit_names.empty()) {
+    LOG(INFO) << "Aaditesh_mtls ->   Organizational Unit (OU): " 
+              << cert->subject().organization_unit_names[0];
+  } else {
+    LOG(INFO) << "Aaditesh_mtls ->   Organizational Unit (OU): (not set)";
+  }
+  
+  LOG(INFO) << "Aaditesh_mtls ->   Country (C): " 
+            << (cert->subject().country_name.empty() ? "(not set)" : cert->subject().country_name);
+  
+  // Get certificate issuer (who signed the certificate)
+  std::string cert_issuer = cert->issuer().GetDisplayName();
+  LOG(INFO) << "Aaditesh_mtls -> Certificate Issuer (Signer): " << cert_issuer;
+  
+  // Log certificate validity period
+  LOG(INFO) << "Aaditesh_mtls -> Certificate Valid From: " 
+            << cert->valid_start();
+  LOG(INFO) << "Aaditesh_mtls -> Certificate Valid Until: " 
+            << cert->valid_expiry();
+  
+  LOG(INFO) << "Aaditesh_mtls -> ==========================================";
 
-  // Accept certificates that contain our expected test subject components
-  bool is_test_cert =
-      (cert_subject.find("adnan-user-123") != std::string::npos);
+  // Load the Root CA certificate
+  scoped_refptr<net::X509Certificate> root_ca = LoadRootCACertificate();
+  if (!root_ca) {
+    LOG(ERROR) << "Aaditesh_mtls -> Failed to load Root CA certificate";
+    return false;
+  }
 
-  LOG(INFO) << "Aaditesh_mtls -> Is test certificate: "
-            << (is_test_cert ? "YES" : "NO");
-  LOG(INFO) << "Aaditesh_mtls -> Root CA validation: "
-            << (is_test_cert ? "VALID" : "INVALID");
+  // Log Root CA details for comparison
+  LOG(INFO) << "Aaditesh_mtls -> ===== ROOT CA DETAILS =====";
+  std::string root_ca_subject = root_ca->subject().GetDisplayName();
+  LOG(INFO) << "Aaditesh_mtls -> Root CA Subject: " << root_ca_subject;
+  LOG(INFO) << "Aaditesh_mtls ->   Common Name (CN): " 
+            << (root_ca->subject().common_name.empty() ? "(not set)" : root_ca->subject().common_name);
+  LOG(INFO) << "Aaditesh_mtls -> ==========================";
 
-  return is_test_cert;
+  // STRICT VALIDATION: Certificate's issuer MUST match Root CA's subject
+  // This ensures the certificate was issued by our trusted Root CA
+  LOG(INFO) << "Aaditesh_mtls -> Comparing Certificate Issuer vs Root CA Subject:";
+  LOG(INFO) << "Aaditesh_mtls -> Certificate Issuer: " << cert_issuer;
+  LOG(INFO) << "Aaditesh_mtls -> Root CA Subject:    " << root_ca_subject;
+
+  // STRICT CHECK: Issuer must exactly match the Root CA subject
+  bool is_valid = (cert_issuer == root_ca_subject);
+
+  if (!is_valid) {
+    LOG(ERROR) << "Aaditesh_mtls -> VALIDATION FAILED: Certificate issuer "
+                  "does NOT match Root CA subject";
+    LOG(ERROR) << "Aaditesh_mtls -> Expected issuer: " << root_ca_subject;
+    LOG(ERROR) << "Aaditesh_mtls -> Actual issuer: " << cert_issuer;
+    LOG(ERROR) << "Aaditesh_mtls -> Certificate REJECTED (strict mode)";
+    return false;
+  }
+
+  LOG(INFO) << "Aaditesh_mtls -> Certificate issuer matches Root CA subject - "
+               "VALID";
+  LOG(INFO) << "Aaditesh_mtls -> Root CA validation: PASSED (strict mode)";
+
+  return true;
 }
 
 bool OktaCertificateManager::IsCertificateTimeValid(
@@ -357,361 +350,6 @@ bool OktaCertificateManager::IsCertificateTimeValid(
 
   LOG(INFO) << "Aaditesh_mtls -> Certificate time validation passed";
   return true;
-}
-
-std::string OktaCertificateManager::GenerateCSR() {
-  LOG(INFO) << "Aaditesh_mtls -> Generating Certificate Signing Request (CSR)";
-
-  if (!private_key_) {
-    LOG(ERROR) << "Aaditesh_mtls -> No private key available";
-    return std::string();
-  }
-
-  crypto::OpenSSLErrStackTracer err_tracer(FROM_HERE);
-
-  // Create X509_REQ structure
-  bssl::UniquePtr<X509_REQ> req(X509_REQ_new());
-  if (!req) {
-    LOG(ERROR) << "Aaditesh_mtls -> Failed to create X509_REQ";
-    return std::string();
-  }
-
-  // Set version
-  if (!X509_REQ_set_version(req.get(), 0)) {  // Version 1 (0 in OpenSSL)
-    LOG(ERROR) << "Aaditesh_mtls -> Failed to set CSR version";
-    return std::string();
-  }
-
-  // Create subject name
-  bssl::UniquePtr<X509_NAME> name(X509_NAME_new());
-  if (!name) {
-    LOG(ERROR) << "Aaditesh_mtls -> Failed to create X509_NAME";
-    return std::string();
-  }
-
-  // Add subject fields
-  if (!X509_NAME_add_entry_by_txt(
-          name.get(), "CN", MBSTRING_ASC,
-          reinterpret_cast<const unsigned char*>("adnan-user-123"), -1, -1,
-          0) ||
-      !X509_NAME_add_entry_by_txt(
-          name.get(), "O", MBSTRING_ASC,
-          reinterpret_cast<const unsigned char*>("Wootzapp"), -1, -1, 0)) {
-    LOG(ERROR) << "Aaditesh_mtls -> Failed to add subject fields";
-    return std::string();
-  }
-
-  if (!X509_REQ_set_subject_name(req.get(), name.get())) {
-    LOG(ERROR) << "Aaditesh_mtls -> Failed to set subject name";
-    return std::string();
-  }
-
-  // Set public key
-  EVP_PKEY* pkey = private_key_->key();
-  if (!X509_REQ_set_pubkey(req.get(), pkey)) {
-    LOG(ERROR) << "Aaditesh_mtls -> Failed to set public key";
-    return std::string();
-  }
-
-  // Sign the CSR
-  if (!X509_REQ_sign(req.get(), pkey, EVP_sha256())) {
-    LOG(ERROR) << "Aaditesh_mtls -> Failed to sign CSR";
-    return std::string();
-  }
-
-  // Convert to PEM format
-  bssl::UniquePtr<BIO> bio(BIO_new(BIO_s_mem()));
-  if (!bio || !PEM_write_bio_X509_REQ(bio.get(), req.get())) {
-    LOG(ERROR) << "Aaditesh_mtls -> Failed to write CSR to PEM format";
-    return std::string();
-  }
-
-  // Read PEM data
-  char* data;
-  long len = BIO_get_mem_data(bio.get(), &data);
-  if (len <= 0) {
-    LOG(ERROR) << "Aaditesh_mtls -> Failed to get PEM data";
-    return std::string();
-  }
-
-  std::string csr_pem(data, len);
-  LOG(INFO) << "Aaditesh_mtls -> CSR generated successfully, length: "
-            << csr_pem.length();
-  LOG(INFO) << "Aaditesh_mtls -> CSR content: " << csr_pem;
-
-  return csr_pem;
-}
-
-void OktaCertificateManager::MakeCSRSigningRequest(
-    const std::string& csr,
-    CertificateCallback callback) {
-  LOG(INFO) << "Aaditesh_mtls -> Making CSR signing API request (New API "
-               "Documentation Format)";
-
-  // Create resource request
-  auto resource_request = std::make_unique<network::ResourceRequest>();
-  resource_request->url = GURL("https://app.wootzapp.com/api/csr/sign");
-  resource_request->method = "POST";
-  resource_request->load_flags = net::LOAD_DISABLE_CACHE |
-                                 net::LOAD_DISABLE_CERT_NETWORK_FETCHES |
-                                 net::LOAD_SHOULD_BYPASS_HSTS;
-
-  // Skip certificate validation for this bootstrap request
-  resource_request->credentials_mode = network::mojom::CredentialsMode::kOmit;
-
-  // Configure trusted params for this request\n
-  // resource_request->trusted_params =
-  // network::ResourceRequest::TrustedParams();
-
-  // Additional SSL bypass settings
-  resource_request->request_initiator = url::Origin();
-  resource_request->site_for_cookies = net::SiteForCookies();
-
-  // Add headers
-  resource_request->headers.SetHeader("Content-Type", "application/json");
-  resource_request->headers.SetHeader("Authorization",
-                                      "Bearer Aoi3dkgpE905nvSiec");
-
-  LOG(INFO) << "Aaditesh_mtls -> Headers set:";
-  LOG(INFO) << "Aaditesh_mtls -> Content-Type: application/json";
-  LOG(INFO) << "Aaditesh_mtls -> Authorization: Bearer Aoi3dkgpE905nvSiec";
-
-  // Create JSON request body
-  base::Value::Dict request_dict;
-
-  // Clean up CSR (remove extra whitespace/newlines if needed)
-  std::string clean_csr = csr;
-  base::ReplaceChars(clean_csr, "\r", "", &clean_csr);
-
-  request_dict.Set("csr", clean_csr);
-
-  // Verify CSR format matches working curl command
-  LOG(INFO) << "Aaditesh_mtls -> CSR for API call (first 100 chars): "
-            << clean_csr.substr(0, 100);
-  LOG(INFO) << "Aaditesh_mtls -> CSR ends with (last 50 chars): "
-            << clean_csr.substr(std::max(0, (int)clean_csr.length() - 50));
-  LOG(INFO) << "Aaditesh_mtls -> Total CSR length: " << clean_csr.length();
-
-  // Verify it starts and ends correctly
-  bool starts_correct =
-      clean_csr.find("-----BEGIN CERTIFICATE REQUEST-----") == 0;
-  bool ends_correct =
-      clean_csr.find("-----END CERTIFICATE REQUEST-----") != std::string::npos;
-  LOG(INFO) << "Aaditesh_mtls -> CSR format check - Starts correctly: "
-            << (starts_correct ? "YES" : "NO");
-  LOG(INFO) << "Aaditesh_mtls -> CSR format check - Ends correctly: "
-            << (ends_correct ? "YES" : "NO");
-
-  std::string request_body;
-  if (!base::JSONWriter::Write(request_dict, &request_body)) {
-    LOG(ERROR) << "Aaditesh_mtls -> Failed to create JSON request body";
-    std::move(callback).Run(false, "");
-    return;
-  }
-
-  LOG(INFO) << "Aaditesh_mtls -> Request body length: "
-            << request_body.length();
-  LOG(INFO) << "Aaditesh_mtls -> Request body: " << request_body;
-  LOG(INFO) << "Aaditesh_mtls -> Request URL: " << resource_request->url.spec();
-  LOG(INFO) << "Aaditesh_mtls -> Request method: " << resource_request->method;
-  LOG(INFO) << "Aaditesh_mtls -> UPDATED: Using app.wootzapp.com domain (not "
-               "eb.wootzapp.com)";
-
-  // Create traffic annotation
-  net::NetworkTrafficAnnotationTag traffic_annotation =
-      net::DefineNetworkTrafficAnnotation("okta_csr_signing", R"(
-        semantics {
-          sender: "Okta Certificate Manager"
-          description: "Request to sign a Certificate Signing Request (CSR) for Okta authentication"
-          trigger: "User navigates to Okta app URLs"
-          data: "Certificate Signing Request in PEM format"
-          destination: WEBSITE
-        }
-        policy {
-          cookies_allowed: NO
-          setting: "This feature cannot be disabled"
-        })");
-
-  // Create URL loader with SSL bypass configuration
-  url_loader_ = network::SimpleURLLoader::Create(std::move(resource_request),
-                                                 traffic_annotation);
-
-  // Attach the JSON body containing the CSR to the POST request
-  url_loader_->AttachStringForUpload(request_body, "application/json");
-
-  LOG(INFO) << "Aaditesh_mtls -> CSR data attached to POST request body";
-
-  // Configure URL loader to allow HTTP errors and disable retries
-  url_loader_->SetAllowHttpErrorResults(true);
-  url_loader_->SetRetryOptions(0, network::SimpleURLLoader::RETRY_NEVER);
-
-  // Get URL loader factory
-  auto* storage_partition = context_->GetDefaultStoragePartition();
-  auto* url_loader_factory =
-      storage_partition->GetURLLoaderFactoryForBrowserProcess().get();
-
-  // Start the request
-  LOG(INFO) << "Aaditesh_mtls -> Starting URL loader request with SSL bypass "
-               "configured";
-  LOG(INFO) << "Aaditesh_mtls -> Note: This is a bootstrap request to GET our "
-               "first certificate";
-  url_loader_->DownloadToStringOfUnboundedSizeUntilCrashAndDie(
-      url_loader_factory,
-      base::BindOnce(&OktaCertificateManager::OnCSRSigningResponse,
-                     base::Unretained(this), std::move(callback)));
-}
-
-void OktaCertificateManager::OnCSRSigningResponse(
-    CertificateCallback callback,
-    std::unique_ptr<std::string> response_body) {
-  LOG(INFO) << "Aaditesh_mtls -> Received CSR signing response";
-
-  // Check for network errors first
-  if (url_loader_->NetError() != net::OK) {
-    LOG(ERROR) << "Aaditesh_mtls -> Network error: " << url_loader_->NetError();
-    LOG(ERROR) << "Aaditesh_mtls -> Network error string: "
-               << net::ErrorToString(url_loader_->NetError());
-
-    // Special handling for SSL client certificate errors\n    if
-    // (url_loader_->NetError() == net::ERR_SSL_CLIENT_AUTH_CERT_NEEDED) {\n
-    // LOG(ERROR) << \"Aaditesh_mtls -> CRITICAL: Server requires client
-    // certificate but we don't have one yet!\";\n      LOG(ERROR) <<
-    // \"Aaditesh_mtls -> This is a bootstrap certificate request - server
-    // should not require client certs\";\n      LOG(ERROR) << \"Aaditesh_mtls
-    // -> API endpoint: https://eb.wootzapp.com/api/csr/sign\";\n LOG(ERROR) <<
-    // \"Aaditesh_mtls -> Bearer token: Aoi3dkgpE905nvSiec\";\n      LOG(ERROR)
-    // << \"Aaditesh_mtls -> FALLBACK: Using hardcoded test certificate for
-    // initial access\";\n      \n      // As a fallback, use the hardcoded test
-    // certificate since we have a chicken-and-egg problem\n
-    // std::move(callback).Run(true, kTestCertificatePEM);\n      return;\n    }
-
-    // Special handling for SSL client certificate errors
-    if (url_loader_->NetError() == net::ERR_SSL_CLIENT_AUTH_CERT_NEEDED) {
-      LOG(ERROR) << "Aaditesh_mtls -> CRITICAL: Server requires client "
-                    "certificate but we don't have one yet!";
-      LOG(ERROR) << "Aaditesh_mtls -> This is a bootstrap certificate request "
-                    "- server should not require client certs";
-      LOG(ERROR) << "Aaditesh_mtls -> API endpoint: "
-                    "https://app.wootzapp.com/api/csr/sign";
-      LOG(ERROR) << "Aaditesh_mtls -> Bearer token: Aoi3dkgpE905nvSiec";
-      LOG(ERROR) << "Aaditesh_mtls -> FALLBACK: Using hardcoded test "
-                    "certificate for initial access";
-
-      // As a fallback, use the hardcoded test certificate since we have a
-      // chicken-and-egg problem
-      std::move(callback).Run(true, kTestCertificatePEM);
-      return;
-    }
-
-    std::move(callback).Run(false, "");
-    return;
-  }
-
-  // First check HTTP status code regardless of response body
-  int response_code =
-      url_loader_->ResponseInfo()
-          ? url_loader_->ResponseInfo()->headers->response_code()
-          : 0;
-  LOG(INFO) << "Aaditesh_mtls -> HTTP response code: " << response_code;
-
-  // Log response headers for debugging
-  if (url_loader_->ResponseInfo() && url_loader_->ResponseInfo()->headers) {
-    scoped_refptr<net::HttpResponseHeaders> headers =
-        url_loader_->ResponseInfo()->headers;
-    LOG(INFO) << "Aaditesh_mtls -> Response headers:";
-    size_t iter = 0;
-    std::string name, value;
-    while (headers->EnumerateHeaderLines(&iter, &name, &value)) {
-      LOG(INFO) << "Aaditesh_mtls -> " << name << ": " << value;
-    }
-  }
-
-  if (!response_body) {
-    LOG(ERROR) << "Aaditesh_mtls -> Empty response body (nullptr)";
-    LOG(ERROR) << "Aaditesh_mtls -> This suggests the network request failed "
-                  "completely";
-    std::move(callback).Run(false, "");
-    return;
-  }
-
-  if (response_body->empty()) {
-    LOG(ERROR) << "Aaditesh_mtls -> Empty response body (zero length)";
-    LOG(ERROR) << "Aaditesh_mtls -> Server returned no content but request "
-                  "succeeded at network level";
-    std::move(callback).Run(false, "");
-    return;
-  }
-
-  LOG(INFO) << "Aaditesh_mtls -> Response body length: "
-            << response_body->length();
-  LOG(INFO) << "Aaditesh_mtls -> Full API Response body: " << *response_body;
-
-  if (response_code != net::HTTP_OK) {
-    LOG(ERROR) << "Aaditesh_mtls -> API request failed with status: "
-               << response_code;
-    LOG(ERROR) << "Aaditesh_mtls -> Response body: " << *response_body;
-    std::move(callback).Run(false, "");
-    return;
-  }
-
-  LOG(INFO) << "Aaditesh_mtls -> Response length: " << response_body->length();
-
-  // Parse JSON response
-  auto parsed_json =
-      base::JSONReader::ReadAndReturnValueWithError(*response_body);
-  if (!parsed_json.has_value()) {
-    LOG(ERROR) << "Aaditesh_mtls -> Failed to parse JSON response: "
-               << parsed_json.error().message;
-    std::move(callback).Run(false, "");
-    return;
-  }
-
-  const base::Value::Dict* response_dict = parsed_json->GetIfDict();
-  if (!response_dict) {
-    LOG(ERROR) << "Aaditesh_mtls -> Response is not a JSON object";
-    std::move(callback).Run(false, "");
-    return;
-  }
-
-  // According to new API documentation, certificate is nested in certificate
-  // object
-  LOG(INFO) << "Aaditesh_mtls -> Parsing response using NEW API format: "
-               "certificate.certificatePem";
-  const base::Value::Dict* certificate_obj =
-      response_dict->FindDict("certificate");
-  if (!certificate_obj) {
-    LOG(ERROR) << "Aaditesh_mtls -> Certificate object not found in response";
-    LOG(ERROR) << "Aaditesh_mtls -> Expected format: {\"certificate\": "
-                  "{\"certificatePem\": \"...\"}}";
-    std::move(callback).Run(false, "");
-    return;
-  }
-
-  const std::string* certificate_pem =
-      certificate_obj->FindString("certificatePem");
-  if (!certificate_pem) {
-    LOG(ERROR) << "Aaditesh_mtls -> certificatePem field not found in "
-                  "certificate object";
-    LOG(ERROR) << "Aaditesh_mtls -> Expected format: {\"certificate\": "
-                  "{\"certificatePem\": \"...\"}}";
-    std::move(callback).Run(false, "");
-    return;
-  }
-
-  LOG(INFO)
-      << "Aaditesh_mtls -> Extracted certificate from API response, length: "
-      << certificate_pem->length();
-
-  // Store and validate the certificate
-  bool success = StoreCertificate(*certificate_pem);
-  if (success) {
-    LOG(INFO)
-        << "Aaditesh_mtls -> Certificate stored and validated successfully";
-  } else {
-    LOG(ERROR) << "Aaditesh_mtls -> Certificate validation failed";
-  }
-
-  std::move(callback).Run(success, *certificate_pem);
 }
 
 // void OktaCertificateManager::OnMockAPIResponse(
