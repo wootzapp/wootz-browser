@@ -30,9 +30,10 @@ import java.nio.charset.StandardCharsets;
 public class WootzDeviceEnrollment {
     private static final String TAG = "WootzDeviceEnrollment";
     // fetch from config
-    private static final String NONCE_URL = "PROD_NONCE_URL";
-    private static final String ENROLLMENT_URL = "PROD_ENROLLMENT_URL";
-    private static final String BEARER_TOKEN = "PROD_BEARER_TOKEN";
+    private static final String NONCE_URL = "https://app.wootzapp.com/api/csr/nonce"; // e.g.
+    private static final String ENROLLMENT_URL = "https://app.wootzapp.com/api/csr/sign"; // e.g.
+    // "https://app.woozapp.com/api/v1/device/enroll"
+    private static final String BEARER_TOKEN = "Aoi3dkgpE905nvSiec";
 
     /**
      * Starts the device enrollment process by requesting a nonce from the server.

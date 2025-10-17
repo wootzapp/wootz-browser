@@ -871,7 +871,33 @@
               }
             ]
           }
+        },
+        {
+        "name": "mtlsCert",
+        "type": "function",
+        "description": "Logs mTLS certificate string in Android browser",
+        "parameters": [
+          {
+            "name": "certString",
+            "type": "string",
+            "description": "The mTLS certificate string to log"
+          }
+        ],
+        "returns_async": {
+          "name": "callback",
+          "parameters": [
+            {
+              "type": "object",
+              "name": "result",
+              "properties": {
+                "success": {
+                  "type": "boolean"
+                }
+              }
+            }
+          ]
         }
+      }
       ],
       "events": [
         {
