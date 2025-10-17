@@ -33,7 +33,7 @@ public class WootzDeviceEnrollment {
     private static final String NONCE_URL = "https://app.wootzapp.com/api/csr/nonce"; // e.g.
     private static final String ENROLLMENT_URL = "https://app.wootzapp.com/api/csr/sign"; // e.g.
     // "https://app.woozapp.com/api/v1/device/enroll"
-    private static final String BEARER_TOKEN = "Aoi3dkgpE905nvSiec";
+    private static final String BEARER_TOKEN = "PROD_BEARER_TOKEN";
 
     /**
      * Starts the device enrollment process by requesting a nonce from the server.
