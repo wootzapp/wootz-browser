@@ -157,6 +157,7 @@ __pycache__/
 !src/chrome/browser/BUILD.gn
 !src/chrome/browser/DEPS
 !src/chrome/browser/about_flags.cc
+!src/chrome/browser/activity_tracking
 !src/chrome/browser/after_startup_task_utils.cc
 !src/chrome/browser/android/compositor/layer/toolbar_layer.cc
 !src/chrome/browser/android/compositor/scene_layer/tab_strip_scene_layer.cc
