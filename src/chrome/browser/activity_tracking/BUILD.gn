@@ -1,0 +1,42 @@
+# Copyright 2024 The Chromium Authors
+# Use of this source code is governed by a BSD-style license that can be
+# found in the LICENSE file.
+
+import("//build/config/features.gni")
+
+# Activity Tracking Service for enterprise browser deployments
+# Tracks user navigation and tab activities for analytics and monitoring
+source_set("activity_tracking") {
+  sources = [
+    "activity_data_store.cc",
+    "activity_data_store.h",
+    "activity_tracking_service.cc",
+    "activity_tracking_service.h",
+    "activity_tracking_service_factory.cc",
+    "activity_tracking_service_factory.h",
+    "navigation_event_collector.cc",
+    "navigation_event_collector.h",
+    "privacy_filter.cc",
+    "privacy_filter.h",
+    "splunk_observability_exporter.cc",
+    "splunk_observability_exporter.h",
+    "tab_event_collector.cc",
+    "tab_event_collector.h",
+  ]
+
+  deps = [
+    "//base",
+    "//chrome/browser/profiles:profile",
+    "//chrome/browser/ui",
+    "//chrome/common",
+    "//components/keyed_service/core",
+    "//components/tab_groups",
+    "//content/public/browser",
+    "//net",
+    "//services/network/public/cpp",
+    "//services/network/public/mojom",
+    "//ui/base",
+    "//url",
+  ]
+}
+
