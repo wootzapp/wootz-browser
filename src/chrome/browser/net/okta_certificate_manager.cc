@@ -67,13 +67,7 @@ bool OktaCertificateManager::StoreCertificate(const std::string& cert_pem) {
   stored_certificate_ = certs[0];
   certificate_stored_time_ = base::Time::Now();
 
-  LOG(INFO) << "Aaditesh_mtls -> Certificate stored successfully";
-  LOG(INFO) << "Aaditesh_mtls -> Certificate subject: "
-            << stored_certificate_->subject().GetDisplayName();
-  LOG(INFO) << "Aaditesh_mtls -> Certificate valid from: "
-            << stored_certificate_->valid_start();
-  LOG(INFO) << "Aaditesh_mtls -> Certificate valid until: "
-            << stored_certificate_->valid_expiry();
+ 
 
   return true;
 }
@@ -87,9 +81,7 @@ bool OktaCertificateManager::HasValidCertificate() {
 
 bool OktaCertificateManager::StoreAndValidateCertificate(
     const std::string& certificate_pem) {
-  LOG(INFO) << "Aaditesh_mtls -> Storing certificate from extension API";
-  LOG(INFO) << "Aaditesh_mtls -> Certificate PEM length: "
-            << certificate_pem.length();
+  
 
   // Parse the PEM certificate
   net::CertificateList certs =
@@ -115,13 +107,7 @@ bool OktaCertificateManager::StoreAndValidateCertificate(
   stored_certificate_ = cert;
   certificate_stored_time_ = base::Time::Now();
 
-  LOG(INFO) << "Aaditesh_mtls -> Certificate stored and validated successfully";
-  LOG(INFO) << "Aaditesh_mtls -> Certificate subject: "
-            << stored_certificate_->subject().GetDisplayName();
-  LOG(INFO) << "Aaditesh_mtls -> Certificate valid from: "
-            << stored_certificate_->valid_start();
-  LOG(INFO) << "Aaditesh_mtls -> Certificate valid until: "
-            << stored_certificate_->valid_expiry();
+
 
   return true;
 }
@@ -185,8 +171,7 @@ bool OktaCertificateManager::HasValidStoredCertificate() {
   if (!certificate_stored_time_.is_null()) {
     base::TimeDelta time_since_stored = now - certificate_stored_time_;
     if (time_since_stored > base::Minutes(10)) {
-      LOG(INFO) << "Aaditesh_mtls -> Stored certificate expired (>10 minutes)";
-      LOG(INFO) << "Aaditesh_mtls -> Time since stored: " << time_since_stored;
+     
       return false;
     }
   }
@@ -209,10 +194,7 @@ bool OktaCertificateManager::IsCertificateTimeValid(
   // Check certificate's own validity period with tolerance
   if (now < (cert->valid_start() - tolerance) || 
       now > (cert->valid_expiry() + tolerance)) {
-    LOG(ERROR) << "Aaditesh_mtls -> Certificate is outside its validity period (with 10s tolerance)";
-    LOG(ERROR) << "Aaditesh_mtls -> Now: " << now;
-    LOG(ERROR) << "Aaditesh_mtls -> Valid from: " << cert->valid_start();
-    LOG(ERROR) << "Aaditesh_mtls -> Valid until: " << cert->valid_expiry();
+   
     return false;
   }
 
