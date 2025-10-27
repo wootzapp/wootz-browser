@@ -124,27 +124,10 @@ void OktaAppGateThrottle::WillRedirectRequest(
 
 void OktaAppGateThrottle::ShowAccessDeniedPage() {
   // Log the access denied event with detailed information
-  LOG(ERROR)
-      << "Aaditesh_mtls -> ACCESS DENIED - Certificate validation failed";
-  LOG(ERROR) << "========================================";
-  LOG(ERROR) << "OKTA APP GATE: ACCESS DENIED";
-  LOG(ERROR) << "Component: Aaditesh_mtls";
-  LOG(ERROR) << "Reason: No Valid Certificate Found";
-  LOG(ERROR) << "Error Code: OKTA_GATE_CERT_REQUIRED";
-  LOG(ERROR) << "Action: Request blocked by security policy";
-  LOG(ERROR)
-      << "Instructions: Visit eb.wootzapp.com first to obtain certificate";
-  LOG(ERROR) << "========================================";
+ 
 
   // Use a custom error reason that will be visible in the browser's error page
-  const std::string custom_error_message =
-      "AADITESH_MTLS_GATE: Access Denied - Okta App Certificate Required. "
-      "No valid certificate found for Okta access. "
-      "To access Okta applications, please visit eb.wootzapp.com first to "
-      "obtain the required certificate. "
-      "The certificate is valid for 10 minutes after issuance. "
-      "Error Code: OKTA_GATE_CERT_REQUIRED. "
-      "Contact your system administrator if you believe this is an error.";
+  const std::string custom_error_message ="";
 
   // Cancel the request with a detailed custom reason
   delegate_->CancelWithError(net::ERR_ACCESS_DENIED, custom_error_message);
