@@ -871,6 +871,31 @@
               }
             ]
           }
+        },
+        {
+          "name": "setOfflineBrowsing",
+          "type": "function",
+          "description": "Enables or disables automatic offline browsing. When enabled, pages are saved as MHTML and served offline.",
+          "parameters": [
+            {
+              "name": "isEnabled",
+              "type": "boolean",
+              "description": "True to enable offline browsing, false to disable"
+            }
+          ],
+          "returns_async": {
+            "name": "callback",
+            "parameters": [
+              {
+                "name": "result",
+                "type": "object",
+                "properties": {
+                  "success": {"type": "boolean", "description": "Whether the operation was successful"},
+                  "enabled": {"type": "boolean", "description": "Current state of offline browsing"}
+                }
+              }
+            ]
+          }
         }
       ],
       "events": [

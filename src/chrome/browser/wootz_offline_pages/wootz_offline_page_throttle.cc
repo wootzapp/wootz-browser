@@ -7,8 +7,10 @@
 #include "base/files/file_path.h"
 #include "base/logging.h"
 #include "chrome/browser/profiles/profile.h"
+#include "chrome/browser/wootz_offline_pages/wootz_offline_page_prefs.h"
 #include "chrome/browser/wootz_offline_pages/wootz_offline_page_service.h"
 #include "chrome/browser/wootz_offline_pages/wootz_offline_page_service_factory.h"
+#include "components/prefs/pref_service.h"
 #include "content/public/browser/browser_thread.h"
 #include "content/public/browser/navigation_controller.h"
 #include "content/public/browser/navigation_handle.h"
@@ -40,6 +42,14 @@ WootzOfflinePageThrottle::WillStartRequest() {
 
   Profile* profile = Profile::FromBrowserContext(
       navigation_handle()->GetWebContents()->GetBrowserContext());
+  
+  // Check if offline browsing is enabled
+  if (!profile->GetPrefs()->GetBoolean(
+          wootz_offline_pages::prefs::kOfflineBrowsingEnabled)) {
+    LOG(INFO) << "Kartik: Offline browsing disabled, proceeding with online navigation";
+    return content::NavigationThrottle::PROCEED;
+  }
+  
   WootzOfflinePageService* service =
       WootzOfflinePageServiceFactory::GetForProfile(profile);
 

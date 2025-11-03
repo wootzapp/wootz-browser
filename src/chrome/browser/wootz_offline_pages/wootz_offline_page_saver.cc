@@ -6,8 +6,10 @@
 
 #include "base/logging.h"
 #include "chrome/browser/profiles/profile.h"
+#include "chrome/browser/wootz_offline_pages/wootz_offline_page_prefs.h"
 #include "chrome/browser/wootz_offline_pages/wootz_offline_page_service.h"
 #include "chrome/browser/wootz_offline_pages/wootz_offline_page_service_factory.h"
+#include "components/prefs/pref_service.h"
 #include "content/public/browser/navigation_handle.h"
 #include "content/public/browser/web_contents.h"
 
@@ -42,6 +44,15 @@ void WootzOfflinePageSaver::DidStopLoading() {
   GURL url = web_contents()->GetLastCommittedURL();
   if (!url.SchemeIsHTTPOrHTTPS())
     return;
+
+  // Check if offline browsing is enabled
+  Profile* profile = Profile::FromBrowserContext(web_contents()->GetBrowserContext());
+  if (!profile->GetPrefs()->GetBoolean(
+          wootz_offline_pages::prefs::kOfflineBrowsingEnabled)) {
+    LOG(INFO) << "Kartik: Offline browsing disabled, skipping save for " << url.spec();
+    last_redirect_chain_.clear();
+    return;
+  }
 
   LOG(INFO) << "Kartik: WootzOfflinePageSaver::DidStopLoading for " << url.spec()
             << " - page fully loaded, saving now";

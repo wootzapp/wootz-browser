@@ -193,6 +193,7 @@
 #include "components/wootz_wallet/browser/keyring_service.h"
 #include "components/wootz_wallet/browser/keyring_service_migrations.h"
 #include "components/wootz_wallet/browser/pref_names.h"
+#include "chrome/browser/wootz_offline_pages/wootz_offline_page_prefs.h"
 #include "chrome/browser/prefs/blocked_domains_prefs.h"
 #include "chrome/browser/prefs/content_privacy_prefs.h"
 #include "content/public/browser/render_process_host.h"
@@ -1921,6 +1922,7 @@ void RegisterProfilePrefs(user_prefs::PrefRegistrySyncable* registry,
                           const std::string& locale) {
   TRACE_EVENT0("browser", "chrome::RegisterProfilePrefs");
   wootz_wallet::RegisterProfilePrefs(registry);
+  wootz_offline_pages::prefs::RegisterProfilePrefs(registry);
   throttle_webui::RegisterProfilePrefs(registry);
   startup_crx_install::RegisterProfilePrefs(registry);
   // User prefs. Please keep this list alphabetized.

@@ -459,5 +459,14 @@ class WootzCaptureScreenshotFunction : public ExtensionFunction {
   ResponseAction Run() override;
 };
 
+class WootzSetOfflineBrowsingFunction : public ExtensionFunction {
+ public:
+  DECLARE_EXTENSION_FUNCTION("wootz.setOfflineBrowsing", WOOTZ_SET_OFFLINE_BROWSING)
+  WootzSetOfflineBrowsingFunction() = default;
+ protected:
+  ~WootzSetOfflineBrowsingFunction() override = default;
+  ResponseAction Run() override;
+};
+
 }  // namespace extensions
 #endif  // CHROME_BROWSER_EXTENSIONS_API_WOOTZ_WOOTZ_API_H_

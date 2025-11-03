@@ -90,6 +90,7 @@
 #include "components/action_url/content/common/mojom/sensitive_element_masking.mojom.h"
 #include "mojo/public/cpp/bindings/associated_remote.h"
 #include "third_party/blink/public/common/associated_interfaces/associated_interface_provider.h"
+#include "chrome/browser/wootz_offline_pages/wootz_offline_page_prefs.h"
 
 
 
@@ -1918,6 +1919,36 @@ ExtensionFunction::ResponseAction WootzCaptureScreenshotFunction::Run() {
   result.Set("success", true);
   result.Set("message", "Screenshot capture initiated");
 
+  return RespondNow(WithArguments(std::move(result)));
+}
+
+ExtensionFunction::ResponseAction WootzSetOfflineBrowsingFunction::Run() {
+  LOG(INFO) << "WootzSetOfflineBrowsingFunction::Run called";
+  
+  // Validate arguments
+  if (args().empty() || !args()[0].is_bool()) {
+    LOG(ERROR) << "Invalid arguments - expected boolean isEnabled";
+    return RespondNow(Error("Missing or invalid 'isEnabled' argument"));
+  }
+  
+  bool is_enabled = args()[0].GetBool();
+  
+  Profile* profile = Profile::FromBrowserContext(browser_context());
+  if (!profile) {
+    LOG(ERROR) << "No profile found";
+    return RespondNow(Error("No profile found"));
+  }
+  
+  // Save the preference
+  profile->GetPrefs()->SetBoolean(
+      wootz_offline_pages::prefs::kOfflineBrowsingEnabled, is_enabled);
+  
+  LOG(INFO) << "Offline browsing " << (is_enabled ? "enabled" : "disabled");
+  
+  base::Value::Dict result;
+  result.Set("success", true);
+  result.Set("enabled", is_enabled);
+  
   return RespondNow(WithArguments(std::move(result)));
 }
 

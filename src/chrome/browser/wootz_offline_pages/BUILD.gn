@@ -4,6 +4,8 @@
 
 static_library("wootz_offline_pages") {
   sources = [
+    "wootz_offline_page_prefs.cc",
+    "wootz_offline_page_prefs.h",
     "wootz_offline_page_saver.cc",
     "wootz_offline_page_saver.h",
     "wootz_offline_page_saver_installer.cc",
@@ -21,6 +23,7 @@ static_library("wootz_offline_pages") {
     "//chrome/browser/profiles",
     "//chrome/common",
     "//components/keyed_service/content",
+    "//components/prefs",
     "//content/public/browser",
     "//content/public/common",
     "//net",
