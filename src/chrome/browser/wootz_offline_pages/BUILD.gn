@@ -1,0 +1,30 @@
+# Copyright 2024 Wootzapp Authors
+# Use of this source code is governed by a BSD-style license that can be
+# found in the LICENSE file.
+
+static_library("wootz_offline_pages") {
+  sources = [
+    "wootz_offline_page_saver.cc",
+    "wootz_offline_page_saver.h",
+    "wootz_offline_page_saver_installer.cc",
+    "wootz_offline_page_saver_installer.h",
+    "wootz_offline_page_service.cc",
+    "wootz_offline_page_service.h",
+    "wootz_offline_page_service_factory.cc",
+    "wootz_offline_page_service_factory.h",
+    "wootz_offline_page_throttle.cc",
+    "wootz_offline_page_throttle.h",
+  ]
+
+  deps = [
+    "//base",
+    "//chrome/browser/profiles",
+    "//chrome/common",
+    "//components/keyed_service/content",
+    "//content/public/browser",
+    "//content/public/common",
+    "//net",
+    "//services/network/public/mojom",
+    "//url",
+  ]
+}

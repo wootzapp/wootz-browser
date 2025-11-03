@@ -195,6 +195,8 @@
 #include "chrome/browser/web_applications/isolated_web_apps/isolated_web_app_url_info.h"
 #include "chrome/browser/webapps/web_app_offline.h"
 #include "chrome/browser/webauthn/webauthn_pref_names.h"
+#include "chrome/browser/wootz_offline_pages/wootz_offline_page_saver_installer.h"
+#include "chrome/browser/wootz_offline_pages/wootz_offline_page_throttle.h"
 #include "chrome/common/buildflags.h"
 #include "chrome/common/channel_info.h"
 #include "chrome/common/chrome_constants.h"
@@ -5602,6 +5604,11 @@ ChromeContentBrowserClient::CreateThrottlesForNavigation(
           handle),
       &throttles);
 
+  auto wootz_offline_throttle = WootzOfflinePageThrottle::MaybeCreateThrottleFor(handle);
+  if (wootz_offline_throttle) {
+    throttles.push_back(std::move(wootz_offline_throttle));
+  }
+
   return throttles;
 }
 
@@ -8283,6 +8290,9 @@ void ChromeContentBrowserClient::OnWebContentsCreated(
   // WebContentsObservers goes through the separate function, to ensure that the
   // (rare) additions of universal helpers are code reviewed by separate OWNERS.
   AttachUniversalWebContentsObservers(web_contents);
+
+  // Add this line to install your page saver on every new WebContents.
+  WootzOfflinePageSaverInstaller::CreateForWebContents(web_contents);
 }
 
 #if !BUILDFLAG(IS_ANDROID)

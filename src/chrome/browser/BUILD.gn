@@ -3690,6 +3690,7 @@ static_library("browser") {
       "//chrome/browser/wallet/android:jni_headers",
       "//chrome/browser/wootz_wallet",
       "//chrome/browser/wootz_wallet:wootz_wallet_delegate",
+      "//chrome/browser/wootz_offline_pages",
       "//chrome/common:non_code_constants",
       "//chrome/common/wallet:mojo_bindings",
       "//components/wootz_wallet/browser:permission_utils", # Wootz patch

@@ -129,6 +129,7 @@ __pycache__/
 !src/chrome/android/java/src/org/chromium/chrome/browser/ntp/NewTabPageLayout.java
 !src/chrome/android/java/src/org/chromium/chrome/browser/ntp/RecentTabsManager.java
 !src/chrome/android/java/src/org/chromium/chrome/browser/ntp/RecentTabsPage.java
+!src/chrome/android/java/src/org/chromium/chrome/browser/offlinepages/WootzOfflinePageContentProvider.java
 !src/chrome/android/java/src/org/chromium/chrome/browser/privacy/settings/PrivacySettings.java
 !src/chrome/android/java/src/org/chromium/chrome/browser/searchwidget/SearchActivity.java
 !src/chrome/android/java/src/org/chromium/chrome/browser/settings/MainSettings.java
@@ -562,6 +563,7 @@ __pycache__/
 !src/chrome/browser/web_applications/BUILD.gn
 !src/chrome/browser/web_applications/extensions/BUILD.gn
 !src/chrome/browser/webauthn/chrome_authenticator_request_delegate.cc
+!src/chrome/browser/wootz_offline_pages/
 !src/chrome/chrome_paks.gni
 !src/chrome/chrome_repack_locales.gni
 !src/chrome/common/BUILD.gn

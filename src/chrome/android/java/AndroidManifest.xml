@@ -1383,6 +1383,13 @@ by a child template that "extends" this file.
           </activity>
         {% endif %}
 
+        <!-- Wootz Offline Pages ContentProvider -->
+        <provider
+            android:name="org.chromium.chrome.browser.offlinepages.WootzOfflinePageContentProvider"
+            android:authorities="org.chromium.chrome.wootz_offline_pages"
+            android:exported="false"
+            android:grantUriPermissions="true" />
+
         {% block extra_application_definitions %}
         {% endblock %}
       {% endmacro %}
