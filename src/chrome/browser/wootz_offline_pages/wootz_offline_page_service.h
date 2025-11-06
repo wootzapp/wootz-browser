@@ -22,6 +22,7 @@ class WootzOfflinePageService : public KeyedService {
   void SavePage(content::WebContents* web_contents,
                 const std::vector<GURL>& redirect_chain);
   bool GetOfflinePagePath(const GURL& url, base::FilePath* path);
+  bool ClearAllPages();
 
  private:
   void OnMHTMLGenerated(const std::vector<GURL>& redirect_chain,

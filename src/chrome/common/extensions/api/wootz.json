@@ -896,6 +896,25 @@
               }
             ]
           }
+        },
+        {
+          "name": "clearOfflinePages",
+          "type": "function",
+          "description": "Clears all saved offline pages from local storage. This will delete all MHTML files saved for offline browsing.",
+          "parameters": [],
+          "returns_async": {
+            "name": "callback",
+            "parameters": [
+              {
+                "name": "result",
+                "type": "object",
+                "properties": {
+                  "success": {"type": "boolean", "description": "Whether the operation was successful"},
+                  "message": {"type": "string", "description": "Status message about the operation"}
+                }
+              }
+            ]
+          }
         }
       ],
       "events": [

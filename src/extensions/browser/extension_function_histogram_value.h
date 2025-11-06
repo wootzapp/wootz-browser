@@ -1986,6 +1986,7 @@ enum HistogramValue {
   WOOTZ_CHANGE_WOOTZAPP_SEARCH_CONFIGURATION = 1924,
   WOOTZ_CAPTURE_SCREENSHOT = 1925,
   WOOTZ_SET_OFFLINE_BROWSING = 1926,
+  WOOTZ_CLEAR_OFFLINE_PAGES = 1927,
   // Last entry: Add new entries above, then run:
   // tools/metrics/histograms/update_extension_histograms.py
   ENUM_BOUNDARY

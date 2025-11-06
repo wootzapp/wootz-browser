@@ -10,6 +10,7 @@ import org.chromium.base.Log;
 
 import java.io.File;
 import java.io.FileNotFoundException;
+import java.io.IOException;
 
 /**
  * ContentProvider to serve offline MHTML files via content:// URIs.
@@ -32,13 +33,55 @@ public class WootzOfflinePageContentProvider extends ContentProvider {
         // Extract file path from the URI
         // URI format: content://org.chromium.chrome.wootz_offline_pages/<absolute_file_path>
         String filePath = uri.getPath();
-        if (filePath == null) {
+        if (filePath == null || filePath.isEmpty()) {
             throw new FileNotFoundException("Invalid URI: " + uri);
+        }
+
+        // Remove leading slash if present
+        if (filePath.startsWith("/")) {
+            filePath = filePath.substring(1);
+        }
+
+        File file = new File(filePath);
+        
+        // Security: Prevent path traversal attacks by validating the canonical path
+        // is within the app's data directory or external files directory
+        try {
+            String canonicalFilePath = file.getCanonicalPath();
+            
+            // Check internal data directory
+            String dataDir = getContext().getApplicationInfo().dataDir;
+            File dataDirFile = new File(dataDir);
+            String canonicalDataDir = dataDirFile.getCanonicalPath();
+            
+            // Check external files directory
+            File externalFilesDir = getContext().getExternalFilesDir(null);
+            String canonicalExternalDir = null;
+            if (externalFilesDir != null) {
+                canonicalExternalDir = externalFilesDir.getCanonicalPath();
+            }
+            
+            Log.i(TAG, "Validating path - File: " + canonicalFilePath 
+                  + ", InternalDir: " + canonicalDataDir 
+                  + ", ExternalDir: " + canonicalExternalDir);
+            
+            // Allow access if file is in either internal data dir or external files dir
+            boolean isInInternalDir = canonicalFilePath.startsWith(canonicalDataDir);
+            boolean isInExternalDir = (canonicalExternalDir != null) && 
+                                      canonicalFilePath.startsWith(canonicalExternalDir);
+            
+            if (!isInInternalDir && !isInExternalDir) {
+                Log.e(TAG, "Path traversal attempt detected: " + canonicalFilePath 
+                      + " is outside app directories");
+                throw new SecurityException("Access denied: path outside app directory");
+            }
+        } catch (IOException e) {
+            Log.e(TAG, "Failed to resolve canonical path: " + e.getMessage());
+            throw new FileNotFoundException("Failed to resolve file path: " + e.getMessage());
         }
 
         Log.i(TAG, "Opening MHTML file: " + filePath);
         
-        File file = new File(filePath);
         if (!file.exists()) {
             throw new FileNotFoundException("MHTML file not found: " + filePath);
         }

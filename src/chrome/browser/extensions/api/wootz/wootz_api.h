@@ -468,5 +468,14 @@ class WootzSetOfflineBrowsingFunction : public ExtensionFunction {
   ResponseAction Run() override;
 };
 
+class WootzClearOfflinePagesFunction : public ExtensionFunction {
+ public:
+  DECLARE_EXTENSION_FUNCTION("wootz.clearOfflinePages", WOOTZ_CLEAR_OFFLINE_PAGES)
+  WootzClearOfflinePagesFunction() = default;
+ protected:
+  ~WootzClearOfflinePagesFunction() override = default;
+  ResponseAction Run() override;
+};
+
 }  // namespace extensions
 #endif  // CHROME_BROWSER_EXTENSIONS_API_WOOTZ_WOOTZ_API_H_

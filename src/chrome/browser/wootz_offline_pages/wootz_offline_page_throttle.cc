@@ -69,7 +69,7 @@ WootzOfflinePageThrottle::WillStartRequest() {
     // Load the content:// URI
     // The ContentProvider will serve the MHTML file with MIME type "multipart/related"
     content::NavigationController::LoadURLParams params(content_url);
-    params.transition_type = ui::PAGE_TRANSITION_FORWARD_BACK;
+    params.transition_type = ui::PAGE_TRANSITION_CLIENT_REDIRECT;
     navigation_handle()->GetWebContents()->GetController().LoadURLWithParams(params);
     
     // Cancel the original navigation

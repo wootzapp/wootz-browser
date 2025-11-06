@@ -91,6 +91,8 @@
 #include "mojo/public/cpp/bindings/associated_remote.h"
 #include "third_party/blink/public/common/associated_interfaces/associated_interface_provider.h"
 #include "chrome/browser/wootz_offline_pages/wootz_offline_page_prefs.h"
+#include "chrome/browser/wootz_offline_pages/wootz_offline_page_service.h"
+#include "chrome/browser/wootz_offline_pages/wootz_offline_page_service_factory.h"
 
 
 
@@ -1948,6 +1950,39 @@ ExtensionFunction::ResponseAction WootzSetOfflineBrowsingFunction::Run() {
   base::Value::Dict result;
   result.Set("success", true);
   result.Set("enabled", is_enabled);
+  
+  return RespondNow(WithArguments(std::move(result)));
+}
+
+ExtensionFunction::ResponseAction WootzClearOfflinePagesFunction::Run() {
+  LOG(INFO) << "WootzClearOfflinePagesFunction::Run called";
+  
+  Profile* profile = Profile::FromBrowserContext(browser_context());
+  if (!profile) {
+    LOG(ERROR) << "No profile found";
+    return RespondNow(Error("No profile found"));
+  }
+  
+  // Get the offline page service
+  WootzOfflinePageService* service = 
+      WootzOfflinePageServiceFactory::GetForProfile(profile);
+  if (!service) {
+    LOG(ERROR) << "No offline page service found";
+    return RespondNow(Error("Offline page service not available"));
+  }
+  
+  // Clear all offline pages
+  bool success = service->ClearAllPages();
+  
+  LOG(INFO) << "Clear offline pages " << (success ? "succeeded" : "failed");
+  
+  base::Value::Dict result;
+  result.Set("success", success);
+  if (success) {
+    result.Set("message", "All offline pages cleared successfully");
+  } else {
+    result.Set("message", "Failed to clear offline pages");
+  }
   
   return RespondNow(WithArguments(std::move(result)));
 }
