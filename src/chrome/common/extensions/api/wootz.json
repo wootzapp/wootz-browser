@@ -873,14 +873,14 @@
           }
         },
         {
-          "name": "setOfflineBrowsing",
+          "name": "setAutoSavePages",
           "type": "function",
-          "description": "Enables or disables automatic offline browsing. When enabled, pages are saved as MHTML and served offline.",
+          "description": "Enables or disables automatic saving of pages as MHTML files. When enabled, pages are automatically saved as MHTML files while browsing.",
           "parameters": [
             {
               "name": "isEnabled",
               "type": "boolean",
-              "description": "True to enable offline browsing, false to disable"
+              "description": "True to enable automatic page saving, false to disable"
             }
           ],
           "returns_async": {
@@ -891,17 +891,23 @@
                 "type": "object",
                 "properties": {
                   "success": {"type": "boolean", "description": "Whether the operation was successful"},
-                  "enabled": {"type": "boolean", "description": "Current state of offline browsing"}
+                  "enabled": {"type": "boolean", "description": "Current state of automatic page saving"}
                 }
               }
             ]
           }
         },
         {
-          "name": "clearOfflinePages",
+          "name": "setAutoOpenOfflinePages",
           "type": "function",
-          "description": "Clears all saved offline pages from local storage. This will delete all MHTML files saved for offline browsing.",
-          "parameters": [],
+          "description": "Enables or disables automatic opening of saved offline pages. When enabled, saved offline pages are automatically served when navigating to URLs that have been previously saved.",
+          "parameters": [
+            {
+              "name": "isEnabled",
+              "type": "boolean",
+              "description": "True to enable auto-opening of offline pages, false to disable"
+            }
+          ],
           "returns_async": {
             "name": "callback",
             "parameters": [
@@ -910,7 +916,48 @@
                 "type": "object",
                 "properties": {
                   "success": {"type": "boolean", "description": "Whether the operation was successful"},
-                  "message": {"type": "string", "description": "Status message about the operation"}
+                  "enabled": {"type": "boolean", "description": "Current state of auto-opening offline pages"}
+                }
+              }
+            ]
+          }
+        },
+        {
+          "name": "exportOfflinePages",
+          "type": "function",
+          "description": "Exports all saved offline pages from app-specific storage to the public Documents directory (/storage/emulated/0/Documents/WootzOfflinePages/). This allows sharing the saved pages with other users or devices.",
+          "parameters": [],
+          "returns_async": {
+            "name": "callback",
+            "parameters": [
+              {
+                "name": "result",
+                "type": "object",
+                "properties": {
+                  "success": {"type": "boolean", "description": "Whether the export was successful"},
+                  "exportedCount": {"type": "integer", "description": "Number of offline pages exported"},
+                  "exportPath": {"type": "string", "optional": true, "description": "Path where pages were exported to"},
+                  "error": {"type": "string", "optional": true, "description": "Error message if export failed"}
+                }
+              }
+            ]
+          }
+        },
+        {
+          "name": "clearOfflinePages",
+          "type": "function",
+          "description": "Deletes all saved offline pages from app-specific storage. This frees up storage space by removing all MHTML files that were saved for offline browsing.",
+          "parameters": [],
+          "returns_async": {
+            "name": "callback",
+            "parameters": [
+              {
+                "name": "result",
+                "type": "object",
+                "properties": {
+                  "success": {"type": "boolean", "description": "Whether the clear operation was successful"},
+                  "deletedCount": {"type": "integer", "description": "Number of offline pages deleted"},
+                  "error": {"type": "string", "optional": true, "description": "Error message if clear failed"}
                 }
               }
             ]

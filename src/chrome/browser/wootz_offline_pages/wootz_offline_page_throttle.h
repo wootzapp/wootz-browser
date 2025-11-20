@@ -8,6 +8,7 @@
 #include <memory>
 
 #include "content/public/browser/navigation_throttle.h"
+#include "url/gurl.h"
 
 namespace content {
 class NavigationHandle;
@@ -23,7 +24,11 @@ class WootzOfflinePageThrottle : public content::NavigationThrottle {
 
   // content::NavigationThrottle:
   ThrottleCheckResult WillStartRequest() override;
+  ThrottleCheckResult WillRedirectRequest() override;
   const char* GetNameForLogging() override;
+  
+ private:
+  ThrottleCheckResult CheckForOfflinePage();
 };
 
 #endif  // CHROME_BROWSER_WOOTZ_OFFLINE_PAGES_WOOTZ_OFFLINE_PAGE_THROTTLE_H_

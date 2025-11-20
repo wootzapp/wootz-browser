@@ -23,6 +23,11 @@ class WootzOfflinePageService : public KeyedService {
                 const std::vector<GURL>& redirect_chain);
   bool GetOfflinePagePath(const GURL& url, base::FilePath* path);
   bool ClearAllPages();
+  
+  // 404 page management
+  bool Does404PageExist();
+  void EnsureOffline404PageExists();
+  base::FilePath Get404PagePath();
 
  private:
   void OnMHTMLGenerated(const std::vector<GURL>& redirect_chain,

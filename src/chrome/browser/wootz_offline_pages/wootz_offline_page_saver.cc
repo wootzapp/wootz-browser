@@ -31,6 +31,9 @@ void WootzOfflinePageSaver::DidFinishNavigation(
   // Store redirect chain for later use when page is fully loaded
   last_redirect_chain_ = navigation_handle->GetRedirectChain();
   
+  // Reset save state for new navigation
+  save_in_progress_ = false;
+  
   LOG(INFO) << "Kartik: WootzOfflinePageSaver::DidFinishNavigation for "
             << navigation_handle->GetURL().spec() 
             << " - waiting for page to fully load";
@@ -45,6 +48,19 @@ void WootzOfflinePageSaver::DidStopLoading() {
   if (!url.SchemeIsHTTPOrHTTPS())
     return;
 
+  // Prevent concurrent save operations
+  if (save_in_progress_) {
+    LOG(WARNING) << "Kartik: Save already in progress for this WebContents, skipping";
+    return;
+  }
+  
+  // Prevent saving the same URL multiple times
+  if (url == last_saved_url_) {
+    LOG(INFO) << "Kartik: URL already saved: " << url.spec() << ", skipping duplicate save";
+    last_redirect_chain_.clear();
+    return;
+  }
+
   // Check if offline browsing is enabled
   Profile* profile = Profile::FromBrowserContext(web_contents()->GetBrowserContext());
   if (!profile->GetPrefs()->GetBoolean(
@@ -55,11 +71,15 @@ void WootzOfflinePageSaver::DidStopLoading() {
   }
 
   LOG(INFO) << "Kartik: WootzOfflinePageSaver::DidStopLoading for " << url.spec()
-            << " - page fully loaded, saving now";
+            << " - page fully loaded, initiating save";
+  
+  // Mark save as in progress
+  save_in_progress_ = true;
+  last_saved_url_ = url;
   
   GetService()->SavePage(web_contents(), last_redirect_chain_);
   
-  // Clear redirect chain after saving
+  // Clear redirect chain after initiating save
   last_redirect_chain_.clear();
 }
 

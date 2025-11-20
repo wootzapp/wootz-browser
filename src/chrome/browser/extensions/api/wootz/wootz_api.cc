@@ -93,6 +93,7 @@
 #include "chrome/browser/wootz_offline_pages/wootz_offline_page_prefs.h"
 #include "chrome/browser/wootz_offline_pages/wootz_offline_page_service.h"
 #include "chrome/browser/wootz_offline_pages/wootz_offline_page_service_factory.h"
+#include "chrome/android/chrome_jni_headers/WootzOfflinePagePathUtils_jni.h"
 
 
 
@@ -1924,8 +1925,8 @@ ExtensionFunction::ResponseAction WootzCaptureScreenshotFunction::Run() {
   return RespondNow(WithArguments(std::move(result)));
 }
 
-ExtensionFunction::ResponseAction WootzSetOfflineBrowsingFunction::Run() {
-  LOG(INFO) << "WootzSetOfflineBrowsingFunction::Run called";
+ExtensionFunction::ResponseAction WootzSetAutoSavePagesFunction::Run() {
+  LOG(INFO) << "WootzSetAutoSavePagesFunction::Run called";
   
   // Validate arguments
   if (args().empty() || !args()[0].is_bool()) {
@@ -1941,11 +1942,21 @@ ExtensionFunction::ResponseAction WootzSetOfflineBrowsingFunction::Run() {
     return RespondNow(Error("No profile found"));
   }
   
-  // Save the preference
+  // Save the preference for automatic page saving
   profile->GetPrefs()->SetBoolean(
       wootz_offline_pages::prefs::kOfflineBrowsingEnabled, is_enabled);
   
-  LOG(INFO) << "Offline browsing " << (is_enabled ? "enabled" : "disabled");
+  LOG(INFO) << "Automatic page saving " << (is_enabled ? "enabled" : "disabled");
+  
+  // When enabling auto-save, ensure the 404 page exists
+  if (is_enabled) {
+    WootzOfflinePageService* service =
+        WootzOfflinePageServiceFactory::GetForProfile(profile);
+    if (service) {
+      service->EnsureOffline404PageExists();
+      LOG(INFO) << "Ensured 404 page exists for offline browsing";
+    }
+  }
   
   base::Value::Dict result;
   result.Set("success", true);
@@ -1954,8 +1965,16 @@ ExtensionFunction::ResponseAction WootzSetOfflineBrowsingFunction::Run() {
   return RespondNow(WithArguments(std::move(result)));
 }
 
-ExtensionFunction::ResponseAction WootzClearOfflinePagesFunction::Run() {
-  LOG(INFO) << "WootzClearOfflinePagesFunction::Run called";
+ExtensionFunction::ResponseAction WootzSetAutoOpenOfflinePagesFunction::Run() {
+  LOG(INFO) << "WootzSetAutoOpenOfflinePagesFunction::Run called";
+  
+  // Validate arguments
+  if (args().empty() || !args()[0].is_bool()) {
+    LOG(ERROR) << "Invalid arguments - expected boolean isEnabled";
+    return RespondNow(Error("Missing or invalid 'isEnabled' argument"));
+  }
+  
+  bool is_enabled = args()[0].GetBool();
   
   Profile* profile = Profile::FromBrowserContext(browser_context());
   if (!profile) {
@@ -1963,29 +1982,78 @@ ExtensionFunction::ResponseAction WootzClearOfflinePagesFunction::Run() {
     return RespondNow(Error("No profile found"));
   }
   
-  // Get the offline page service
-  WootzOfflinePageService* service = 
-      WootzOfflinePageServiceFactory::GetForProfile(profile);
-  if (!service) {
-    LOG(ERROR) << "No offline page service found";
-    return RespondNow(Error("Offline page service not available"));
+  // Save the preference for auto-opening saved pages
+  profile->GetPrefs()->SetBoolean(
+      wootz_offline_pages::prefs::kAutoOpenOfflinePages, is_enabled);
+  
+  LOG(INFO) << "Auto-open offline pages " << (is_enabled ? "enabled" : "disabled");
+  
+  // When enabling auto-open, ensure the 404 page exists
+  if (is_enabled) {
+    WootzOfflinePageService* service =
+        WootzOfflinePageServiceFactory::GetForProfile(profile);
+    if (service) {
+      service->EnsureOffline404PageExists();
+      LOG(INFO) << "Ensured 404 page exists for offline browsing";
+    }
   }
   
-  // Clear all offline pages
-  bool success = service->ClearAllPages();
+  base::Value::Dict result;
+  result.Set("success", true);
+  result.Set("enabled", is_enabled);
   
-  LOG(INFO) << "Clear offline pages " << (success ? "succeeded" : "failed");
+  return RespondNow(WithArguments(std::move(result)));
+}
+
+ExtensionFunction::ResponseAction WootzExportOfflinePagesFunction::Run() {
+  LOG(INFO) << "WootzExportOfflinePagesFunction::Run called";
+  
+  JNIEnv* env = base::android::AttachCurrentThread();
+  
+  // Call Java method to export offline pages
+  int exported_count = wootz_offline_pages::Java_WootzOfflinePagePathUtils_exportOfflinePages(env);
   
   base::Value::Dict result;
-  result.Set("success", success);
-  if (success) {
-    result.Set("message", "All offline pages cleared successfully");
+  
+  if (exported_count < 0) {
+    LOG(ERROR) << "Failed to export offline pages";
+    result.Set("success", false);
+    result.Set("error", "Failed to export offline pages");
+    result.Set("exportedCount", 0);
   } else {
-    result.Set("message", "Failed to clear offline pages");
+    LOG(INFO) << "Successfully exported " << exported_count << " offline pages";
+    result.Set("success", true);
+    result.Set("exportedCount", exported_count);
+    result.Set("exportPath", "/storage/emulated/0/Documents/WootzOfflinePages");
   }
   
   return RespondNow(WithArguments(std::move(result)));
 }
+
+ExtensionFunction::ResponseAction WootzClearOfflinePagesFunction::Run() {
+  LOG(INFO) << "WootzClearOfflinePagesFunction::Run called";
+  
+  JNIEnv* env = base::android::AttachCurrentThread();
+  
+  // Call Java method to clear offline pages
+  int deleted_count = wootz_offline_pages::Java_WootzOfflinePagePathUtils_clearOfflinePages(env);
+  
+  base::Value::Dict result;
+  
+  if (deleted_count < 0) {
+    LOG(ERROR) << "Failed to clear offline pages";
+    result.Set("success", false);
+    result.Set("error", "Failed to clear offline pages");
+    result.Set("deletedCount", 0);
+  } else {
+    LOG(INFO) << "Successfully cleared " << deleted_count << " offline pages";
+    result.Set("success", true);
+    result.Set("deletedCount", deleted_count);
+  }
+  
+  return RespondNow(WithArguments(std::move(result)));
+}
+
 
 }  // namespace extensions
 

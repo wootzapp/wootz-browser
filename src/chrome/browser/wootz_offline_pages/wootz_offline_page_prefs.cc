@@ -10,8 +10,11 @@ namespace wootz_offline_pages {
 namespace prefs {
 
 void RegisterProfilePrefs(PrefRegistrySimple* registry) {
-  // Register offline browsing preference, default to disabled
+  // Register offline page saving preference, default to disabled
   registry->RegisterBooleanPref(kOfflineBrowsingEnabled, false);
+  
+  // Register auto-opening preference, default to disabled
+  registry->RegisterBooleanPref(kAutoOpenOfflinePages, false);
 }
 
 }  // namespace prefs

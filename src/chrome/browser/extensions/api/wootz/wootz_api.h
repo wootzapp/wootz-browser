@@ -459,12 +459,30 @@ class WootzCaptureScreenshotFunction : public ExtensionFunction {
   ResponseAction Run() override;
 };
 
-class WootzSetOfflineBrowsingFunction : public ExtensionFunction {
+class WootzSetAutoSavePagesFunction : public ExtensionFunction {
  public:
-  DECLARE_EXTENSION_FUNCTION("wootz.setOfflineBrowsing", WOOTZ_SET_OFFLINE_BROWSING)
-  WootzSetOfflineBrowsingFunction() = default;
+  DECLARE_EXTENSION_FUNCTION("wootz.setAutoSavePages", WOOTZ_SET_AUTO_SAVE_PAGES)
+  WootzSetAutoSavePagesFunction() = default;
  protected:
-  ~WootzSetOfflineBrowsingFunction() override = default;
+  ~WootzSetAutoSavePagesFunction() override = default;
+  ResponseAction Run() override;
+};
+
+class WootzSetAutoOpenOfflinePagesFunction : public ExtensionFunction {
+ public:
+  DECLARE_EXTENSION_FUNCTION("wootz.setAutoOpenOfflinePages", WOOTZ_SET_AUTO_OPEN_OFFLINE_PAGES)
+  WootzSetAutoOpenOfflinePagesFunction() = default;
+ protected:
+  ~WootzSetAutoOpenOfflinePagesFunction() override = default;
+  ResponseAction Run() override;
+};
+
+class WootzExportOfflinePagesFunction : public ExtensionFunction {
+ public:
+  DECLARE_EXTENSION_FUNCTION("wootz.exportOfflinePages", WOOTZ_EXPORT_OFFLINE_PAGES)
+  WootzExportOfflinePagesFunction() = default;
+ protected:
+  ~WootzExportOfflinePagesFunction() override = default;
   ResponseAction Run() override;
 };
 
@@ -476,6 +494,7 @@ class WootzClearOfflinePagesFunction : public ExtensionFunction {
   ~WootzClearOfflinePagesFunction() override = default;
   ResponseAction Run() override;
 };
+
 
 }  // namespace extensions
 #endif  // CHROME_BROWSER_EXTENSIONS_API_WOOTZ_WOOTZ_API_H_

@@ -32,6 +32,12 @@ class WootzOfflinePageSaver
 
   // Stores redirect chain from the last navigation to use when page finishes loading
   std::vector<GURL> last_redirect_chain_;
+  
+  // Track if a save operation is in progress to prevent concurrent saves
+  bool save_in_progress_ = false;
+  
+  // Track the last saved URL to prevent duplicate saves
+  GURL last_saved_url_;
 
   WEB_CONTENTS_USER_DATA_KEY_DECL();
 };
