@@ -2010,7 +2010,7 @@ ExtensionFunction::ResponseAction WootzExportOfflinePagesFunction::Run() {
   
   JNIEnv* env = base::android::AttachCurrentThread();
   
-  // Call Java method to export offline pages
+  // Call Java method to export offline pages to timestamped directory
   int exported_count = wootz_offline_pages::Java_WootzOfflinePagePathUtils_exportOfflinePages(env);
   
   base::Value::Dict result;
@@ -2020,11 +2020,32 @@ ExtensionFunction::ResponseAction WootzExportOfflinePagesFunction::Run() {
     result.Set("success", false);
     result.Set("error", "Failed to export offline pages");
     result.Set("exportedCount", 0);
+  } else if (exported_count == 0) {
+    LOG(INFO) << "No offline pages to export";
+    result.Set("success", true);
+    result.Set("exportedCount", 0);
+    result.Set("message", "No offline pages to export");
   } else {
     LOG(INFO) << "Successfully exported " << exported_count << " offline pages";
-    result.Set("success", true);
-    result.Set("exportedCount", exported_count);
-    result.Set("exportPath", "/storage/emulated/0/Documents/WootzOfflinePages");
+    
+    // After successful export, clear the offline pages from app storage
+    int cleared_count = wootz_offline_pages::Java_WootzOfflinePagePathUtils_clearOfflinePages(env);
+    
+    if (cleared_count >= 0) {
+      LOG(INFO) << "Successfully cleared " << cleared_count << " offline pages after export";
+      result.Set("success", true);
+      result.Set("exportedCount", exported_count);
+      result.Set("clearedCount", cleared_count);
+      result.Set("exportPath", "/storage/emulated/0/Documents/WootzOfflinePages/wootz_offline_<timestamp>");
+      result.Set("message", "Pages exported to timestamped directory and cleared from local storage");
+    } else {
+      LOG(INFO) << "Export succeeded but failed to clear offline pages";
+      result.Set("success", true);
+      result.Set("exportedCount", exported_count);
+      result.Set("clearedCount", 0);
+      result.Set("exportPath", "/storage/emulated/0/Documents/WootzOfflinePages/wootz_offline_<timestamp>");
+      result.Set("warning", "Export succeeded but failed to clear local storage");
+    }
   }
   
   return RespondNow(WithArguments(std::move(result)));

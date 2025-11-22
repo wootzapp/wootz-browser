@@ -13,6 +13,9 @@ import java.io.File;
 import java.io.FileInputStream;
 import java.io.FileOutputStream;
 import java.io.IOException;
+import java.text.SimpleDateFormat;
+import java.util.Date;
+import java.util.Locale;
 
 /**
  * Utility class to provide storage paths for Wootz offline pages.
@@ -61,7 +64,8 @@ public class WootzOfflinePagePathUtils {
 
    /**
     * Exports offline pages from app-specific storage to public Documents directory.
-    * Target path: /storage/emulated/0/Documents/WootzOfflinePages/
+    * Creates a timestamped subdirectory for each export session.
+    * Target path: /storage/emulated/0/Documents/WootzOfflinePages/wootz_offline_YYYY-MM-DD_HH-MM-SS/
     * 
     * @return Number of files exported, or -1 on error
     */
@@ -83,7 +87,7 @@ public class WootzOfflinePagePathUtils {
                return 0; // No files to export
            }
            
-           // Target: public Documents directory
+           // Target: public Documents directory with timestamped subdirectory
            File documentsDir = Environment.getExternalStoragePublicDirectory(
                    Environment.DIRECTORY_DOCUMENTS);
            if (documentsDir == null) {
@@ -91,16 +95,31 @@ public class WootzOfflinePagePathUtils {
                return -1;
            }
            
-           File targetDir = new File(documentsDir, OFFLINE_PAGES_DIR);
-           if (!targetDir.exists() && !targetDir.mkdirs()) {
-               Log.e(TAG, "Failed to create target directory: " + targetDir.getAbsolutePath());
+           // Create base WootzOfflinePages directory
+           File baseTargetDir = new File(documentsDir, OFFLINE_PAGES_DIR);
+           if (!baseTargetDir.exists() && !baseTargetDir.mkdirs()) {
+               Log.e(TAG, "Failed to create base target directory: " + baseTargetDir.getAbsolutePath());
                return -1;
            }
            
-           // Copy all MHTML files
+           // Generate timestamp for this export session
+           SimpleDateFormat dateFormat = new SimpleDateFormat("yyyy-MM-dd_HH-mm-ss", Locale.US);
+           String timestamp = dateFormat.format(new Date());
+           String sessionDirName = "wootz_offline_" + timestamp;
+           
+           // Create timestamped session directory
+           File sessionDir = new File(baseTargetDir, sessionDirName);
+           if (!sessionDir.mkdirs()) {
+               Log.e(TAG, "Failed to create session directory: " + sessionDir.getAbsolutePath());
+               return -1;
+           }
+           
+           // Copy all MHTML files to the session directory
            File[] files = sourceDir.listFiles();
            if (files == null || files.length == 0) {
                Log.i(TAG, "No files to export");
+               // Delete the empty session directory
+               sessionDir.delete();
                return 0;
            }
            
@@ -110,7 +129,7 @@ public class WootzOfflinePagePathUtils {
                    continue;
                }
                
-               File targetFile = new File(targetDir, sourceFile.getName());
+               File targetFile = new File(sessionDir, sourceFile.getName());
                if (copyFile(sourceFile, targetFile)) {
                    exportedCount++;
                    Log.i(TAG, "Exported: " + sourceFile.getName());
@@ -120,7 +139,7 @@ public class WootzOfflinePagePathUtils {
            }
            
            Log.i(TAG, "Successfully exported " + exportedCount + " offline pages to " 
-                   + targetDir.getAbsolutePath());
+                   + sessionDir.getAbsolutePath());
            return exportedCount;
            
        } catch (Exception e) {
@@ -291,6 +310,77 @@ public class WootzOfflinePagePathUtils {
        } catch (Exception e) {
            Log.e(TAG, "Failed to create 404 page: " + e.getMessage());
            return false;
+       }
+   }
+
+   /**
+    * Searches for an offline page file in subdirectories of WootzOfflinePages.
+    * This handles cases where users manually copy exported directories back to app storage.
+    * 
+    * @param filename The MHTML filename to search for
+    * @return Absolute path to the file if found, null otherwise
+    */
+   @CalledByNative
+   public static String findOfflinePageInSubdirectories(String filename) {
+       try {
+           Context context = ContextUtils.getApplicationContext();
+           File externalFilesDir = context.getExternalFilesDir(null);
+           
+           if (externalFilesDir == null) {
+               Log.e(TAG, "External storage not available");
+               return null;
+           }
+           
+           File offlinePagesDir = new File(externalFilesDir, OFFLINE_PAGES_DIR);
+           
+           if (!offlinePagesDir.exists() || !offlinePagesDir.isDirectory()) {
+               Log.i(TAG, "Offline pages directory does not exist");
+               return null;
+           }
+           
+           // Search through all subdirectories
+           File[] entries = offlinePagesDir.listFiles();
+           if (entries == null) {
+               return null;
+           }
+           
+           for (File entry : entries) {
+               if (!entry.isDirectory()) {
+                   continue;
+               }
+               
+               // Check if the file exists in this subdirectory
+               File targetFile = new File(entry, filename);
+               if (targetFile.exists() && targetFile.isFile()) {
+                   String foundPath = targetFile.getAbsolutePath();
+                   Log.i(TAG, "Found offline page in subdirectory: " + foundPath);
+                   return foundPath;
+               }
+               
+               // Recursively search nested subdirectories (one level deep)
+               File[] subEntries = entry.listFiles();
+               if (subEntries != null) {
+                   for (File subEntry : subEntries) {
+                       if (!subEntry.isDirectory()) {
+                           continue;
+                       }
+                       
+                       File nestedFile = new File(subEntry, filename);
+                       if (nestedFile.exists() && nestedFile.isFile()) {
+                           String foundPath = nestedFile.getAbsolutePath();
+                           Log.i(TAG, "Found offline page in nested subdirectory: " + foundPath);
+                           return foundPath;
+                       }
+                   }
+               }
+           }
+           
+           Log.i(TAG, "File not found in any subdirectory: " + filename);
+           return null;
+           
+       } catch (Exception e) {
+           Log.e(TAG, "Failed to search subdirectories: " + e.getMessage());
+           return null;
        }
    }
 

@@ -95,7 +95,36 @@ bool WootzOfflinePageService::GetOfflinePagePath(const GURL& url,
                                                  base::FilePath* path) {
   DCHECK_CURRENTLY_ON(content::BrowserThread::UI);
   *path = URLToFilePath(url);
-  return base::PathExists(*path);
+  
+  // First, check if the file exists at the direct path
+  if (base::PathExists(*path)) {
+    return true;
+  }
+  
+  // If not found in the main directory, search subdirectories
+  // This handles cases where users copy exported directories back
+  LOG(INFO) << "Kartik: File not found at direct path, searching subdirectories...";
+  
+  // Extract just the filename from the full path
+  std::string filename = path->BaseName().AsUTF8Unsafe();
+  
+  JNIEnv* env = base::android::AttachCurrentThread();
+  base::android::ScopedJavaLocalRef<jstring> j_filename =
+      base::android::ConvertUTF8ToJavaString(env, filename);
+  
+  base::android::ScopedJavaLocalRef<jstring> j_found_path =
+      wootz_offline_pages::Java_WootzOfflinePagePathUtils_findOfflinePageInSubdirectories(
+          env, j_filename);
+  
+  if (!j_found_path.is_null()) {
+    std::string found_path = base::android::ConvertJavaStringToUTF8(env, j_found_path);
+    *path = base::FilePath(found_path);
+    LOG(INFO) << "Kartik: Found offline page in subdirectory: " << found_path;
+    return true;
+  }
+  
+  LOG(INFO) << "Kartik: Offline page not found in main directory or subdirectories";
+  return false;
 }
 
 bool WootzOfflinePageService::ClearAllPages() {
@@ -215,34 +244,40 @@ void WootzOfflinePageService::EnsureOffline404PageExists() {
       "    <meta name=3D\"viewport\" content=3D\"width=3Ddevice-width, initial-scale=3D1.0\">\r\n"
       "    <title>Page Not Available Offline</title>\r\n"
       "    <style>\r\n"
+      "        html, body {\r\n"
+      "            height: 100vh;\r\n"
+      "            width: 100vw;\r\n"
+      "            margin: 0;\r\n"
+      "            padding: 0;\r\n"
+      "            overflow: hidden;\r\n"
+      "        }\r\n"
       "        body {\r\n"
       "            font-family: -apple-system, BlinkMacSystemFont, \"Segoe UI\", Roboto, sans-serif;\r\n"
       "            display: flex;\r\n"
       "            align-items: center;\r\n"
       "            justify-content: center;\r\n"
-      "            min-height: 100vh;\r\n"
-      "            margin: 0;\r\n"
-      "            padding: 20px;\r\n"
       "            background: #f5f5f5;\r\n"
       "        }\r\n"
       "        .container {\r\n"
       "            text-align: center;\r\n"
-      "            max-width: 500px;\r\n"
+      "            max-width: 450px;\r\n"
       "            background: white;\r\n"
-      "            padding: 40px;\r\n"
+      "            padding: 24px 20px;\r\n"
       "            border-radius: 12px;\r\n"
       "            box-shadow: 0 2px 10px rgba(0,0,0,0.1);\r\n"
+      "            margin: 0 16px;\r\n"
       "        }\r\n"
-      "        .icon { font-size: 72px; margin: 0 0 20px 0; }\r\n"
-      "        h2 { font-size: 24px; margin: 0 0 15px 0; color: #333; }\r\n"
-      "        p { color: #666; line-height: 1.6; margin: 0 0 20px 0; }\r\n"
+      "        .icon { font-size: 64px; margin: 0 0 16px 0; }\r\n"
+      "        h2 { font-size: 22px; margin: 0 0 12px 0; color: #333; }\r\n"
+      "        p { color: #666; line-height: 1.5; margin: 0 0 16px 0; font-size: 14px; }\r\n"
       "        .info {\r\n"
       "            background: #e3f2fd;\r\n"
-      "            padding: 15px;\r\n"
+      "            padding: 12px;\r\n"
       "            border-radius: 8px;\r\n"
-      "            margin: 20px 0;\r\n"
+      "            margin: 16px 0;\r\n"
       "            color: #1976d2;\r\n"
-      "            font-size: 14px;\r\n"
+      "            font-size: 13px;\r\n"
+      "            line-height: 1.4;\r\n"
       "        }\r\n"
       "    </style>\r\n"
       "</head>\r\n"
@@ -256,7 +291,7 @@ void WootzOfflinePageService::EnsureOffline404PageExists() {
       "with auto-save enabled. The page will be automatically saved for future =\r\n"
       "offline access.\r\n"
       "        </div>\r\n"
-      "        <p style=3D\"color: #999; font-size: 12px; margin-top: 20px;\">\r\n"
+      "        <p style=3D\"color: #999; font-size: 11px; margin-top: 16px; margin-bottom: 0;\">\r\n"
       "            Wootz Offline Pages\r\n"
       "        </p>\r\n"
       "    </div>\r\n"

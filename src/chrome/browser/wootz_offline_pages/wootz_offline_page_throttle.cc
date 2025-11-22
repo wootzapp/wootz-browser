@@ -65,11 +65,11 @@ WootzOfflinePageThrottle::CheckForOfflinePage() {
   Profile* profile = Profile::FromBrowserContext(
       navigation_handle()->GetWebContents()->GetBrowserContext());
   
-  if (!profile->GetPrefs()->GetBoolean(
-          wootz_offline_pages::prefs::kAutoOpenOfflinePages)) {
-    LOG(INFO) << "Kartik: Auto-open offline pages disabled, proceeding with online navigation";
-    return content::NavigationThrottle::PROCEED;
-  }
+  // if (!profile->GetPrefs()->GetBoolean(
+  //         wootz_offline_pages::prefs::kAutoOpenOfflinePages)) {
+  //   LOG(INFO) << "Kartik: Auto-open offline pages disabled, proceeding with online navigation";
+  //   return content::NavigationThrottle::PROCEED;
+  // }
   
   WootzOfflinePageService* service =
       WootzOfflinePageServiceFactory::GetForProfile(profile);
