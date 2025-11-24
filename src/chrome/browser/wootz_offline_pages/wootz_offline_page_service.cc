@@ -12,6 +12,7 @@
 #include "base/logging.h"
 #include "base/path_service.h"
 #include "base/strings/string_number_conversions.h"
+#include "chrome/browser/wootz_offline_pages/wootz_mhtml_to_html_converter.h"
 #include "chrome/common/chrome_paths.h"
 #include "content/public/common/mhtml_generation_params.h"
 #include "content/public/browser/web_contents.h"
@@ -21,7 +22,11 @@
 // Generated JNI headers
 #include "chrome/android/chrome_jni_headers/WootzOfflinePagePathUtils_jni.h"
 
-WootzOfflinePageService::WootzOfflinePageService() = default;
+WootzOfflinePageService::WootzOfflinePageService() {
+  // Ensure 404 page exists when service is created
+  EnsureOffline404PageExists();
+}
+
 WootzOfflinePageService::~WootzOfflinePageService() = default;
 
 void WootzOfflinePageService::SavePage(
@@ -34,10 +39,12 @@ void WootzOfflinePageService::SavePage(
 
   LOG(INFO) << "Kartik: WootzOfflinePageService::SavePage for " << url.spec();
   
-  base::FilePath file_path = URLToFilePath(url);
+  // Generate temporary MHTML path (will be converted to HTML)
+  base::FilePath html_path = URLToFilePath(url);  // This returns .html path
+  base::FilePath mhtml_temp_path = html_path.RemoveExtension().AddExtension(FILE_PATH_LITERAL("tmp"));
   
   // Verify storage directory exists and is writable
-  base::FilePath storage_dir = file_path.DirName();
+  base::FilePath storage_dir = html_path.DirName();
   if (!base::DirectoryExists(storage_dir)) {
     LOG(ERROR) << "Kartik: Storage directory does not exist: " << storage_dir.value();
     return;
@@ -49,9 +56,9 @@ void WootzOfflinePageService::SavePage(
     return;
   }
   
-  LOG(INFO) << "Kartik: Starting MHTML generation to: " << file_path.value();
+  LOG(INFO) << "Kartik: Starting MHTML generation to: " << mhtml_temp_path.value();
   
-  content::MHTMLGenerationParams params(file_path);
+  content::MHTMLGenerationParams params(mhtml_temp_path);
   // Set cache control to use cached resources (faster, more reliable)
   params.use_binary_encoding = true;  // More efficient encoding
   params.remove_popup_overlay = true;  // Remove popups for cleaner MHTML
@@ -59,7 +66,7 @@ void WootzOfflinePageService::SavePage(
   web_contents->GenerateMHTML(
       params, base::BindOnce(&WootzOfflinePageService::OnMHTMLGenerated,
                              weak_factory_.GetWeakPtr(), redirect_chain,
-                             file_path));
+                             mhtml_temp_path));
 }
 
 void WootzOfflinePageService::OnMHTMLGenerated(
@@ -85,10 +92,56 @@ void WootzOfflinePageService::OnMHTMLGenerated(
     return;
   }
   
-  LOG(INFO) << "Kartik: MHTML saved successfully for " 
+  LOG(INFO) << "Kartik: MHTML generated successfully for " 
             << redirect_chain.back().spec()
             << " - file: " << file_path.value()
             << " - size: " << size << " bytes";
+  
+  // Convert MHTML to HTML for full JavaScript functionality
+  // file_path is hash.tmp, so RemoveExtension gives hash, then add .html
+  base::FilePath html_path = file_path.RemoveExtension().AddExtension(FILE_PATH_LITERAL("html"));
+  
+  LOG(INFO) << "Kartik: Converting MHTML to HTML: " << file_path.value() 
+            << " -> " << html_path.value();
+  
+  bool conversion_success = wootz_offline_pages::WootzMHTMLToHTMLConverter::Convert(
+      file_path, html_path);
+  
+  if (conversion_success) {
+    LOG(INFO) << "Kartik: Successfully converted to HTML, deleting temporary MHTML file";
+    
+    // Delete the temporary MHTML file - we only keep the HTML
+    if (!base::DeleteFile(file_path)) {
+      LOG(WARNING) << "Kartik: Failed to delete temporary MHTML file: " << file_path.value();
+    }
+    
+    LOG(INFO) << "Kartik: Offline page saved as HTML: " << html_path.value();
+    
+    // CRITICAL: Save the same HTML for ALL URLs in the redirect chain
+    // This ensures that accessing any intermediate redirect URL will find the page
+    if (redirect_chain.size() > 1) {
+      LOG(INFO) << "Kartik: Creating copies for " << (redirect_chain.size() - 1) 
+                << " redirect URLs in the chain";
+      
+      // The last URL in redirect_chain is the final destination (already saved above)
+      // Create copies for all intermediate redirect URLs
+      for (size_t i = 0; i < redirect_chain.size() - 1; i++) {
+        const GURL& redirect_url = redirect_chain[i];
+        base::FilePath redirect_path = URLToFilePath(redirect_url);
+        
+        // Copy the HTML file to the redirect URL's path
+        if (base::CopyFile(html_path, redirect_path)) {
+          LOG(INFO) << "Kartik: Saved redirect URL: " << redirect_url.spec()
+                    << " -> " << redirect_path.value();
+        } else {
+          LOG(ERROR) << "Kartik: Failed to save redirect URL: " << redirect_url.spec();
+        }
+      }
+    }
+  } else {
+    LOG(ERROR) << "Kartik: Failed to convert MHTML to HTML, keeping MHTML file as fallback";
+    // Keep the MHTML file if conversion fails
+  }
 }
 
 bool WootzOfflinePageService::GetOfflinePagePath(const GURL& url,
@@ -188,7 +241,8 @@ base::FilePath WootzOfflinePageService::GetStorageDir() {
 base::FilePath WootzOfflinePageService::URLToFilePath(const GURL& url) {
   std::string hash = base::SHA1HashString(url.spec());
   std::string hex_hash = base::HexEncode(hash.c_str(), hash.length());
-  std::string filename = "wootz_offline_" + hex_hash + ".mhtml";
+  // Changed from .mhtml to .html since we now convert and save as HTML
+  std::string filename = "wootz_offline_" + hex_hash + ".html";
   return GetStorageDir().Append(base::FilePath::FromUTF8Unsafe(filename));
 }
 
@@ -222,94 +276,80 @@ void WootzOfflinePageService::EnsureOffline404PageExists() {
   
   LOG(INFO) << "Kartik: Creating offline 404 page";
   
-  // Generate MHTML content for the 404 page
-  std::string mhtml_content = 
-      "From: <Saved by Wootz Offline Pages>\r\n"
-      "Subject: Page Not Available Offline\r\n"
-      "Date: Mon, 01 Jan 2024 00:00:00 GMT\r\n"
-      "MIME-Version: 1.0\r\n"
-      "Content-Type: multipart/related;\r\n"
-      "\ttype=\"text/html\";\r\n"
-      "\tboundary=\"----MultipartBoundary--wootz404page----\"\r\n"
-      "\r\n"
-      "------MultipartBoundary--wootz404page----\r\n"
-      "Content-Type: text/html\r\n"
-      "Content-Transfer-Encoding: quoted-printable\r\n"
-      "Content-Location: about:blank\r\n"
-      "\r\n"
-      "<!DOCTYPE html>\r\n"
-      "<html>\r\n"
-      "<head>\r\n"
-      "    <meta charset=3D\"utf-8\">\r\n"
-      "    <meta name=3D\"viewport\" content=3D\"width=3Ddevice-width, initial-scale=3D1.0\">\r\n"
-      "    <title>Page Not Available Offline</title>\r\n"
-      "    <style>\r\n"
-      "        html, body {\r\n"
-      "            height: 100vh;\r\n"
-      "            width: 100vw;\r\n"
-      "            margin: 0;\r\n"
-      "            padding: 0;\r\n"
-      "            overflow: hidden;\r\n"
-      "        }\r\n"
-      "        body {\r\n"
-      "            font-family: -apple-system, BlinkMacSystemFont, \"Segoe UI\", Roboto, sans-serif;\r\n"
-      "            display: flex;\r\n"
-      "            align-items: center;\r\n"
-      "            justify-content: center;\r\n"
-      "            background: #f5f5f5;\r\n"
-      "        }\r\n"
-      "        .container {\r\n"
-      "            text-align: center;\r\n"
-      "            max-width: 450px;\r\n"
-      "            background: white;\r\n"
-      "            padding: 24px 20px;\r\n"
-      "            border-radius: 12px;\r\n"
-      "            box-shadow: 0 2px 10px rgba(0,0,0,0.1);\r\n"
-      "            margin: 0 16px;\r\n"
-      "        }\r\n"
-      "        .icon { font-size: 64px; margin: 0 0 16px 0; }\r\n"
-      "        h2 { font-size: 22px; margin: 0 0 12px 0; color: #333; }\r\n"
-      "        p { color: #666; line-height: 1.5; margin: 0 0 16px 0; font-size: 14px; }\r\n"
-      "        .info {\r\n"
-      "            background: #e3f2fd;\r\n"
-      "            padding: 12px;\r\n"
-      "            border-radius: 8px;\r\n"
-      "            margin: 16px 0;\r\n"
-      "            color: #1976d2;\r\n"
-      "            font-size: 13px;\r\n"
-      "            line-height: 1.4;\r\n"
-      "        }\r\n"
-      "    </style>\r\n"
-      "</head>\r\n"
-      "<body>\r\n"
-      "    <div class=3D\"container\">\r\n"
-      "        <div class=3D\"icon\">=F0=9F=93=AD</div>\r\n"
-      "        <h2>Page Not Available Offline</h2>\r\n"
-      "        <p>This page hasn't been saved for offline viewing yet.</p>\r\n"
-      "        <div class=3D\"info\">\r\n"
-      "            <strong>Tip:</strong> To view this page offline, visit it while online =\r\n"
-      "with auto-save enabled. The page will be automatically saved for future =\r\n"
-      "offline access.\r\n"
-      "        </div>\r\n"
-      "        <p style=3D\"color: #999; font-size: 11px; margin-top: 16px; margin-bottom: 0;\">\r\n"
-      "            Wootz Offline Pages\r\n"
-      "        </p>\r\n"
-      "    </div>\r\n"
-      "</body>\r\n"
-      "</html>\r\n"
-      "\r\n"
-      "------MultipartBoundary--wootz404page------\r\n";
+  // Generate HTML content for the 404 page (no longer using MHTML)
+  std::string html_content = 
+      "<!DOCTYPE html>\n"
+      "<html>\n"
+      "<head>\n"
+      "    <meta charset=\"utf-8\">\n"
+      "    <meta name=\"viewport\" content=\"width=device-width, initial-scale=1.0\">\n"
+      "    <title>Page Not Available Offline</title>\n"
+      "    <style>\n"
+      "        html, body {\n"
+      "            height: 100vh;\n"
+      "            width: 100vw;\n"
+      "            margin: 0;\n"
+      "            padding: 0;\n"
+      "            overflow: hidden;\n"
+      "        }\n"
+      "        body {\n"
+      "            font-family: -apple-system, BlinkMacSystemFont, \"Segoe UI\", Roboto, sans-serif;\n"
+      "            display: flex;\n"
+      "            align-items: center;\n"
+      "            justify-content: center;\n"
+      "            background: #f5f5f5;\n"
+      "        }\n"
+      "        .container {\n"
+      "            text-align: center;\n"
+      "            max-width: 450px;\n"
+      "            background: white;\n"
+      "            padding: 24px 20px;\n"
+      "            border-radius: 12px;\n"
+      "            box-shadow: 0 2px 10px rgba(0,0,0,0.1);\n"
+      "            margin: 0 16px;\n"
+      "        }\n"
+      "        .icon { font-size: 64px; margin: 0 0 16px 0; }\n"
+      "        h2 { font-size: 22px; margin: 0 0 12px 0; color: #333; }\n"
+      "        p { color: #666; line-height: 1.5; margin: 0 0 16px 0; font-size: 14px; }\n"
+      "        .info {\n"
+      "            background: #e3f2fd;\n"
+      "            padding: 12px;\n"
+      "            border-radius: 8px;\n"
+      "            margin: 16px 0;\n"
+      "            color: #1976d2;\n"
+      "            font-size: 13px;\n"
+      "            line-height: 1.4;\n"
+      "            text-align: left;\n"
+      "        }\n"
+      "    </style>\n"
+      "</head>\n"
+      "<body>\n"
+      "    <div class=\"container\">\n"
+      "        <div class=\"icon\">📭</div>\n"
+      "        <h2>Page Not Available Offline</h2>\n"
+      "        <p>This page hasn't been saved for offline viewing yet.</p>\n"
+      "        <div class=\"info\">\n"
+      "            <strong>Tip:</strong> To view this page offline, visit it while online "
+      "with auto-save enabled. The page will be automatically saved for future "
+      "offline access.\n"
+      "        </div>\n"
+      "        <p style=\"color: #999; font-size: 11px; margin-top: 16px; margin-bottom: 0;\">\n"
+      "            Wootz Offline Pages\n"
+      "        </p>\n"
+      "    </div>\n"
+      "</body>\n"
+      "</html>\n";
   
   // Call Java method to create the file
   JNIEnv* env = base::android::AttachCurrentThread();
   base::android::ScopedJavaLocalRef<jstring> j_content =
-      base::android::ConvertUTF8ToJavaString(env, mhtml_content);
+      base::android::ConvertUTF8ToJavaString(env, html_content);
   
   bool success = wootz_offline_pages::Java_WootzOfflinePagePathUtils_create404Page(
       env, j_content);
   
   if (success) {
-    LOG(INFO) << "Kartik: Successfully created offline 404 page";
+    LOG(INFO) << "Kartik: Successfully created offline 404 page as HTML";
   } else {
     LOG(ERROR) << "Kartik: Failed to create offline 404 page";
   }

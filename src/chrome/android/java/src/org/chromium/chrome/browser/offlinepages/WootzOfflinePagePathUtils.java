@@ -24,7 +24,7 @@ import java.util.Locale;
 public class WootzOfflinePagePathUtils {
     private static final String TAG = "Kartik: WootzOfflinePagePathUtils";
     private static final String OFFLINE_PAGES_DIR = "WootzOfflinePages";
-    private static final String OFFLINE_404_FILENAME = "wootz_offline_404_page.mhtml";
+    private static final String OFFLINE_404_FILENAME = "wootz_offline_404_page.html";
 
     /**
      * Returns the app-specific external storage directory path for offline pages.
@@ -114,7 +114,7 @@ public class WootzOfflinePagePathUtils {
                return -1;
            }
            
-           // Copy all MHTML files to the session directory
+           // Copy all HTML files to the session directory
            File[] files = sourceDir.listFiles();
            if (files == null || files.length == 0) {
                Log.i(TAG, "No files to export");
@@ -125,7 +125,7 @@ public class WootzOfflinePagePathUtils {
            
            int exportedCount = 0;
            for (File sourceFile : files) {
-               if (!sourceFile.isFile() || !sourceFile.getName().endsWith(".mhtml")) {
+               if (!sourceFile.isFile() || !sourceFile.getName().endsWith(".html")) {
                    continue;
                }
                
@@ -255,14 +255,14 @@ public class WootzOfflinePagePathUtils {
    }
 
    /**
-    * Creates the special 404 MHTML page with the provided content.
+    * Creates the special 404 HTML page with the provided content.
     * This page is shown when auto-open is enabled but no offline page exists.
     * 
-    * @param mhtmlContent The MHTML content for the 404 page
+    * @param htmlContent The HTML content for the 404 page
     * @return true if successful, false otherwise
     */
    @CalledByNative
-   public static boolean create404Page(String mhtmlContent) {
+   public static boolean create404Page(String htmlContent) {
        try {
            Context context = ContextUtils.getApplicationContext();
            File externalFilesDir = context.getExternalFilesDir(null);
@@ -288,15 +288,15 @@ public class WootzOfflinePagePathUtils {
                return true;
            }
            
-           // Write MHTML content to file
+           // Write HTML content to file
            FileOutputStream outputStream = null;
            try {
                outputStream = new FileOutputStream(page404);
-               outputStream.write(mhtmlContent.getBytes("UTF-8"));
+               outputStream.write(htmlContent.getBytes("UTF-8"));
                outputStream.flush();
                
                Log.i(TAG, "Created 404 page at " + page404.getAbsolutePath() 
-                       + " (" + mhtmlContent.length() + " bytes)");
+                       + " (" + htmlContent.length() + " bytes)");
                return true;
            } finally {
                if (outputStream != null) {

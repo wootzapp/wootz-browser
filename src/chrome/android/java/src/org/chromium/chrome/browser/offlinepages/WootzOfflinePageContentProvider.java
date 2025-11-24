@@ -13,12 +13,13 @@ import java.io.FileNotFoundException;
 import java.io.IOException;
 
 /**
- * ContentProvider to serve offline MHTML files via content:// URIs.
- * This enables Chromium's built-in MHTML support to work on Android where file:// URLs are blocked.
+ * ContentProvider to serve offline HTML files via content:// URIs.
+ * This enables offline pages to work on Android where file:// URLs are blocked.
+ * HTML files are converted from MHTML to enable full JavaScript functionality.
  */
 public class WootzOfflinePageContentProvider extends ContentProvider {
     private static final String TAG = "Kartik: WootzOfflinePageContentProvider";
-    private static final String MHTML_MIME_TYPE = "multipart/related";
+    private static final String HTML_MIME_TYPE = "text/html";
 
     @Override
     public boolean onCreate() {
@@ -74,7 +75,7 @@ public class WootzOfflinePageContentProvider extends ContentProvider {
 
     @Override
     public String getType(Uri uri) {
-        return MHTML_MIME_TYPE;
+        return HTML_MIME_TYPE;
     }
 
     @Override

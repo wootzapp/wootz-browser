@@ -7,6 +7,8 @@
 
 #include <vector>
 
+#include "base/memory/weak_ptr.h"
+#include "base/timer/timer.h"
 #include "content/public/browser/web_contents_observer.h"
 #include "content/public/browser/web_contents_user_data.h"
 #include "url/gurl.h"
@@ -23,12 +25,21 @@ class WootzOfflinePageSaver
   void DidFinishNavigation(
       content::NavigationHandle* navigation_handle) override;
   void DidStopLoading() override;
+  void DocumentOnLoadCompletedInPrimaryMainFrame() override;
 
  private:
   friend class content::WebContentsUserData<WootzOfflinePageSaver>;
   explicit WootzOfflinePageSaver(content::WebContents* web_contents);
 
   WootzOfflinePageService* GetService();
+  
+  // Delayed save after page load (allows dynamic content to load)
+  void ScheduleDelayedSave();
+  void PerformDelayedSave();
+  
+  // Periodic update save for dynamic content
+  void SchedulePeriodicUpdate();
+  void PerformPeriodicUpdate();
 
   // Stores redirect chain from the last navigation to use when page finishes loading
   std::vector<GURL> last_redirect_chain_;
@@ -38,6 +49,17 @@ class WootzOfflinePageSaver
   
   // Track the last saved URL to prevent duplicate saves
   GURL last_saved_url_;
+  
+  // Timer for delayed initial save (allows dynamic content to load)
+  base::OneShotTimer delayed_save_timer_;
+  
+  // Timer for periodic updates (captures dynamic content changes)
+  base::RepeatingTimer periodic_update_timer_;
+  
+  // Count of periodic updates performed (stop after a few)
+  int periodic_update_count_ = 0;
+  
+  base::WeakPtrFactory<WootzOfflinePageSaver> weak_factory_{this};
 
   WEB_CONTENTS_USER_DATA_KEY_DECL();
 };

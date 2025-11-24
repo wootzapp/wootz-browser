@@ -4,6 +4,8 @@
 
 static_library("wootz_offline_pages") {
   sources = [
+    "wootz_mhtml_to_html_converter.cc",
+    "wootz_mhtml_to_html_converter.h",
     "wootz_offline_page_prefs.cc",
     "wootz_offline_page_prefs.h",
     "wootz_offline_page_saver.cc",
