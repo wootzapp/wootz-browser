@@ -45,6 +45,7 @@ cargo_crate("lib") {
   features = [
     "default",
     "byteorder",
+    "simd",
   ]
 
   edition = "2021"
