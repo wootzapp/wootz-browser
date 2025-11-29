@@ -28,6 +28,10 @@ class WootzOfflinePageService : public KeyedService {
   bool Does404PageExist();
   void EnsureOffline404PageExists();
   base::FilePath Get404PagePath();
+  
+  // No result found page management (for LinkedIn searches)
+  bool DoesNoResultFoundPageExist();
+  base::FilePath GetNoResultFoundPagePath();
 
  private:
   void OnMHTMLGenerated(const std::vector<GURL>& redirect_chain,
@@ -35,6 +39,21 @@ class WootzOfflinePageService : public KeyedService {
                         int64_t size);
   base::FilePath GetStorageDir();
   base::FilePath URLToFilePath(const GURL& url);
+  
+  // URL canonicalization for consistent offline page lookup
+  // Strips query parameters for non-search pages, normalizes trailing slashes
+  GURL CanonicalizeUrlForOfflinePage(const GURL& url);
+  
+  // Manifest management
+  void CreateManifest(const base::FilePath& html_path,
+                     const std::vector<GURL>& redirect_chain,
+                     int64_t size);
+  bool FindPagePathFromManifest(const GURL& url, base::FilePath* path);
+  base::FilePath GetManifestPath(const base::FilePath& html_path);
+  
+  // Subdomain variant generation for cross-subdomain matching
+  // e.g., www.linkedin.com <-> in.linkedin.com <-> m.linkedin.com
+  std::vector<GURL> GenerateSubdomainVariants(const GURL& url);
 
   base::WeakPtrFactory<WootzOfflinePageService> weak_factory_{this};
 };

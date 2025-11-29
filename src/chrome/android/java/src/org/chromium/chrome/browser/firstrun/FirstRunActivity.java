@@ -143,9 +143,10 @@ public class FirstRunActivity extends FirstRunActivityBase implements FirstRunPa
 
     /** Creates first page and sets up adapter. Should result UI being shown on the screen. */
     private void createFirstPage() {
-        BooleanSupplier showWelcomePage = () -> !FirstRunStatus.shouldSkipWelcomePage();
-        mPages.add(new FirstRunPage<>(SigninFirstRunFragment.class, showWelcomePage));
-        mFreProgressStates.add(MobileFreProgress.WELCOME_SHOWN);
+        // BooleanSupplier showWelcomePage = () -> !FirstRunStatus.shouldSkipWelcomePage();
+        // BooleanSupplier showWelcomePage = () -> false;
+        // mPages.add(new FirstRunPage<>(SigninFirstRunFragment.class, showWelcomePage));
+        // mFreProgressStates.add(MobileFreProgress.WELCOME_SHOWN);
         mPagerAdapter = new FirstRunPagerAdapter(FirstRunActivity.this, mPages);
         mPager.setAdapter(mPagerAdapter);
         // Other pages will be created by createPostNativeAndPoliciesPageSequence() after
@@ -273,7 +274,9 @@ public class FirstRunActivity extends FirstRunActivityBase implements FirstRunPa
 
                         onInternalStateChanged();
 
-                        recordFreProgressHistogram(mFreProgressStates.get(0));
+                        if (!mFreProgressStates.isEmpty()) {
+                            recordFreProgressHistogram(mFreProgressStates.get(0));
+                        }
                         long inflationCompletion = SystemClock.elapsedRealtime();
                         RecordHistogram.recordTimesHistogram(
                                 "MobileFre.FromLaunch.FirstFragmentInflatedV2",
@@ -532,7 +535,9 @@ public class FirstRunActivity extends FirstRunActivityBase implements FirstRunPa
         }
         if (!setCurrentItemForPager(position)) return false;
 
-        recordFreProgressHistogram(mFreProgressStates.get(position));
+        if (position < mFreProgressStates.size()) {
+            recordFreProgressHistogram(mFreProgressStates.get(position));
+        }
         return true;
     }
 

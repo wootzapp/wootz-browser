@@ -65,7 +65,7 @@ bool WootzMHTMLToHTMLConverter::Convert(const base::FilePath& mhtml_path,
     return false;
   }
   
-  LOG(INFO) << "Kartik: Parsed " << parts.size() << " MHTML parts";
+  // LOG(INFO) << "Kartik: Parsed " << parts.size() << " MHTML parts";
   
   // Build single HTML file
   std::string html = BuildHTML(parts);
@@ -181,8 +181,8 @@ std::vector<MHTMLPart> WootzMHTMLToHTMLConverter::ParseMHTML(
     
     if (!part.content_type.empty()) {
       parts.push_back(part);
-      LOG(INFO) << "Kartik: Parsed part - Type: " << part.content_type
-                << ", Size: " << part.data.length() << " bytes";
+      // LOG(INFO) << "Kartik: Parsed part - Type: " << part.content_type
+      //           << ", Size: " << part.data.length() << " bytes";
     }
     
     pos = next_boundary;
@@ -390,7 +390,7 @@ std::string WootzMHTMLToHTMLConverter::BuildHTML(
         }
       }
       
-      LOG(INFO) << "Kartik: Inlined CSS part " << i;
+      // LOG(INFO) << "Kartik: Inlined CSS part " << i;
       
     } else if (part.content_type.find("image/") != std::string::npos) {
       // Convert images to data URIs
@@ -402,7 +402,7 @@ std::string WootzMHTMLToHTMLConverter::BuildHTML(
       if (!part.content_location.empty()) {
         // Replace src="URL" with src="data:..."
         base::ReplaceSubstringsAfterOffset(&html, 0, part.content_location, data_uri);
-        LOG(INFO) << "Kartik: Replaced image URL: " << part.content_location;
+        // LOG(INFO) << "Kartik: Replaced image URL: " << part.content_location;
       }
       
       if (!part.content_id.empty()) {
@@ -414,15 +414,97 @@ std::string WootzMHTMLToHTMLConverter::BuildHTML(
         
         std::string cid_ref = "cid:" + cid;
         base::ReplaceSubstringsAfterOffset(&html, 0, cid_ref, data_uri);
-        LOG(INFO) << "Kartik: Replaced image CID: " << cid;
+        // LOG(INFO) << "Kartik: Replaced image CID: " << cid;
       }
     }
   }
   
   LOG(INFO) << "Kartik: Final HTML size: " << html.length() << " bytes";
-  LOG(INFO) << "Kartik: Individual page saved with original URLs (no rewriting)";
+  
+  // Add scroll fixes and viewport for better mobile experience
+  AddScrollFixCSS(html);
+  AddViewportMetaTag(html);
+  
+  LOG(INFO) << "Kartik: Individual page saved with scroll fixes and viewport applied";
   
   return html;
+}
+
+// static
+void WootzMHTMLToHTMLConverter::AddScrollFixCSS(std::string& html) {
+  std::string scroll_fix_css = R"(
+    <style>
+      /* Force scrolling on all pages - fixes LinkedIn, ESPN, etc. */
+      html, body {
+        overflow: auto !important;
+        -webkit-overflow-scrolling: touch !important;
+        height: auto !important;
+        position: static !important;
+      }
+      body {
+        width: auto !important;
+        min-height: 100vh !important;
+      }
+      /* Remove blocking iframes and overlays */
+      iframe[src*="linkedin.com/app"],
+      iframe[src*="install"],
+      iframe[src*="download"],
+      div[class*="modal-backdrop"],
+      div[class*="overlay"],
+      div[id*="overlay"] {
+        display: none !important;
+      }
+      /* Ensure content is scrollable */
+      #main, main, [role="main"], .content, #content {
+        overflow: visible !important;
+        height: auto !important;
+      }
+    </style>
+  )";
+  
+  size_t head_end = html.find("</head>");
+  if (head_end != std::string::npos) {
+    html.insert(head_end, scroll_fix_css);
+    LOG(INFO) << "Kartik: Added scroll-fix CSS before </head>";
+  } else {
+    // If no </head>, insert after <html> tag
+    size_t html_tag = html.find("<html");
+    if (html_tag != std::string::npos) {
+      size_t insert_pos = html.find('>', html_tag);
+      if (insert_pos != std::string::npos) {
+        html.insert(insert_pos + 1, "\n<head>" + scroll_fix_css + "</head>\n");
+        LOG(INFO) << "Kartik: Created <head> and added scroll-fix CSS";
+      }
+    }
+  }
+}
+
+// static
+void WootzMHTMLToHTMLConverter::AddViewportMetaTag(std::string& html) {
+  // Check if viewport meta tag already exists
+  if (html.find("name=\"viewport\"") != std::string::npos) {
+    LOG(INFO) << "Kartik: Viewport meta tag already exists, skipping";
+    return;
+  }
+  
+  std::string viewport_meta = 
+      "<meta name=\"viewport\" content=\"width=device-width, initial-scale=1.0, user-scalable=yes\">\n";
+  
+  size_t head_start = html.find("<head>");
+  if (head_start != std::string::npos) {
+    html.insert(head_start + 6, "\n" + viewport_meta);
+    LOG(INFO) << "Kartik: Added viewport meta tag";
+  } else {
+    // Try to add after <html> if no <head>
+    size_t html_tag = html.find("<html");
+    if (html_tag != std::string::npos) {
+      size_t insert_pos = html.find('>', html_tag);
+      if (insert_pos != std::string::npos) {
+        html.insert(insert_pos + 1, "\n<head>\n" + viewport_meta + "</head>\n");
+        LOG(INFO) << "Kartik: Created <head> and added viewport meta tag";
+      }
+    }
+  }
 }
 
 }  // namespace wootz_offline_pages

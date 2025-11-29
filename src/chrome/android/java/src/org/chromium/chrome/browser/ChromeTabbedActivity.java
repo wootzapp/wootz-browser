@@ -1882,13 +1882,14 @@ public class ChromeTabbedActivity extends ChromeActivity<ChromeActivityComponent
                     Log.i(TAG, "First run detected - Loading installer WebUI with UTM: " + utmSource);
                     getTabCreator(false).launchUrl(crx_url, TabLaunchType.FROM_STARTUP);
                 }
-            } else {
-                if (isFirstRunPref) {
-                    String crx_url = "wootzapp://startup-crx-install/?install_default_extensions=true";
-                    Log.i(TAG, "First run detected - Loading installer WebUI with install_default_extensions=true");
-                    getTabCreator(false).launchUrl(crx_url, TabLaunchType.FROM_STARTUP);
-                }
-            }
+            } 
+            // else {
+            //     if (isFirstRunPref) {
+            //         String crx_url = "wootzapp://startup-crx-install/?install_default_extensions=true";
+            //         Log.i(TAG, "First run detected - Loading installer WebUI with install_default_extensions=true");
+            //         getTabCreator(false).launchUrl(crx_url, TabLaunchType.FROM_STARTUP);
+            //     }
+            // }
             SharedPreferences.Editor editor = prefs.edit();
                     editor.putBoolean("is_first_run_tab", false);
                     editor.apply();

@@ -141,12 +141,12 @@ void WootzOfflinePageSaver::SchedulePeriodicUpdate() {
   
   GURL url = web_contents()->GetLastCommittedURL();
   LOG(INFO) << "Kartik: Scheduling periodic updates for " << url.spec()
-            << " every 5 seconds (max 3 updates)";
+            << " every 2 seconds (max 3 updates)";
   
-  // Schedule periodic updates every 5 seconds
+  // Schedule periodic updates every 2 seconds
   periodic_update_timer_.Start(
       FROM_HERE,
-      base::Seconds(5),
+      base::Seconds(2),
       base::BindRepeating(&WootzOfflinePageSaver::PerformPeriodicUpdate,
                           weak_factory_.GetWeakPtr()));
 }
@@ -154,7 +154,7 @@ void WootzOfflinePageSaver::SchedulePeriodicUpdate() {
 void WootzOfflinePageSaver::PerformPeriodicUpdate() {
   periodic_update_count_++;
   
-  // Stop after 3 periodic updates (15 seconds total)
+  // Stop after 3 periodic updates (6 seconds total)
   if (periodic_update_count_ > 3) {
     LOG(INFO) << "Kartik: Maximum periodic updates reached, stopping";
     periodic_update_timer_.Stop();

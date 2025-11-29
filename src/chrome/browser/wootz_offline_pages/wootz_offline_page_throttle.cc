@@ -97,18 +97,35 @@ WootzOfflinePageThrottle::CheckForOfflinePage() {
         content::NavigationThrottle::CANCEL);
   }
 
-  // NOT FOUND - Load 404 page if available
-  LOG(INFO) << "Kartik: No offline page for " << url.spec() 
-            << " - loading 404 page";
+  // NOT FOUND - Check if this is a LinkedIn search page
+  std::string host = url.host();
+  std::string path = url.path();
+  bool is_linkedin = (host.find("linkedin.com") != std::string::npos);
+  bool is_search_page = (path.find("/search") != std::string::npos);
   
-  base::FilePath page_404_path = service->Get404PagePath();
+  base::FilePath fallback_page_path;
+  std::string page_type;
   
-  if (!page_404_path.empty() && base::PathExists(page_404_path)) {
+  if (is_linkedin && is_search_page) {
+    // For LinkedIn search pages, use the "no result found" page
+    fallback_page_path = service->GetNoResultFoundPagePath();
+    page_type = "no result found";
+    LOG(INFO) << "Kartik: LinkedIn search page not found: " << url.spec() 
+              << " - loading no result found page";
+  } else {
+    // For other pages, use the standard 404 page
+    fallback_page_path = service->Get404PagePath();
+    page_type = "404";
+    LOG(INFO) << "Kartik: No offline page for " << url.spec() 
+              << " - loading 404 page";
+  }
+  
+  if (!fallback_page_path.empty() && base::PathExists(fallback_page_path)) {
     std::string content_uri = "content://org.chromium.chrome.wootz_offline_pages" + 
-                              page_404_path.value();
+                              fallback_page_path.value();
     GURL content_url(content_uri);
     
-    LOG(INFO) << "Kartik: Loading 404 page: " << content_url.spec();
+    LOG(INFO) << "Kartik: Loading " << page_type << " page: " << content_url.spec();
     
     content::NavigationController::LoadURLParams params(content_url);
     params.transition_type = ui::PAGE_TRANSITION_CLIENT_REDIRECT;
@@ -118,8 +135,8 @@ WootzOfflinePageThrottle::CheckForOfflinePage() {
         content::NavigationThrottle::CANCEL);
   }
   
-  // No 404 page available either - proceed with online navigation
-  LOG(INFO) << "Kartik: No 404 page available, proceeding with online navigation";
+  // No fallback page available - proceed with online navigation
+  LOG(INFO) << "Kartik: No " << page_type << " page available, proceeding with online navigation";
   return content::NavigationThrottle::PROCEED;
 }
 

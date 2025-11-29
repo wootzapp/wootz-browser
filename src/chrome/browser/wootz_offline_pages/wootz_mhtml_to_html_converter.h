@@ -54,6 +54,12 @@ class WootzMHTMLToHTMLConverter {
   
   // Rewrites all href attributes in HTML to point to local files
   static void RewriteLinks(std::string& html);
+  
+  // Adds CSS fixes for scrolling (fixes LinkedIn, etc.)
+  static void AddScrollFixCSS(std::string& html);
+  
+  // Adds viewport meta tag for mobile responsiveness
+  static void AddViewportMetaTag(std::string& html);
 };
 
 }  // namespace wootz_offline_pages
