@@ -1,0 +1,20 @@
+# Add these sources to chrome/browser/net/BUILD.gn file
+
+# mTLS Proxy Initializer files to add to the main source set:
+sources += [
+  "mtls_proxy_initializer.cc",
+  "mtls_proxy_initializer.h",
+]
+
+deps += [
+  "//net:net",
+  "//net/http",
+]
+
+# On Android, add the path utils dependency
+if (is_android) {
+  deps += [
+    "//base/android",
+  ]
+}
+

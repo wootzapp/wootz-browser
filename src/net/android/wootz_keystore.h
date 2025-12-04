@@ -139,6 +139,52 @@ std::string GenerateCSR(const std::string& device_id,
                        base::span<const uint8_t> public_key_bytes,
                        const std::string& private_key_alias);
 
+// mTLS Proxy Certificate Management Functions
+
+/**
+ * Store the mTLS proxy client certificate and private key in Android Keystore.
+ * The certificate data should contain both certificate and private key in PEM format.
+ * 
+ * @param certificate_data PEM-encoded certificate and private key data
+ * @return true if successfully stored
+ */
+bool StoreMTLSClientCertificate(base::span<const uint8_t> certificate_data);
+
+/**
+ * Check if mTLS proxy certificate is available in Android Keystore.
+ * 
+ * @return true if certificate and key are stored and available
+ */
+bool HasMTLSProxyCertificate();
+
+/**
+ * Get the stored mTLS proxy certificate in DER format.
+ * 
+ * @return DER-encoded certificate bytes or empty vector if not available
+ */
+std::vector<uint8_t> GetMTLSProxyCertificate();
+
+/**
+ * Get the stored mTLS proxy private key in PKCS#8 format.
+ * 
+ * @return PKCS#8 encoded private key bytes or empty vector if not available
+ */
+std::vector<uint8_t> GetMTLSProxyPrivateKey();
+
+/**
+ * Get the mTLS proxy certificate in PEM format.
+ * 
+ * @return PEM-encoded certificate string or empty if not available
+ */
+std::string GetMTLSProxyCertificatePem();
+
+/**
+ * Delete the stored mTLS proxy certificate and private key.
+ * 
+ * @return true if successfully deleted
+ */
+bool DeleteMTLSProxyCertificate();
+
 }  // namespace net::android::wootz
 
 #endif  // NET_ANDROID_WOOTZ_KEYSTORE_H_

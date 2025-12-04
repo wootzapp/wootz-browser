@@ -1,0 +1,18 @@
+# Add these sources to the net/http/BUILD.gn file in the appropriate target
+
+# mTLS Proxy implementation files to add to the "http" source set:
+sources += [
+  "mtls_proxy_client_socket.cc",
+  "mtls_proxy_client_socket.h",
+  "mtls_proxy_config.cc",
+  "mtls_proxy_config.h",
+]
+
+deps += [
+  "//base",
+  "//net/ssl",
+  "//net/cert",
+  "//net/socket",
+  "//third_party/boringssl",
+]
+

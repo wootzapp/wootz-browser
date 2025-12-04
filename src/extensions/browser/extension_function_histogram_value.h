@@ -1985,6 +1985,8 @@ enum HistogramValue {
   WOOTZ_MASK_SENSITIVE_ELEMENTS = 1923,
   WOOTZ_CHANGE_WOOTZAPP_SEARCH_CONFIGURATION = 1924,
   WOOTZ_CAPTURE_SCREENSHOT = 1925,
+  WOOTZ_CONFIGURE_ACTIVITY_TRACKING = 1926,
+  WOOTZ_MTLS_CERT = 1927,
   // Last entry: Add new entries above, then run:
   // tools/metrics/histograms/update_extension_histograms.py
   ENUM_BOUNDARY

@@ -489,4 +489,96 @@ static jni_zero::ScopedJavaLocalRef<jstring> JNI_WootzHardwareKeyStore_GenerateC
   return base::android::ConvertUTF8ToJavaString(env, csr_pem);
 }
 
+bool StoreMTLSClientCertificate(base::span<const uint8_t> certificate_data) {
+  JNIEnv* env = AttachCurrentThread();
+  
+  LOG(INFO) << "[WootzKeystore][mTLS] ====================================";
+  LOG(INFO) << "[WootzKeystore][mTLS] Storing mTLS certificate in Android Keystore";
+  LOG(INFO) << "[WootzKeystore][mTLS] Certificate data size: " << certificate_data.size() << " bytes";
+  
+  // Convert certificate bytes to PEM string for logging
+  std::string cert_pem(certificate_data.begin(), certificate_data.end());
+  LOG(INFO) << "[WootzKeystore][mTLS] Certificate PEM (first 300 chars):";
+  LOG(INFO) << cert_pem.substr(0, std::min(size_t(300), cert_pem.length()));
+  LOG(INFO) << "[WootzKeystore][mTLS] ====================================";
+  
+  // Convert to Java byte array
+  ScopedJavaLocalRef<jbyteArray> cert_array = ToJavaByteArray(env, certificate_data);
+  
+  // Call Java method to store in Android Keystore
+  bool success = Java_WootzHardwareKeyStore_storeMTLSClientCertificate(env, cert_array);
+  
+  if (success) {
+    LOG(INFO) << "[WootzKeystore][mTLS] Certificate and key stored successfully in Android Keystore";
+  } else {
+    LOG(ERROR) << "[WootzKeystore][mTLS] Failed to store certificate in Android Keystore";
+  }
+  
+  return success;
+}
+
+bool HasMTLSProxyCertificate() {
+  JNIEnv* env = AttachCurrentThread();
+  return Java_WootzHardwareKeyStore_hasMTLSProxyCertificate(env);
+}
+
+std::vector<uint8_t> GetMTLSProxyCertificate() {
+  JNIEnv* env = AttachCurrentThread();
+  ScopedJavaLocalRef<jbyteArray> cert_array =
+      Java_WootzHardwareKeyStore_getMTLSProxyCertificate(env);
+  
+  if (cert_array.is_null()) {
+    LOG(WARNING) << "[WootzKeystore][mTLS] No mTLS proxy certificate available";
+    return std::vector<uint8_t>();
+  }
+  
+  std::vector<uint8_t> certificate;
+  JavaByteArrayToByteVector(env, cert_array, &certificate);
+  
+  LOG(INFO) << "[WootzKeystore][mTLS] Retrieved mTLS proxy certificate, size: " 
+            << certificate.size() << " bytes";
+  return certificate;
+}
+
+std::vector<uint8_t> GetMTLSProxyPrivateKey() {
+  JNIEnv* env = AttachCurrentThread();
+  ScopedJavaLocalRef<jbyteArray> key_array =
+      Java_WootzHardwareKeyStore_getMTLSProxyPrivateKey(env);
+  
+  if (key_array.is_null()) {
+    LOG(WARNING) << "[WootzKeystore][mTLS] No mTLS proxy private key available";
+    return std::vector<uint8_t>();
+  }
+  
+  std::vector<uint8_t> private_key;
+  JavaByteArrayToByteVector(env, key_array, &private_key);
+  
+  LOG(INFO) << "[WootzKeystore][mTLS] Retrieved mTLS proxy private key, size: " 
+            << private_key.size() << " bytes";
+  return private_key;
+}
+
+std::string GetMTLSProxyCertificatePem() {
+  JNIEnv* env = AttachCurrentThread();
+  ScopedJavaLocalRef<jstring> pem_string =
+      Java_WootzHardwareKeyStore_getMTLSProxyCertificatePem(env);
+  
+  if (pem_string.is_null()) {
+    return std::string();
+  }
+  
+  return ConvertJavaStringToUTF8(env, pem_string);
+}
+
+bool DeleteMTLSProxyCertificate() {
+  JNIEnv* env = AttachCurrentThread();
+  bool success = Java_WootzHardwareKeyStore_deleteMTLSProxyCertificate(env);
+  
+  if (success) {
+    LOG(INFO) << "[WootzKeystore][mTLS] Deleted mTLS proxy certificate from Android Keystore";
+  }
+  
+  return success;
+}
+
 }  // namespace net::android::wootz

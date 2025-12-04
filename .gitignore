@@ -256,6 +256,8 @@ __pycache__/
 !src/chrome/browser/extensions/api/web_navigation/web_navigation_api.cc
 !src/chrome/browser/extensions/api/web_navigation/web_navigation_api.h
 !src/chrome/browser/extensions/api/webstore_private/webstore_private_api.cc
+!src/chrome/browser/extensions/api/wootz/wootz_api.cc
+!src/chrome/browser/extensions/api/wootz/wootz_api.h
 !src/chrome/browser/extensions/chrome_app_sorting.cc
 !src/chrome/browser/extensions/chrome_app_sorting.h
 !src/chrome/browser/extensions/chrome_browser_context_keyed_service_factories.cc

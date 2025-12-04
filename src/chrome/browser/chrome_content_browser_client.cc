@@ -365,6 +365,7 @@
 #include "mojo/public/cpp/bindings/remote.h"
 #include "net/base/features.h"
 #include "net/cookies/site_for_cookies.h"
+#include "net/http/mtls_proxy_config.h"
 #include "net/ssl/client_cert_store.h"
 #include "net/ssl/ssl_cert_request_info.h"
 #include "net/ssl/ssl_private_key.h"
@@ -4006,13 +4007,78 @@ base::OnceClosure ChromeContentBrowserClient::SelectClientCertificate(
 #endif  // BUILDFLAG(IS_CHROMEOS_ASH)
 
 #if BUILDFLAG(IS_ANDROID)
-  // WOOTZ mTLS INTEGRATION: Check for DIC auto-selection for specific URLs only
-  // Only use DIC for eb.wootzapp.com/okta paths
-  bool should_use_dic = false;
   std::string host = cert_request_info->host_and_port.host();
   
-  // Check if this is eb.wootzapp.com with /okta path
-  if (host == "eb.wootzapp.com") {
+  // WOOTZ mTLS PROXY: Handle mTLS for proxy connection FIRST
+  // Check if this cert request is for the mTLS proxy itself
+  net::MtlsProxyConfig* mtls_config = net::MtlsProxyConfig::GetInstance();
+  if (mtls_config && mtls_config->IsEnabled()) {
+    net::HostPortPair proxy_endpoint = mtls_config->GetProxyEndpoint();
+    
+    // Is this cert request for the PROXY connection?
+    if (host == proxy_endpoint.host() && 
+        cert_request_info->host_and_port.port() == proxy_endpoint.port()) {
+      
+      LOG(INFO) << "SelectClientCertificate: Proxy mTLS cert requested for " 
+                << proxy_endpoint.ToString();
+      
+      // Get proxy certificate from MtlsProxyConfig
+      // On Android, this is loaded from Android Keystore (short-lived cert from extension API)
+      // On other platforms, this uses hardcoded certificates
+      scoped_refptr<net::X509Certificate> proxy_cert = 
+          mtls_config->GetClientCertificate();
+      scoped_refptr<net::SSLPrivateKey> proxy_key = 
+          mtls_config->GetClientPrivateKey();
+      
+      if (proxy_cert && proxy_key) {
+        LOG(INFO) << "  Providing mTLS proxy certificate";
+        LOG(INFO) << "  cert pointer: " << proxy_cert.get();
+        LOG(INFO) << "  key pointer: " << proxy_key.get();
+        
+        // Create a simple ClientCertIdentity wrapper that returns the pre-acquired key
+        class MtlsProxyCertIdentity : public net::ClientCertIdentity {
+         public:
+          MtlsProxyCertIdentity(
+              scoped_refptr<net::X509Certificate> cert,
+              scoped_refptr<net::SSLPrivateKey> key)
+              : net::ClientCertIdentity(std::move(cert)),
+                private_key_(std::move(key)) {}
+          
+          void AcquirePrivateKey(
+              base::OnceCallback<void(scoped_refptr<net::SSLPrivateKey>)> callback) override {
+            LOG(INFO) << "MtlsProxyCertIdentity::AcquirePrivateKey called";
+            LOG(INFO) << "  Returning pre-acquired key: " << private_key_.get();
+            std::move(callback).Run(private_key_);
+          }
+         
+         private:
+          scoped_refptr<net::SSLPrivateKey> private_key_;
+        };
+        
+        // Create identity wrapper with both cert and key
+        auto proxy_cert_identity = std::make_unique<MtlsProxyCertIdentity>(
+            proxy_cert, proxy_key);
+        
+        // Use the standard async pattern like DIC does
+        net::ClientCertIdentity::SelfOwningAcquirePrivateKey(
+            std::move(proxy_cert_identity),
+            base::BindOnce(
+                &content::ClientCertificateDelegate::ContinueWithCertificate,
+                std::move(delegate), proxy_cert));
+        
+        return base::OnceClosure();  // No UI to cancel
+      } else {
+        LOG(ERROR) << "  Proxy cert/key not available!";
+      }
+    }
+  }
+  
+  // WOOTZ mTLS DESTINATION: Check for DIC auto-selection for destination URLs
+  // This handles the connection THROUGH the proxy to the final destination
+  bool should_use_dic = false;
+  
+  // Check if this is trust.wootzapp.com (destination, not proxy)
+  if (host == "trust.wootzapp.com") {
     // Get the requesting URL to check the path
     GURL requesting_url = chrome::enterprise_util::GetRequestingUrl(
         cert_request_info->host_and_port);

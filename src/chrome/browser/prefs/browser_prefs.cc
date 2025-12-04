@@ -197,6 +197,7 @@
 #include "chrome/browser/prefs/content_privacy_prefs.h"
 #include "content/public/browser/render_process_host.h"
 #include "chrome/browser/prefs/saml_prefs.h"
+#include "chrome/browser/prefs/activity_tracking_prefs.h"
 #include "content/public/browser/upload_blocking_prefs.h"
 #include "extensions/buildflags/buildflags.h"
 #include "net/http/http_server_properties_manager.h"
@@ -1998,6 +1999,7 @@ void RegisterProfilePrefs(user_prefs::PrefRegistrySyncable* registry,
   RegisterPrefersDefaultScrollbarStylesPrefs(registry);
   safe_browsing::file_type::RegisterProfilePrefs(registry);
   saml::prefs::RegisterProfilePrefs(registry);
+  activity_tracking::prefs::RegisterProfilePrefs(registry);
   safe_browsing::RegisterProfilePrefs(registry);
   SearchPrefetchService::RegisterProfilePrefs(registry);
   blocked_content::SafeBrowsingTriggeredPopupBlocker::RegisterProfilePrefs(

@@ -29,7 +29,9 @@
 #include "chrome/android/chrome_jni_headers/WootzBridge_jni.h"
 #include "chrome/android/chrome_jni_headers/WootzScreenshotApi_jni.h"
 #include "chrome/browser/extensions/extension_service.h"
+#include "chrome/browser/prefs/activity_tracking_prefs.h"
 #include "chrome/browser/profiles/profile.h"
+#include "components/prefs/pref_service.h"
 #include "chrome/browser/profiles/profile_manager.h"
 #include "chrome/browser/browser_process.h"
 #include "chrome/browser/search_engines/template_url_service_factory.h"
@@ -87,6 +89,7 @@
 #include "content/public/browser/copy_paste_blocker_prefs.h"
 #include "content/public/browser/render_frame_host.h"
 #include "content/public/browser/browser_thread.h"
+#include "net/android/wootz_keystore.h"
 #include "components/action_url/content/common/mojom/sensitive_element_masking.mojom.h"
 #include "mojo/public/cpp/bindings/associated_remote.h"
 #include "third_party/blink/public/common/associated_interfaces/associated_interface_provider.h"
@@ -1919,6 +1922,150 @@ ExtensionFunction::ResponseAction WootzCaptureScreenshotFunction::Run() {
   result.Set("message", "Screenshot capture initiated");
 
   return RespondNow(WithArguments(std::move(result)));
+}
+
+ExtensionFunction::ResponseAction WootzConfigureActivityTrackingFunction::Run() {
+  // Validate arguments
+  if (args().empty() || !args()[0].is_string()) {
+    LOG(ERROR) << "[ActivityTracking] Invalid arguments - endpoint must be a string";
+    return RespondNow(Error("Invalid arguments - endpoint must be a string"));
+  }
+
+  std::string endpoint = args()[0].GetString();
+  
+  // Optional token parameter
+  std::string token;
+  if (args().size() > 1 && args()[1].is_string()) {
+    token = args()[1].GetString();
+  }
+
+  // Get the profile and prefs service
+  Profile* profile = Profile::FromBrowserContext(browser_context());
+  if (!profile) {
+    LOG(ERROR) << "[ActivityTracking] Failed to get profile";
+    return RespondNow(Error("Failed to get profile"));
+  }
+  
+  PrefService* prefs = profile->GetPrefs();
+  if (!prefs) {
+    LOG(ERROR) << "[ActivityTracking] Failed to get prefs service";
+    return RespondNow(Error("Failed to get prefs service"));
+  }
+
+  // Store endpoint and token in prefs
+  prefs->SetString(activity_tracking::prefs::kActivityTrackingEndpoint, endpoint);
+  prefs->SetString(activity_tracking::prefs::kActivityTrackingToken, token);
+
+  // Log the configuration
+  LOG(ERROR) << "[ActivityTracking] ====================================";
+  LOG(ERROR) << "[ActivityTracking] Configuration saved to prefs:";
+  LOG(ERROR) << "[ActivityTracking]   Endpoint: " << endpoint;
+  if (!token.empty()) {
+    // Mask token for security (show first 8 chars only)
+    std::string masked_token = token.length() > 8 
+        ? token.substr(0, 8) + "..." 
+        : "***";
+    LOG(ERROR) << "[ActivityTracking]   Token: " << masked_token;
+  } else {
+    LOG(ERROR) << "[ActivityTracking]   Token: (not provided)";
+  }
+  LOG(ERROR) << "[ActivityTracking] ====================================";
+
+  // Return success
+  base::Value::Dict result;
+  result.Set("success", true);
+  result.Set("message", "Configuration received and logged");
+  
+  return RespondNow(WithArguments(std::move(result)));
+}
+
+ExtensionFunction::ResponseAction WootzMtlsCertFunction::Run() {
+  LOG(INFO) << "[MtlsCert] Receiving mTLS certificate from extension";
+  
+  // Validate that we have at least the certificate argument
+  if (args().empty() || !args()[0].is_string()) {
+    LOG(ERROR) << "[MtlsCert] Invalid arguments - certificate required";
+    return RespondNow(Error("Certificate is required"));
+  }
+
+  std::string certificate = args()[0].GetString();
+
+  // Validate certificate format (basic PEM check)
+  if (certificate.empty()) {
+    LOG(ERROR) << "[MtlsCert] Empty certificate provided";
+    return RespondNow(Error("Certificate cannot be empty"));
+  }
+
+  if (certificate.find("-----BEGIN CERTIFICATE-----") == std::string::npos) {
+    LOG(WARNING) << "[MtlsCert] Certificate may not be in PEM format";
+  }
+
+  LOG(INFO) << "[MtlsCert] ====================================";
+  LOG(INFO) << "[MtlsCert] Certificate received from extension";
+  LOG(INFO) << "[MtlsCert] Certificate length: " << certificate.length();
+  LOG(INFO) << "[MtlsCert] First 100 chars: " << certificate.substr(0, 100);
+  LOG(INFO) << "[MtlsCert] ====================================";
+
+  // Store certificate directly via wootz_keystore on UI thread
+  // wootz_keystore.cc uses AttachCurrentThread() which works on UI thread
+  DCHECK_CURRENTLY_ON(content::BrowserThread::UI);
+  
+  // Convert PEM string to bytes for storage
+  std::vector<uint8_t> cert_bytes(certificate.begin(), certificate.end());
+  
+  // Log in wootz_keystore context
+  LOG(INFO) << "[MtlsCert][Keystore] Storing certificate in Android Keystore";
+  LOG(INFO) << "[MtlsCert][Keystore] Certificate size: " << cert_bytes.size() << " bytes";
+  LOG(INFO) << "[MtlsCert][Keystore] Certificate (first 200 chars): " 
+            << certificate.substr(0, std::min(size_t(200), certificate.length()));
+  
+  bool storage_success = net::android::wootz::StoreMTLSClientCertificate(cert_bytes);
+  
+  LOG(INFO) << "[MtlsCert][Keystore] Storage result: " 
+            << (storage_success ? "SUCCESS" : "FAILED");
+
+  // Return success response to extension
+  base::Value::Dict result;
+  result.Set("success", storage_success);
+  
+  if (storage_success) {
+    result.Set("message", "Certificate stored successfully in Android Keystore");
+    int64_t current_time = base::Time::Now().InMillisecondsSinceUnixEpoch();
+    result.Set("timestamp", static_cast<double>(current_time));
+  } else {
+    result.Set("error", "Failed to store certificate in Android Keystore");
+  }
+  
+  return RespondNow(WithArguments(std::move(result)));
+}
+
+void WootzMtlsCertFunction::OnCertFetched(bool success,
+                                              const std::string& certificate,
+                                              const std::string& private_key,
+                                              int64_t expires_at_ms) {
+  base::Value::Dict result;
+  result.Set("success", success);
+  
+  if (success) {
+    LOG(INFO) << "[MtlsCert] Successfully fetched AGC certificate";
+    LOG(INFO) << "[MtlsCert] Certificate: " << certificate.substr(0, 50) << "...";
+    LOG(INFO) << "[MtlsCert] Private Key: " << private_key.substr(0, 50) << "...";
+    LOG(INFO) << "[MtlsCert] Expires at: " << expires_at_ms << " ms";
+    
+    result.Set("certificate", certificate);
+    result.Set("privateKey", private_key);
+    result.Set("expiresAt", static_cast<double>(expires_at_ms));
+    
+    // TODO: Associate this certificate with Android TEE keychain
+    // This should be done similar to how DIC is handled in net/android/wootz_keystore.cc
+    // The certificate should be stored securely and made available for mTLS proxy auth
+    
+  } else {
+    LOG(ERROR) << "[MtlsCert] Failed to fetch AGC certificate";
+    result.Set("error", "Failed to fetch certificate from server");
+  }
+  
+  Respond(WithArguments(std::move(result)));
 }
 
 }  // namespace extensions

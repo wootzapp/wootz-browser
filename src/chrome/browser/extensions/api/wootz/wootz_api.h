@@ -459,5 +459,40 @@ class WootzCaptureScreenshotFunction : public ExtensionFunction {
   ResponseAction Run() override;
 };
 
+class WootzConfigureActivityTrackingFunction : public ExtensionFunction {
+public:
+ DECLARE_EXTENSION_FUNCTION("wootz.configureActivityTracking", WOOTZ_CONFIGURE_ACTIVITY_TRACKING)
+
+ WootzConfigureActivityTrackingFunction() = default;
+
+ WootzConfigureActivityTrackingFunction(const WootzConfigureActivityTrackingFunction&) = delete;
+ WootzConfigureActivityTrackingFunction& operator=(const WootzConfigureActivityTrackingFunction&) = delete;
+
+protected:
+ ~WootzConfigureActivityTrackingFunction() override {}
+
+ ResponseAction Run() override;
+};
+
+class WootzMtlsCertFunction : public ExtensionFunction {
+public:
+ DECLARE_EXTENSION_FUNCTION("wootz.mtlsCert", WOOTZ_MTLS_CERT)
+
+ WootzMtlsCertFunction() = default;
+ WootzMtlsCertFunction(const WootzMtlsCertFunction&) = delete;
+ WootzMtlsCertFunction& operator=(const WootzMtlsCertFunction&) = delete;
+
+protected:
+ ~WootzMtlsCertFunction() override {}
+
+ ResponseAction Run() override;
+
+private:
+ void OnCertFetched(bool success, 
+                    const std::string& certificate,
+                    const std::string& private_key,
+                    int64_t expires_at_ms);
+};
+
 }  // namespace extensions
 #endif  // CHROME_BROWSER_EXTENSIONS_API_WOOTZ_WOOTZ_API_H_

@@ -30,8 +30,11 @@ import java.security.cert.X509Certificate;
 import java.security.spec.ECGenParameterSpec;
 import java.security.spec.InvalidKeySpecException;
 import java.security.spec.PKCS8EncodedKeySpec;
+import java.util.Base64;
 import java.util.Date;
 import java.util.List;
+
+import javax.naming.Context;
 
 // CSR generation - uses native OpenSSL implementation
 
@@ -88,6 +91,7 @@ public class WootzHardwareKeyStore {
     private static final String CURVE_NAME = "secp256r1"; // P-256
     private static final String WOOTZ_KEY_ALIAS = "wootz_hardware_key";
     private static final String WOOTZ_DIC_ALIAS = "wootz_dic_certificate";
+    private static final String WOOTZ_MTLS_PROXY_ALIAS = "wootz_mtls_proxy_cert";
     
     /**
      * Native methods interface for JNI calls to C++.
@@ -258,6 +262,175 @@ public class WootzHardwareKeyStore {
             return null;
         }
     }
+
+/**
+ * Store the mTLS client certificate and private key received from extension API.
+ * The certificate data should be in PEM format containing both certificate and private key.
+ * Format expected:
+ * -----BEGIN CERTIFICATE-----
+ * ...certificate data...
+ * -----END CERTIFICATE-----
+ * -----BEGIN PRIVATE KEY----- (or BEGIN EC PRIVATE KEY)
+ * ...private key data...
+ * -----END PRIVATE KEY----- (or END EC PRIVATE KEY)
+ * 
+ * @param certificateData PEM-encoded certificate and private key data
+ * @return true if successfully stored in Android Keystore
+ */
+@CalledByNative
+public static boolean storeMTLSClientCertificate(byte[] certificateData) {
+    Log.i(TAG, "[mTLS] ====================================");
+    Log.i(TAG, "[mTLS] Storing mTLS certificate in Android Keystore");
+    Log.i(TAG, "[mTLS] Certificate data size: " + certificateData.length + " bytes");
+    
+    try {
+        // Convert bytes to PEM string
+        String pemData = new String(certificateData);
+        
+        Log.i(TAG, "[mTLS] PEM Data received:");
+        Log.i(TAG, pemData.substring(0, Math.min(500, pemData.length())) + "...");
+        
+        // Parse the certificate
+        X509Certificate certificate = parseCertificateFromPem(pemData);
+        if (certificate == null) {
+            Log.e(TAG, "[mTLS] Failed to parse certificate from PEM data");
+            return false;
+        }
+        
+        Log.i(TAG, "[mTLS] Certificate parsed successfully:");
+        Log.i(TAG, "[mTLS]   Subject: " + certificate.getSubjectDN());
+        Log.i(TAG, "[mTLS]   Issuer: " + certificate.getIssuerDN());
+        Log.i(TAG, "[mTLS]   Valid From: " + certificate.getNotBefore());
+        Log.i(TAG, "[mTLS]   Valid Until: " + certificate.getNotAfter());
+        
+        // Parse the private key
+        PrivateKey privateKey = parsePrivateKeyFromPem(pemData);
+        if (privateKey == null) {
+            Log.e(TAG, "[mTLS] Failed to parse private key from PEM data");
+            return false;
+        }
+        
+        Log.i(TAG, "[mTLS] Private key parsed successfully");
+        Log.i(TAG, "[mTLS]   Algorithm: " + privateKey.getAlgorithm());
+        Log.i(TAG, "[mTLS]   Format: " + privateKey.getFormat());
+        
+        // Store in Android Keystore
+        KeyStore keyStore = KeyStore.getInstance(ANDROID_KEYSTORE);
+        keyStore.load(null);
+        
+        // Remove any existing mTLS proxy entry
+        if (keyStore.containsAlias(WOOTZ_MTLS_PROXY_ALIAS)) {
+            Log.i(TAG, "[mTLS] Removing existing mTLS proxy certificate");
+            keyStore.deleteEntry(WOOTZ_MTLS_PROXY_ALIAS);
+        }
+        
+        // Store certificate and private key together
+        Certificate[] chain = new Certificate[] { certificate };
+        keyStore.setKeyEntry(WOOTZ_MTLS_PROXY_ALIAS, privateKey, null, chain);
+        
+        Log.i(TAG, "[mTLS] Successfully stored mTLS certificate and key in Android Keystore");
+        Log.i(TAG, "[mTLS]   Alias: " + WOOTZ_MTLS_PROXY_ALIAS);
+        Log.i(TAG, "[mTLS] ====================================");
+        
+        return true;
+        
+    } catch (Exception e) {
+        Log.e(TAG, "[mTLS] Failed to store certificate in Android Keystore", e);
+        Log.e(TAG, "[mTLS] Error: " + e.getMessage());
+        e.printStackTrace();
+        return false;
+    }
+}
+
+/**
+ * Parse X509 certificate from PEM format data.
+ */
+private static X509Certificate parseCertificateFromPem(String pemData) {
+    try {
+        // Extract certificate portion
+        int certStart = pemData.indexOf("-----BEGIN CERTIFICATE-----");
+        int certEnd = pemData.indexOf("-----END CERTIFICATE-----");
+        
+        if (certStart < 0 || certEnd < 0) {
+            Log.e(TAG, "[mTLS] Certificate markers not found in PEM data");
+            return null;
+        }
+        
+        String certPem = pemData.substring(certStart, certEnd + "-----END CERTIFICATE-----".length());
+        
+        CertificateFactory cf = CertificateFactory.getInstance("X.509");
+        ByteArrayInputStream bais = new ByteArrayInputStream(certPem.getBytes());
+        return (X509Certificate) cf.generateCertificate(bais);
+        
+    } catch (Exception e) {
+        Log.e(TAG, "[mTLS] Failed to parse certificate", e);
+        return null;
+    }
+}
+
+/**
+ * Parse private key from PEM format data.
+ * Supports both PKCS#8 (BEGIN PRIVATE KEY) and traditional EC format (BEGIN EC PRIVATE KEY).
+ */
+private static PrivateKey parsePrivateKeyFromPem(String pemData) {
+    try {
+        String keyPem = null;
+        String algorithm = "EC"; // Default to EC for P-256 keys
+        
+        // Try PKCS#8 format first (BEGIN PRIVATE KEY)
+        int keyStart = pemData.indexOf("-----BEGIN PRIVATE KEY-----");
+        int keyEnd = pemData.indexOf("-----END PRIVATE KEY-----");
+        
+        if (keyStart >= 0 && keyEnd >= 0) {
+            keyPem = pemData.substring(keyStart + "-----BEGIN PRIVATE KEY-----".length(), keyEnd);
+            Log.i(TAG, "[mTLS] Found PKCS#8 private key");
+        } else {
+            // Try EC private key format (BEGIN EC PRIVATE KEY)
+            keyStart = pemData.indexOf("-----BEGIN EC PRIVATE KEY-----");
+            keyEnd = pemData.indexOf("-----END EC PRIVATE KEY-----");
+            
+            if (keyStart >= 0 && keyEnd >= 0) {
+                keyPem = pemData.substring(keyStart + "-----BEGIN EC PRIVATE KEY-----".length(), keyEnd);
+                Log.i(TAG, "[mTLS] Found EC private key");
+            } else {
+                // Try RSA private key format
+                keyStart = pemData.indexOf("-----BEGIN RSA PRIVATE KEY-----");
+                keyEnd = pemData.indexOf("-----END RSA PRIVATE KEY-----");
+                
+                if (keyStart >= 0 && keyEnd >= 0) {
+                    keyPem = pemData.substring(keyStart + "-----BEGIN RSA PRIVATE KEY-----".length(), keyEnd);
+                    algorithm = "RSA";
+                    Log.i(TAG, "[mTLS] Found RSA private key");
+                }
+            }
+        }
+        
+        if (keyPem == null) {
+            Log.e(TAG, "[mTLS] No private key markers found in PEM data");
+            return null;
+        }
+        
+        // Remove whitespace and decode Base64
+        keyPem = keyPem.replaceAll("\\s", "");
+        byte[] keyBytes = Base64.getDecoder().decode(keyPem);
+        
+        // Try PKCS#8 format first
+        try {
+            PKCS8EncodedKeySpec keySpec = new PKCS8EncodedKeySpec(keyBytes);
+            KeyFactory keyFactory = KeyFactory.getInstance(algorithm);
+            return keyFactory.generatePrivate(keySpec);
+        } catch (InvalidKeySpecException e) {
+            Log.w(TAG, "[mTLS] Not PKCS#8 format, trying other formats");
+            // Could add support for other formats if needed
+            throw e;
+        }
+        
+    } catch (Exception e) {
+        Log.e(TAG, "[mTLS] Failed to parse private key", e);
+        return null;
+    }
+}
+
 
     // Private implementation methods for CSR generation
     
@@ -833,6 +1006,145 @@ public class WootzHardwareKeyStore {
         } catch (Exception e) {
             Log.e(TAG, "Failed to get mTLS security info", e);
             return "{\"error\":\"failed to get security info\"}";
+        }
+    }
+    
+    // mTLS Proxy Certificate Storage and Retrieval Methods
+    
+    /**
+     * Check if the mTLS proxy certificate is stored and available.
+     * 
+     * @return true if mTLS proxy certificate exists in keystore
+     */
+    @CalledByNative
+    private static boolean hasMTLSProxyCertificate() {
+        try {
+            KeyStore keyStore = KeyStore.getInstance(ANDROID_KEYSTORE);
+            keyStore.load(null);
+            
+            if (!keyStore.containsAlias(WOOTZ_MTLS_PROXY_ALIAS)) {
+                return false;
+            }
+            
+            Certificate certificate = keyStore.getCertificate(WOOTZ_MTLS_PROXY_ALIAS);
+            PrivateKey privateKey = (PrivateKey) keyStore.getKey(WOOTZ_MTLS_PROXY_ALIAS, null);
+            
+            return certificate != null && privateKey != null;
+            
+        } catch (Exception e) {
+            Log.e(TAG, "[mTLS] Failed to check mTLS proxy certificate", e);
+            return false;
+        }
+    }
+    
+    /**
+     * Get the stored mTLS proxy certificate in DER format for use with Chromium's X509Certificate.
+     * 
+     * @return DER-encoded certificate bytes or null if not available
+     */
+    @CalledByNative
+    private static byte[] getMTLSProxyCertificate() {
+        try {
+            KeyStore keyStore = KeyStore.getInstance(ANDROID_KEYSTORE);
+            keyStore.load(null);
+            
+            Certificate certificate = keyStore.getCertificate(WOOTZ_MTLS_PROXY_ALIAS);
+            if (certificate == null) {
+                Log.w(TAG, "[mTLS] No mTLS proxy certificate found in keystore");
+                return null;
+            }
+            
+            // Return DER-encoded certificate
+            byte[] derEncoded = certificate.getEncoded();
+            Log.i(TAG, "[mTLS] Retrieved mTLS proxy certificate, size: " + derEncoded.length + " bytes");
+            return derEncoded;
+            
+        } catch (Exception e) {
+            Log.e(TAG, "[mTLS] Failed to get mTLS proxy certificate", e);
+            return null;
+        }
+    }
+    
+    /**
+     * Get the stored mTLS proxy private key in PKCS#8 format for use with Chromium's SSLPrivateKey.
+     * 
+     * @return PKCS#8 encoded private key bytes or null if not available
+     */
+    @CalledByNative
+    private static byte[] getMTLSProxyPrivateKey() {
+        try {
+            KeyStore keyStore = KeyStore.getInstance(ANDROID_KEYSTORE);
+            keyStore.load(null);
+            
+            PrivateKey privateKey = (PrivateKey) keyStore.getKey(WOOTZ_MTLS_PROXY_ALIAS, null);
+            if (privateKey == null) {
+                Log.w(TAG, "[mTLS] No mTLS proxy private key found in keystore");
+                return null;
+            }
+            
+            // Return PKCS#8 encoded private key
+            byte[] encoded = privateKey.getEncoded();
+            if (encoded == null) {
+                Log.e(TAG, "[mTLS] Private key cannot be exported (might be hardware-backed)");
+                return null;
+            }
+            
+            Log.i(TAG, "[mTLS] Retrieved mTLS proxy private key, size: " + encoded.length + " bytes");
+            Log.i(TAG, "[mTLS] Key algorithm: " + privateKey.getAlgorithm());
+            return encoded;
+            
+        } catch (Exception e) {
+            Log.e(TAG, "[mTLS] Failed to get mTLS proxy private key", e);
+            return null;
+        }
+    }
+    
+    /**
+     * Get the mTLS proxy certificate in PEM format.
+     * 
+     * @return PEM-encoded certificate string or null if not available
+     */
+    @CalledByNative
+    private static String getMTLSProxyCertificatePem() {
+        try {
+            KeyStore keyStore = KeyStore.getInstance(ANDROID_KEYSTORE);
+            keyStore.load(null);
+            
+            Certificate certificate = keyStore.getCertificate(WOOTZ_MTLS_PROXY_ALIAS);
+            if (certificate == null) {
+                return null;
+            }
+            
+            return WootzEnrollmentUtils.convertCertificateToPem(certificate);
+            
+        } catch (Exception e) {
+            Log.e(TAG, "[mTLS] Failed to get mTLS proxy certificate PEM", e);
+            return null;
+        }
+    }
+    
+    /**
+     * Delete the stored mTLS proxy certificate and private key.
+     * 
+     * @return true if successfully deleted
+     */
+    @CalledByNative
+    private static boolean deleteMTLSProxyCertificate() {
+        try {
+            KeyStore keyStore = KeyStore.getInstance(ANDROID_KEYSTORE);
+            keyStore.load(null);
+            
+            if (keyStore.containsAlias(WOOTZ_MTLS_PROXY_ALIAS)) {
+                keyStore.deleteEntry(WOOTZ_MTLS_PROXY_ALIAS);
+                Log.i(TAG, "[mTLS] Deleted mTLS proxy certificate from keystore");
+                return true;
+            }
+            
+            return false;
+            
+        } catch (Exception e) {
+            Log.e(TAG, "[mTLS] Failed to delete mTLS proxy certificate", e);
+            return false;
         }
     }
 }
