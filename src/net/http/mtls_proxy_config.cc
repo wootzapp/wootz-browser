@@ -27,99 +27,20 @@ base::LazyInstance<MtlsProxyConfig>::Leaky g_mtls_proxy_config =
     LAZY_INSTANCE_INITIALIZER;
 
 }  // namespace
-
-namespace {
-
-// Hardcoded certificates for testing/deployment
-const char kHardcodedClientKey[] = 
-    "-----BEGIN PRIVATE KEY-----\n"
-    "MIGHAgEAMBMGByqGSM49AgEGCCqGSM49AwEHBG0wawIBAQQgUbDnhOQwbo7ZjXoH\n"
-    "9tkSHFmfMJdYA83kzuWPLl8r9sShRANCAARL89GBQyGt6NEGgLfqdOwTGli2C9d2\n"
-    "Imhwbn9vBhN0ghdy/Vdf7/KrYJS9xQTtYVyeDIH1giR0/zKxZVyAM28l\n"
-    "-----END PRIVATE KEY-----\n";
-
-const char kHardcodedClientCert[] = 
-    "-----BEGIN CERTIFICATE-----\n"
-    "MIICBTCCAaugAwIBAgIUKbb1JYK8M1rC8msAhlEJSR8HcfUwCgYIKoZIzj0EAwIw\n"
-    "UTFPMBcGA1UEAwwQR0NQIG1UTFMgUm9vdCBDQTAPBgNVBAsMCFNlY3VyaXR5MBgG\n"
-    "A1UECgwRWW91ciBPcmdhbml6YXRpb24wCQYDVQQGEwJVUzAeFw0yNTEwMTMxMzI0\n"
-    "MTFaFw0zNTEwMTExMzI0MTFaMDoxODAJBgNVBAYTAlVTMAoGA1UECAwDQ2FsMAwG\n"
-    "A1UECgwFV29vdHowEQYDVQQDDApkZXZpY2UtMTIzMFkwEwYHKoZIzj0CAQYIKoZI\n"
-    "zj0DAQcDQgAES/PRgUMhrejRBoC36nTsExpYtgvXdiJocG5/bwYTdIIXcv1XX+/y\n"
-    "q2CUvcUE7WFcngyB9YIkdP8ysWVcgDNvJaN4MHYwDwYDVR0TAQH/BAUwAwEBADAO\n"
-    "BgNVHQ8BAf8EBAMCB4AwEwYDVR0lBAwwCgYIKwYBBQUHAwIwHQYDVR0OBBYEFNV+\n"
-    "LDTRkPNQFbdLJiPftUnrRmcnMB8GA1UdIwQYMBaAFPZTnErI+wWEjlCK9eJVdaB8\n"
-    "DhBSMAoGCCqGSM49BAMCA0gAMEUCIQCa3wBIObIyeWw2mwHHYHPaI42M1GBQnrjY\n"
-    "90WlcOkxjQIgYcwa1lTo1L6D2ZyJzbOIsSesoCwzteag4eOfH2PvK+0=\n"
-    "-----END CERTIFICATE-----\n";
-
-const char kHardcodedCACert[] = 
-    "-----BEGIN CERTIFICATE-----\n"
-    "MIICDjCCAbKgAwIBAgIUVHjG+GnM/rnCATUpfcyM3QNlgh4wDAYIKoZIzj0EAwIF\n"
-    "ADBRMU8wFwYDVQQDDBBHQ1AgbVRMUyBSb290IENBMA8GA1UECwwIU2VjdXJpdHkw\n"
-    "GAYDVQQKDBFZb3VyIE9yZ2FuaXphdGlvbjAJBgNVBAYTAlVTMB4XDTI1MDkyNTEy\n"
-    "MzY1OFoXDTM1MDkyNTEyMzY1OFowUTFPMBcGA1UEAwwQR0NQIG1UTFMgUm9vdCBD\n"
-    "QTAPBgNVBAsMCFNlY3VyaXR5MBgGA1UECgwRWW91ciBPcmdhbml6YXRpb24wCQYD\n"
-    "VQQGEwJVUzBZMBMGByqGSM49AgEGCCqGSM49AwEHA0IABGZJkyZstXFdNrM/yMFH\n"
-    "M8s0XUITr+0xsv59qHTzpgPZpRclMHfqFZ/erODQt4v1wD7Lw4SjdzF0fLUQ7ffo\n"
-    "HT6jZjBkMBIGA1UdEwEB/wQIMAYBAf8CAQEwDgYDVR0PAQH/BAQDAgAGMB0GA1Ud\n"
-    "DgQWBBT2U5xKyPsFhI5QivXiVXWgfA4QUjAfBgNVHSMEGDAWgBT2U5xKyPsFhI5Q\n"
-    "ivXiVXWgfA4QUjAMBggqhkjOPQQDAgUAA0gAMEUCIQCzBFdoh9xMGTwwOjGVAtUG\n"
-    "LqSJ0QIWEs5Kd50ULd7dmwIgeZ/UhppiYJJ44M9e0+FRp+p27cQ7tzWjm7k/xODZ\n"
-    "6gk=\n"
-    "-----END CERTIFICATE-----\n"
-    "-----BEGIN CERTIFICATE-----\n"
-    "MIIF3jCCA8agAwIBAgIQAf1tMPyjylGoG7xkDjUDLTANBgkqhkiG9w0BAQwFADCB\n"
-    "iDELMAkGA1UEBhMCVVMxEzARBgNVBAgTCk5ldyBKZXJzZXkxFDASBgNVBAcTC0pl\n"
-    "cnNleSBDaXR5MR4wHAYDVQQKExVUaGUgVVNFUlRSVVNUIE5ldHdvcmsxLjAsBgNV\n"
-    "BAMTJVVTRVJUcnVzdCBSU0EgQ2VydGlmaWNhdGlvbiBBdXRob3JpdHkwHhcNMTAw\n"
-    "MjAxMDAwMDAwWhcNMzgwMTE4MjM1OTU5WjCBiDELMAkGA1UEBhMCVVMxEzARBgNV\n"
-    "BAgTCk5ldyBKZXJzZXkxFDASBgNVBAcTC0plcnNleSBDaXR5MR4wHAYDVQQKExVU\n"
-    "aGUgVVNFUlRSVVNUIE5ldHdvcmsxLjAsBgNVBAMTJVVTRVJUcnVzdCBSU0EgQ2Vy\n"
-    "dGlmaWNhdGlvbiBBdXRob3JpdHkwggIiMA0GCSqGSIb3DQEBAQUAA4ICDwAwggIK\n"
-    "AoICAQCAEmUXNg7D2wiz0KxXDXbtzSfTTK1Qg2HiqiBNCS1kCdzOiZ/MPans9s/B\n"
-    "3PHTsdZ7NygRK0faOca8Ohm0X6a9fZ2jY0K2dvKpOyuR+OJv0OwWIJAJPuLodMkY\n"
-    "tJHUYmTbf6MG8YgYapAiPLz+E/CHFHv25B+O1ORRxhFnRghRy4YUVD+8M/5+bJz/\n"
-    "Fp0YvVGONaanZshyZ9shZrHUm3gDwFA66Mzw3LyeTP6vBZY1H1dat//O+T23LLb2\n"
-    "VN3I5xI6Ta5MirdcmrS3ID3KfyI0rn47aGYBROcBTkZTmzNg95S+UzeQc0PzMsNT\n"
-    "79uq/nROacdrjGCT3sTHDN/hMq7MkztReJVni+49Vv4M0GkPGw/zJSZrM233bkf6\n"
-    "c0Plfg6lZrEpfDKEY1WJxA3Bk1QwGROs0303p+tdOmw1XNtB1xLaqUkL39iAigmT\n"
-    "Yo61Zs8liM2EuLE/pDkP2QKe6xJMlXzzawWpXhaDzLhn4ugTncxbgtNMs+1b/97l\n"
-    "c6wjOy0AvzVVdAlJ2ElYGn+SNuZRkg7zJn0cTRe8yexDJtC/QV9AqURE9JnnV4ee\n"
-    "UB9XVKg+/XRjL7FQZQnmWEIuQxpMtPAlR1n6BB6T1CZGSlCBst6+eLf8ZxXhyVeE\n"
-    "Hg9j1uliutZfVS7qXMYoCAQlObgOK6nyTJccBz8NUvXt7y+CDwIDAQABo0IwQDAd\n"
-    "BgNVHQ4EFgQUU3m/WqorSs9UgOHYm8Cd8rIDZsswDgYDVR0PAQH/BAQDAgEGMA8G\n"
-    "A1UdEwEB/wQFMAMBAf8wDQYJKoZIhvcNAQEMBQADggIBAFzUfA3P9wF9QZllDHPF\n"
-    "Up/L+M+ZBn8b2kMVn54CVVeWFPFSPCeHlCjtHzoBN6J2/FNQwISbxmtOuowhT6KO\n"
-    "VWKR82kV2LyI48SqC/3vqOlLVSoGIG1VeCkZ7l8wXEskEVX/JJpuXior7gtNn3/3\n"
-    "ATiUFJVDBwn7YKnuHKsSjKCaXqeYalltiz8I+8jRRa8YFWSQEg9zKC7F4iRO/Fjs\n"
-    "8PRF/iKz6y+O0tlFYQXBl2+odnKPi4w2r78NBc5xjeambx9spnFixdjQg3IM8WcR\n"
-    "iQycE0xyNN+81XHfqnHd4blsjDwSXWXavVcStkNr/+XeTWYRUc+ZruwXtuhxkYze\n"
-    "Sf7dNXGiFSeUHM9h4ya7b6NnJSFd5t0dCy5oGzuCr+yDZ4XUmFF0sbmZgIn/f3gZ\n"
-    "XHlKYC6SQK5MNyosycdiyA5d9zZbyuAlJQG03RoHnHcAP9Dc1ew91Pq7P8yF1m9/\n"
-    "qS3fuQL39ZeatTXaw2ewh0qpKJ4jjv9cJ2vhsE/zB+4ALtRZh8tSQZXq9EfX7mRB\n"
-    "VXyNWQKV3WKdwrnuWih0hKWbt5DHDAff9Yk2dDLWKMGwsAvgnEzDHNb842m1R0aB\n"
-    "L6KCq9NjRHDEjf8tM7qtj3u1cIiuPhnPQCjY/MiQu12ZIvVS5ljFH4gxQ+6IHdfG\n"
-    "jjxDah2nGN59PRbxYvnKkKj9\n"
-    "-----END CERTIFICATE-----\n";
-
-}  // namespace
+ // namespace
 
 MtlsProxyConfig::MtlsProxyConfig()
     : enabled_(false),
       proxy_endpoint_(HostPortPair("eb.wootzapp.com", 443)) {
 #if BUILDFLAG(IS_ANDROID)
-  // On Android, try to load from Android Keystore first
+  // On Android, try to load from Android Keystore
   if (LoadFromAndroidKeystore()) {
     LOG(INFO) << "Loaded mTLS certificates from Android Keystore";
   } else {
-    // Fall back to hardcoded certificates if keystore is empty
-    LOG(INFO) << "Android Keystore empty, loading hardcoded certificates";
-    LoadHardcodedCertificates();
+    LOG(WARNING) << "Android Keystore empty. mTLS proxy will remain disabled until certificates are provided.";
   }
 #else
-  // On other platforms, use hardcoded certificates
-  LoadHardcodedCertificates();
+  LOG(WARNING) << "mTLS proxy certificates must be provided via SetClientCertificate() or LoadFromFiles()";
 #endif
 }
 
@@ -223,73 +144,9 @@ bool MtlsProxyConfig::LoadFromFiles(const base::FilePath& client_cert_path,
 }
 
 bool MtlsProxyConfig::LoadHardcodedCertificates() {
-  LOG(INFO) << "Loading hardcoded mTLS certificates";
-
-  // Parse client certificate
-  CertificateList cert_list =
-      X509Certificate::CreateCertificateListFromBytes(
-          base::as_bytes(base::make_span(kHardcodedClientCert)),
-          X509Certificate::FORMAT_PEM_CERT_SEQUENCE);
-  
-  if (cert_list.empty()) {
-    LOG(ERROR) << "Failed to parse hardcoded client certificate";
-    return false;
-  }
-
-  client_cert_ = cert_list[0];
-
-  // Parse private key using OpenSSL
-  bssl::UniquePtr<BIO> bio(
-      BIO_new_mem_buf(kHardcodedClientKey, strlen(kHardcodedClientKey)));
-  if (!bio) {
-    LOG(ERROR) << "Failed to create BIO for hardcoded private key";
-    return false;
-  }
-
-  bssl::UniquePtr<EVP_PKEY> pkey(
-      PEM_read_bio_PrivateKey(bio.get(), nullptr, nullptr, nullptr));
-  if (!pkey) {
-    LOG(ERROR) << "Failed to parse hardcoded private key";
-    return false;
-  }
-
-  client_key_ = WrapOpenSSLPrivateKey(std::move(pkey));
-  if (!client_key_) {
-    LOG(ERROR) << "Failed to wrap hardcoded private key";
-    return false;
-  }
-
-  // Parse CA certificate
-  CertificateList ca_list =
-      X509Certificate::CreateCertificateListFromBytes(
-          base::as_bytes(base::make_span(kHardcodedCACert)),
-          X509Certificate::FORMAT_PEM_CERT_SEQUENCE);
-  
-  if (!ca_list.empty()) {
-    ca_cert_ = ca_list[0];
-  } else {
-    LOG(WARNING) << "Failed to parse hardcoded CA certificate";
-  }
-
-  LOG(INFO) << "Successfully loaded hardcoded mTLS certificates";
-  
-  // Verify the loaded certificates are valid
-  if (!client_cert_) {
-    LOG(ERROR) << "client_cert_ is null after loading!";
-    return false;
-  }
-  if (!client_key_) {
-    LOG(ERROR) << "client_key_ is null after loading!";
-    return false;
-  }
-  
-  LOG(INFO) << "Certificates verified: client_cert=" << client_cert_.get() 
-            << " client_key=" << client_key_.get();
-  
-  // Enable by default when certificates are loaded
-  SetEnabled(true);
-  
-  return true;
+  LOG(WARNING) << "Hardcoded certificates are not available. mTLS proxy will remain disabled.";
+  // No hardcoded certificates - must use Android Keystore or provide via SetClientCertificate
+  return false;
 }
 
 #if BUILDFLAG(IS_ANDROID)
@@ -373,9 +230,8 @@ bool MtlsProxyConfig::ReloadFromAndroidKeystore() {
     LOG(INFO) << "Successfully reloaded mTLS certificates from Android Keystore";
     return true;
   } else {
-    // If reload fails, fall back to hardcoded certificates
-    LOG(WARNING) << "Failed to reload from Android Keystore, falling back to hardcoded";
-    return LoadHardcodedCertificates();
+    LOG(ERROR) << "Failed to reload from Android Keystore. mTLS proxy will be disabled.";
+    return false;
   }
 }
 #endif
