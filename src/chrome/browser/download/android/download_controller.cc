@@ -31,6 +31,9 @@
 #include "chrome/browser/download/android/download_manager_service.h"
 #include "chrome/browser/download/android/download_utils.h"
 #include "chrome/browser/download/download_offline_content_provider.h"
+#include "chrome/browser/activity_tracking/activity_tracking_service.h"
+#include "chrome/browser/activity_tracking/activity_tracking_service_factory.h"
+#include "chrome/browser/activity_tracking/navigation_event_collector.h"
 #include "chrome/browser/download/download_offline_content_provider_factory.h"
 #include "chrome/browser/download/download_stats.h"
 #include "chrome/browser/flags/android/chrome_feature_list.h"
@@ -592,6 +595,20 @@ void DownloadController::ShowDownloadBlockedDialog(DownloadItem* item) {
   
   // Pass true to indicate this is a blocking dialog
   dangerous_download_bridge_->ShowBlockedDialog(item, window_android);
+  
+  // Track security violation for activity tracking
+  Profile* profile = Profile::FromBrowserContext(
+      content::DownloadItemUtils::GetBrowserContext(item));
+  if (profile) {
+    activity_tracking::ActivityTrackingService* tracking_service =
+        activity_tracking::ActivityTrackingServiceFactory::GetForProfile(profile);
+    if (tracking_service && tracking_service->navigation_collector()) {
+      std::string download_url = item->GetURL().spec();
+      tracking_service->navigation_collector()->TrackSecurityViolation(
+          web_contents, "download_blocked", download_url);
+      LOG(INFO) << "[DownloadController] Download violation tracked in activity service";
+    }
+  }
 }
 
 void DownloadController::StartContextMenuDownload(

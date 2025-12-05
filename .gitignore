@@ -367,6 +367,16 @@ __pycache__/
 !src/chrome/browser/preloading/prefetch/no_state_prefetch/no_state_prefetch_manager_factory.cc
 !src/chrome/browser/prefs/activity_tracking_prefs.cc
 !src/chrome/browser/prefs/activity_tracking_prefs.h
+!src/net/BUILD.gn
+!src/net/android/wootz_keystore.cc
+!src/net/android/wootz_keystore.h
+!src/net/http/BUILD.gn.additions
+!src/net/http/mtls_proxy_client_socket.cc
+!src/net/http/mtls_proxy_client_socket.h
+!src/net/http/mtls_proxy_client_socket_unittest.cc
+!src/net/http/mtls_proxy_config.cc
+!src/net/http/mtls_proxy_config.h
+!src/third_party/arcore-android-sdk-client/core-1.44.0.info
 !src/chrome/browser/privacy_sandbox/android/java/res/layout/privacy_sandbox_consent_eea.xml
 !src/chrome/browser/privacy_sandbox/android/java/res/layout/privacy_sandbox_notice_eea.xml
 !src/chrome/browser/privacy_sandbox/android/java/res/layout/privacy_sandbox_notice_restricted.xml

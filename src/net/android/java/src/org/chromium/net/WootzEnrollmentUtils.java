@@ -232,7 +232,8 @@ public class WootzEnrollmentUtils {
                 }
             }
             json.append("],");
-            json.append("\"nonce\":\"").append(escapeJsonString(nonce)).append("\"");
+            json.append("\"nonce\":\"").append(escapeJsonString(nonce)).append("\",");
+            json.append("\"validity\":\"90d\"");
             
             json.append("}");
             return json.toString();
@@ -240,8 +241,7 @@ public class WootzEnrollmentUtils {
         } catch (Exception e) {
             // Fallback: create basic structure with full chain as single element
             return String.format(
-                "{\"csr\":\"%s\",\"attestationChain\":[\"%s\"],\"nonce\":\"%s\"}",
-                escapeJsonString(csr),
+                "{\"csr\":\"%s\",\"attestationChain\":[\"%s\"],\"nonce\":\"%s\",\"validity\":\"90d\"}",                escapeJsonString(csr),
                 escapeJsonString(attestationChainPem),
                 escapeJsonString(nonce)
             );

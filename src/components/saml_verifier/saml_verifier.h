@@ -136,6 +136,30 @@ class SyntheticKeystrokesAttributeProcessor : public SamlAttributeProcessor {
   std::vector<std::string> GetHandledAttributes() const override;
 };
 
+// Activity tracking processor for handling activity_tracking attribute
+class ActivityTrackingAttributeProcessor : public SamlAttributeProcessor {
+ public:
+  ActivityTrackingAttributeProcessor() = default;
+  ~ActivityTrackingAttributeProcessor() override = default;
+  
+  bool ProcessAttributes(const std::vector<SamlAttribute>& attributes,
+                         PrefService* prefs) override;
+  
+  std::vector<std::string> GetHandledAttributes() const override;
+};
+
+// Username/Email processor for handling username attribute
+class UsernameAttributeProcessor : public SamlAttributeProcessor {
+ public:
+  UsernameAttributeProcessor() = default;
+  ~UsernameAttributeProcessor() override = default;
+  
+  bool ProcessAttributes(const std::vector<SamlAttribute>& attributes,
+                         PrefService* prefs) override;
+  
+  std::vector<std::string> GetHandledAttributes() const override;
+};
+
 class SamlVerifier {
  public:
   SamlVerifier();
@@ -179,6 +203,12 @@ class SamlVerifier {
   
   // For convenience: Register the built-in synthetic keystrokes processor
   void RegisterSyntheticKeystrokesProcessor();
+  
+  // For convenience: Register the built-in activity tracking processor
+  void RegisterActivityTrackingProcessor();
+  
+  // For convenience: Register the built-in username/email processor
+  void RegisterUsernameProcessor();
   
   // Enable/disable signature verification (default: enabled)
   void SetSignatureVerificationEnabled(bool enabled);

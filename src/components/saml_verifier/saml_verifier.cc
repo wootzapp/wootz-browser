@@ -516,6 +516,122 @@ SyntheticKeystrokesAttributeProcessor::GetHandledAttributes() const {
   return {"synthetic_keystrokes"};
 }
 
+// ActivityTrackingAttributeProcessor implementation
+bool ActivityTrackingAttributeProcessor::ProcessAttributes(
+    const std::vector<SamlAttribute>& attributes,
+    PrefService* prefs) {
+  if (!prefs) {
+    LOG(ERROR) << "ActivityTrackingAttributeProcessor: PrefService is null";
+    return false;
+  }
+
+  bool activity_tracking_enabled = false;  // Default to false
+  bool found_activity_tracking = false;
+  
+  // Check if activity tracking was already enabled
+  bool was_previously_enabled = prefs->GetBoolean("activity_tracking.enabled");
+
+  // Look for activity_tracking attribute
+  for (const auto& attr : attributes) {
+    if (attr.name == "activity_tracking" && !attr.values.empty()) {
+      found_activity_tracking = true;
+      std::string value = attr.values[0];
+
+      // Convert to lowercase for case-insensitive comparison
+      std::transform(value.begin(), value.end(), value.begin(), ::tolower);
+
+      // Parse boolean values: true/false, 1/0, yes/no, enabled/disabled
+      if (value == "true" || value == "1" || value == "yes" || 
+          value == "enabled" || value == "enable" || value == "on") {
+        activity_tracking_enabled = true;
+      } else if (value == "false" || value == "0" || value == "no" || 
+                 value == "disabled" || value == "disable" || value == "off") {
+        activity_tracking_enabled = false;
+      } else {
+        LOG(WARNING) << "Invalid activity_tracking value: " << attr.values[0]
+                     << " - defaulting to false";
+      }
+      break;
+    }
+  }
+  
+  // Once activity tracking is enabled, keep it enabled
+  // (sticky behavior - once true, stays true)
+  if (was_previously_enabled) {
+    activity_tracking_enabled = true;
+    LOG(INFO) << "Activity tracking was previously enabled - keeping enabled";
+  }
+
+  // Update the activity tracking preference
+  // Use the activity_tracking pref from activity_tracking_prefs.h
+  prefs->SetBoolean("activity_tracking.enabled", activity_tracking_enabled);
+
+  LOG(INFO) << "Activity tracking "
+            << (found_activity_tracking ? "set" : "defaulted") << " to: "
+            << (activity_tracking_enabled ? "enabled" : "disabled");
+
+  return true;
+}
+
+std::vector<std::string>
+ActivityTrackingAttributeProcessor::GetHandledAttributes() const {
+  return {"activity_tracking"};
+}
+
+// UsernameAttributeProcessor implementation
+bool UsernameAttributeProcessor::ProcessAttributes(
+    const std::vector<SamlAttribute>& attributes,
+    PrefService* prefs) {
+  if (!prefs) {
+    LOG(ERROR) << "UsernameAttributeProcessor: PrefService is null";
+    return false;
+  }
+
+  std::string user_email;
+  bool found_username = false;
+
+  // Look for username or email attribute
+  // Common SAML attribute names for username/email
+  const std::vector<std::string> username_attrs = {
+    "username",
+    "email", 
+    "mail",
+    "user_email",
+    "emailaddress",
+    "user.email",
+    "http://schemas.xmlsoap.org/ws/2005/05/identity/claims/emailaddress"
+  };
+
+  for (const auto& attr : attributes) {
+    for (const auto& username_attr : username_attrs) {
+      if (attr.name == username_attr && !attr.values.empty()) {
+        user_email = attr.values[0];
+        found_username = true;
+        LOG(INFO) << "Found username/email in attribute: " << username_attr;
+        break;
+      }
+    }
+    if (found_username) {
+      break;
+    }
+  }
+
+  // Update the user email preference
+  if (found_username && !user_email.empty()) {
+    prefs->SetString("activity_tracking.user_email", user_email);
+    LOG(INFO) << "User email set to: " << user_email;
+  } else {
+    LOG(WARNING) << "No username/email attribute found in SAML response";
+  }
+
+  return true;
+}
+
+std::vector<std::string>
+UsernameAttributeProcessor::GetHandledAttributes() const {
+  return {"username", "email", "mail", "user_email", "emailaddress", "user.email"};
+}
+
 // SamlVerifier implementation
 SamlVerifier::SamlVerifier() {
   // XmlReader handles libxml2 initialization internally
@@ -647,6 +763,15 @@ void SamlVerifier::RegisterSyntheticKeystrokesProcessor() {
       std::make_unique<SyntheticKeystrokesAttributeProcessor>());
 }
 
+void SamlVerifier::RegisterActivityTrackingProcessor() {
+  RegisterAttributeProcessor(
+      std::make_unique<ActivityTrackingAttributeProcessor>());
+}
+
+void SamlVerifier::RegisterUsernameProcessor() {
+  RegisterAttributeProcessor(std::make_unique<UsernameAttributeProcessor>());
+}
+
 // static
 void SamlVerifier::ProcessNewSamlResponse(PrefService* prefs) {
   if (!prefs) {
@@ -677,6 +802,12 @@ void SamlVerifier::ProcessNewSamlResponse(PrefService* prefs) {
 
   verifier->RegisterSyntheticKeystrokesProcessor();
   LOG(INFO) << "[SAML] - Synthetic keystrokes processor registered";
+
+  verifier->RegisterActivityTrackingProcessor();
+  LOG(INFO) << "[SAML] - Activity tracking processor registered";
+
+  verifier->RegisterUsernameProcessor();
+  LOG(INFO) << "[SAML] - Username/email processor registered";
 
   verifier->SetSignatureVerificationEnabled(true);
   verifier->SetDynamicCertificateFetchingEnabled(true);

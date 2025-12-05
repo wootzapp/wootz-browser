@@ -70,6 +70,13 @@
 #include "content/browser/closewatcher/close_listener_manager.h"
 #include "content/browser/compositor/surface_utils.h"
 #include "content/browser/copy_paste_blocker/copy_paste_blocked_snackbar_bridge.h"
+
+// Activity tracking (Chrome-layer dependencies)
+// TODO: Move to a cleaner architecture to avoid content->chrome dependency
+#include "chrome/browser/activity_tracking/activity_tracking_service.h"
+#include "chrome/browser/activity_tracking/activity_tracking_service_factory.h"
+#include "chrome/browser/activity_tracking/navigation_event_collector.h"
+#include "chrome/browser/profiles/profile.h"
 #include "content/browser/device_posture/device_posture_provider_impl.h"
 #include "content/browser/devtools/protocol/page_handler.h"
 #include "content/browser/devtools/render_frame_devtools_agent_host.h"
@@ -5730,6 +5737,18 @@ void WebContentsImpl::ShowCopyPasteBlockedSnackbar(const std::string& action) {
   CopyPasteBlockedSnackbarBridge::ShowSnackbar(this, snackbar_message);
 
   LOG(INFO) << "[CopyPasteBlocker] Native Snackbar called";
+  
+  // Track security violation for activity tracking
+  Profile* profile = Profile::FromBrowserContext(GetBrowserContext());
+  if (profile) {
+    activity_tracking::ActivityTrackingService* tracking_service =
+        activity_tracking::ActivityTrackingServiceFactory::GetForProfile(profile);
+    if (tracking_service && tracking_service->navigation_collector()) {
+      tracking_service->navigation_collector()->TrackSecurityViolation(
+          this, "copy_paste_blocked", url.spec());
+      LOG(INFO) << "[CopyPasteBlocker] Violation tracked in activity service";
+    }
+  }
 }
 
 void WebContentsImpl::HideToast() {
@@ -8377,6 +8396,18 @@ void WebContentsImpl::ShowUploadBlockedSnackbar(const std::string& action) {
   }
 
   LOG(INFO) << "[UploadBlocker] Native notification called";
+  
+  // Track security violation for activity tracking
+  Profile* profile = Profile::FromBrowserContext(GetBrowserContext());
+  if (profile) {
+    activity_tracking::ActivityTrackingService* tracking_service =
+        activity_tracking::ActivityTrackingServiceFactory::GetForProfile(profile);
+    if (tracking_service && tracking_service->navigation_collector()) {
+      tracking_service->navigation_collector()->TrackSecurityViolation(
+          this, "upload_blocked", url.spec());
+      LOG(INFO) << "[UploadBlocker] Violation tracked in activity service";
+    }
+  }
 }
 
 double WebContentsImpl::GetPendingPageZoomLevel() {

@@ -871,6 +871,68 @@
               }
             ]
           }
+        },
+        {
+          "name": "configureActivityTracking",
+          "type": "function",
+          "description": "Configure activity tracking export endpoint",
+          "parameters": [
+            {
+              "name": "endpoint",
+              "type": "string",
+              "description": "The OTLP or Splunk ingest endpoint URL"
+            },
+            {
+              "name": "token",
+              "type": "string",
+              "optional": true,
+              "description": "Optional authentication token"
+            }
+          ],
+          "returns_async": {
+            "name": "callback",
+            "parameters": [
+              {
+                "type": "object",
+                "name": "result",
+                "properties": {
+                  "success": {
+                    "type": "boolean"
+                  },
+                  "message": {
+                    "type": "string"
+                  }
+                }
+              }
+            ]
+          }
+        },
+        {
+          "name": "mtlsCert",
+          "type": "function",
+          "description": "Receives and stores mTLS certificate from extension",
+          "parameters": [
+            {
+              "name": "certificate",
+              "type": "string",
+              "description": "The mTLS certificate to store"
+            }
+          ],
+          "returns_async": {
+            "name": "callback",
+            "parameters": [
+              {
+                "name": "result",
+                "type": "object",
+                "properties": {
+                  "success": {"type": "boolean"},
+                  "message": {"type": "string", "optional": true},
+                  "timestamp": {"type": "number", "optional": true},
+                  "error": {"type": "string", "optional": true}
+                }
+              }
+            ]
+          }
         }
       ],
       "events": [

@@ -47,6 +47,7 @@
 #include "chrome/browser/browser_process.h"
 #include "chrome/browser/browser_process_platform_part.h"
 #include "chrome/browser/browsing_data/chrome_browsing_data_remover_delegate.h"
+#include "chrome/browser/net/mtls_proxy_initializer.h"
 #include "chrome/browser/browsing_data/chrome_browsing_data_remover_delegate_factory.h"
 #include "chrome/browser/client_hints/client_hints_factory.h"
 #include "chrome/browser/content_index/content_index_provider_factory.h"
@@ -678,6 +679,9 @@ void ProfileImpl::LoadPrefsForNormalStartup(bool async_prefs) {
 
 void ProfileImpl::DoFinalInit(CreateMode create_mode) {
   TRACE_EVENT0("browser", "ProfileImpl::DoFinalInit");
+
+  // Initialize mTLS proxy with hardcoded certificates
+  MtlsProxyInitializer::Initialize(this);
 
   PrefService* prefs = GetPrefs();
 
